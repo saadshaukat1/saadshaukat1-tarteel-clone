@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="TarteelMobile.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Primary palette -->
+            <Color x:Key="Primary">#1A6B3C</Color>
+            <Color x:Key="PrimaryDark">#0F3D22</Color>
+            <Color x:Key="Gold">#C9A84C</Color>
+            <Color x:Key="Surface">#F9F6EF</Color>
+            <Color x:Key="OnSurface">#1C1C1E</Color>
+            <Color x:Key="Error">#E53935</Color>
+
+            <Style TargetType="Label">
+                <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="FontFamily" Value="OpenSansRegular" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

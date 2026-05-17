@@ -427,3 +427,28 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ── Python (ASR Service) ─────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Whisper model cache (large binary files – download at build time)
+~/.cache/whisper/
+
+# ── Quran raw datasets ────────────────────────────────────────
+data/quran/*.json
+data/quran/*.xml
+data/quran/*.txt
+!data/quran/README.txt
+
+# ── Docker ────────────────────────────────────────────────────
+.docker/
