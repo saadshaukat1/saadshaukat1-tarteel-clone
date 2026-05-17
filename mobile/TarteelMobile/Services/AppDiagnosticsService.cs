@@ -34,11 +34,32 @@ public sealed class FileAppDiagnosticsService : IAppDiagnosticsService
 
     public void Error(string message, Exception? exception = null)
     {
-        var fullMessage = exception is null
-            ? message
-            : $"{message} | {exception.GetType().Name}: {exception.Message}";
+        if (exception is null)
+        {
+            Append("ERROR", message);
+            return;
+        }
 
-        Append("ERROR", fullMessage);
+        var details = new StringBuilder();
+        details.Append(message);
+
+        var current = exception;
+        while (current is not null)
+        {
+            details.Append(" | ");
+            details.Append(current.GetType().Name);
+            details.Append(": ");
+            details.Append(current.Message);
+            current = current.InnerException;
+        }
+
+        if (exception.StackTrace is { Length: > 0 } stackTrace)
+        {
+            details.Append(" | StackTrace: ");
+            details.Append(stackTrace.Replace(Environment.NewLine, " \\n "));
+        }
+
+        Append("ERROR", details.ToString());
     }
 
     public async Task<IReadOnlyList<string>> ReadRecentAsync(int maxLines = 200)

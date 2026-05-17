@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ public sealed class LocalWhisperAsrEngine(
     ILogger<LocalWhisperAsrEngine> logger) : IAsrEngine
 {
     private const string DefaultRuntimeFileName = "whisper-cli.exe";
+    private static readonly HttpClient SharedHttpClient = new();
     private static readonly string[] SupportedModelExtensions = [".bin", ".gguf"];
 
     private readonly LocalWhisperOptions _options = options.Value;
@@ -48,9 +50,9 @@ public sealed class LocalWhisperAsrEngine(
 
         if (!TryValidateRuntime(configuredTier, out var setupError))
         {
-            _logger.LogWarning("Local Whisper init deferred: {SetupError}", setupError);
+            _logger.LogWarning("Local Whisper init blocked: {SetupError}", setupError);
             _isInitialized = false;
-            _isUsingMockMode = _options.AllowMockWhenUnavailable;
+            _isUsingMockMode = false;
             return;
         }
 
@@ -107,7 +109,7 @@ public sealed class LocalWhisperAsrEngine(
     private async Task WarmupAsync(CancellationToken cancellationToken)
     {
         // Small silence buffer for startup path validation and model preload.
-        var silenceChunk = new byte[3200];
+        var silenceChunk = BuildWaveFileBytes(new byte[3200]);
         var warmupResult = await TryTranscribeWithTierAsync(_options.PrimaryTier, silenceChunk, false, cancellationToken);
 
         if (warmupResult.IsSuccess)
@@ -138,31 +140,31 @@ public sealed class LocalWhisperAsrEngine(
             return RecitationTranscriptionResult.Failure($"Model path is empty for tier '{tier}'.", tier, usedFallback);
         }
 
+        if (!File.Exists(resolvedModelPath))
+        {
+            var downloadResult = await TryDownloadModelAsync(tier, resolvedModelPath, tierDefinition, cancellationToken);
+            if (!downloadResult.IsSuccess)
+            {
+                return RecitationTranscriptionResult.Failure(downloadResult.ErrorMessage, tier, usedFallback);
+            }
+        }
+
         if (!TryValidateRuntime(tier, out var validationError))
         {
-            if (_options.AllowMockWhenUnavailable)
-            {
-                _logger.LogWarning(
-                    "Local Whisper runtime unavailable. Returning mock transcript. Tier={Tier} Error={Error}",
-                    tier,
-                    validationError);
-                _isUsingMockMode = true;
-                return BuildMockTranscriptResult(tier, usedFallback, validationError);
-            }
-
             return RecitationTranscriptionResult.Failure(validationError, tier, usedFallback);
         }
 
         var tempAudioPath = Path.Combine(
             Path.GetTempPath(),
-            $"tarteel-asr-{Guid.NewGuid():N}.pcm");
+            $"tarteel-asr-{Guid.NewGuid():N}.wav");
+        Process? process = null;
 
         try
         {
             await File.WriteAllBytesAsync(tempAudioPath, audioChunk, cancellationToken);
 
             _isUsingMockMode = false;
-            using var process = CreateWhisperProcess(resolvedModelPath, tempAudioPath);
+            process = CreateWhisperProcess(resolvedModelPath, tempAudioPath);
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(_options.InferenceTimeoutSeconds));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -197,6 +199,11 @@ public sealed class LocalWhisperAsrEngine(
         }
         catch (OperationCanceledException)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
             return RecitationTranscriptionResult.Failure(
                 $"Whisper inference timed out after {_options.InferenceTimeoutSeconds}s.",
                 tier,
@@ -205,17 +212,72 @@ public sealed class LocalWhisperAsrEngine(
         catch (Exception ex)
         {
             _logger.LogError(ex, "Local Whisper inference crashed for tier {Tier}", tier);
-            if (_options.AllowMockWhenUnavailable)
-            {
-                _isUsingMockMode = true;
-                return BuildMockTranscriptResult(tier, usedFallback, $"Exception: {ex.Message}");
-            }
-
             return RecitationTranscriptionResult.Failure(ex.Message, tier, usedFallback);
         }
         finally
         {
+            if (process is not null && !process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Best effort kill only.
+                }
+            }
+
+            process?.Dispose();
             TryDeleteTempFile(tempAudioPath);
+        }
+    }
+
+    private async Task<(bool IsSuccess, string ErrorMessage)> TryDownloadModelAsync(
+        string tier,
+        string targetModelPath,
+        WhisperModelTierDefinition tierDefinition,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tierDefinition.DownloadUrl))
+        {
+            return (false, $"Whisper model file not found at '{targetModelPath}', and no download URL is configured for tier '{tier}'.");
+        }
+
+        try
+        {
+            var modelDirectory = Path.GetDirectoryName(targetModelPath);
+            if (!string.IsNullOrWhiteSpace(modelDirectory))
+            {
+                Directory.CreateDirectory(modelDirectory);
+            }
+
+            _logger.LogInformation("Downloading Whisper model for tier {Tier} from {Url}", tier, tierDefinition.DownloadUrl);
+
+            using var response = await SharedHttpClient.GetAsync(
+                tierDefinition.DownloadUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (false, $"Failed to download model for tier '{tier}'. HTTP {(int)response.StatusCode}.");
+            }
+
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var destination = File.Create(targetModelPath);
+            await source.CopyToAsync(destination, cancellationToken);
+
+            if (!File.Exists(targetModelPath))
+            {
+                return (false, $"Downloaded model for tier '{tier}' did not persist to '{targetModelPath}'.");
+            }
+
+            _logger.LogInformation("Whisper model for tier {Tier} downloaded to {Path}", tier, targetModelPath);
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Failed to download model for tier '{tier}': {ex.Message}");
         }
     }
 
@@ -447,20 +509,6 @@ public sealed class LocalWhisperAsrEngine(
         return roots.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static RecitationTranscriptionResult BuildMockTranscriptResult(
-        string tier,
-        bool usedFallback,
-        string reason)
-    {
-        return new RecitationTranscriptionResult(
-            true,
-            string.Empty,
-            0f,
-            tier,
-            usedFallback,
-            $"Mock transcript mode active: {reason}");
-    }
-
     private static string ExtractTranscript(string stdout)
     {
         var lines = stdout
@@ -471,6 +519,37 @@ public sealed class LocalWhisperAsrEngine(
             ?? string.Empty;
 
         return bestLine.Trim();
+    }
+
+    private static byte[] BuildWaveFileBytes(
+        byte[] pcmBytes,
+        int sampleRateHz = 16000,
+        short bitsPerSample = 16,
+        short channels = 1)
+    {
+        var blockAlign = (short)(channels * (bitsPerSample / 8));
+        var byteRate = sampleRateHz * blockAlign;
+
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
+
+        writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+        writer.Write(36 + pcmBytes.Length);
+        writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+        writer.Write(Encoding.ASCII.GetBytes("fmt "));
+        writer.Write(16);
+        writer.Write((short)1); // PCM
+        writer.Write(channels);
+        writer.Write(sampleRateHz);
+        writer.Write(byteRate);
+        writer.Write(blockAlign);
+        writer.Write(bitsPerSample);
+        writer.Write(Encoding.ASCII.GetBytes("data"));
+        writer.Write(pcmBytes.Length);
+        writer.Write(pcmBytes);
+        writer.Flush();
+
+        return stream.ToArray();
     }
 
     private static void TryDeleteTempFile(string path)

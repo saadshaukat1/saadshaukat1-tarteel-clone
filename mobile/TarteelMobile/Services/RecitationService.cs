@@ -9,6 +9,7 @@ public interface IRecitationService
     event EventHandler<MatchResult>? MatchResultReceived;
     bool RequiresAuthentication { get; }
     Task ConnectAsync();
+    Task FlushAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync();
     Task SendAudioChunkAsync(byte[] audioChunk);
 }
@@ -19,6 +20,8 @@ public sealed class RecitationService : IRecitationService
     private readonly ISessionService _session;
     private readonly IAppDiagnosticsService _diagnostics;
     private readonly object _sync = new();
+    private readonly SemaphoreSlim _chunkProcessingGate = new(1, 1);
+    private CancellationTokenSource? _sessionCancellation;
     private bool _connected;
 
     public event EventHandler<MatchResult>? MatchResultReceived;
@@ -44,25 +47,68 @@ public sealed class RecitationService : IRecitationService
             throw new InvalidOperationException("Please log in before starting recitation.");
         }
 
+        CancellationTokenSource? previousSessionCancellation;
+        CancellationToken sessionToken;
         lock (_sync)
         {
+            previousSessionCancellation = _sessionCancellation;
+            _sessionCancellation = new CancellationTokenSource();
+            sessionToken = _sessionCancellation.Token;
             _connected = true;
         }
 
-        await _orchestrator.StartAsync();
+        previousSessionCancellation?.Cancel();
+        previousSessionCancellation?.Dispose();
+
+        try
+        {
+            await _orchestrator.StartAsync(sessionToken);
+        }
+        catch
+        {
+            CancellationTokenSource? failedSessionCancellation;
+            lock (_sync)
+            {
+                _connected = false;
+                failedSessionCancellation = _sessionCancellation;
+                _sessionCancellation = null;
+            }
+
+            failedSessionCancellation?.Cancel();
+            failedSessionCancellation?.Dispose();
+            throw;
+        }
+
         _diagnostics.Info($"Recitation auth requirement: {RequiresAuthentication}.");
         _diagnostics.Info("Recitation pipeline connected in local in-process mode.");
     }
 
-    public Task DisconnectAsync()
+    public async Task DisconnectAsync()
     {
+        CancellationTokenSource? currentSessionCancellation;
         lock (_sync)
         {
             _connected = false;
+            currentSessionCancellation = _sessionCancellation;
+            _sessionCancellation = null;
         }
 
+        currentSessionCancellation?.Cancel();
         _diagnostics.Info("Recitation pipeline disconnected.");
-        return _orchestrator.StopAsync();
+        try
+        {
+            await _orchestrator.StopAsync();
+        }
+        finally
+        {
+            currentSessionCancellation?.Dispose();
+        }
+    }
+
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        await _chunkProcessingGate.WaitAsync(cancellationToken);
+        _chunkProcessingGate.Release();
     }
 
     public async Task SendAudioChunkAsync(byte[] audioChunk)
@@ -73,15 +119,42 @@ public sealed class RecitationService : IRecitationService
         }
 
         bool isConnected;
+        CancellationToken sessionToken;
         lock (_sync)
         {
             isConnected = _connected;
+            sessionToken = _sessionCancellation?.Token ?? CancellationToken.None;
         }
 
         if (!isConnected)
             return;
 
-        await _orchestrator.SubmitAudioChunkAsync(audioChunk);
+        try
+        {
+            await _chunkProcessingGate.WaitAsync(sessionToken);
+            lock (_sync)
+            {
+                if (!_connected)
+                {
+                    return;
+                }
+
+                sessionToken = _sessionCancellation?.Token ?? CancellationToken.None;
+            }
+
+            await _orchestrator.SubmitAudioChunkAsync(audioChunk, sessionToken);
+        }
+        catch (OperationCanceledException) when (sessionToken.IsCancellationRequested)
+        {
+            // Expected when user stops recitation and in-flight ASR is canceled.
+        }
+        finally
+        {
+            if (_chunkProcessingGate.CurrentCount == 0)
+            {
+                _chunkProcessingGate.Release();
+            }
+        }
     }
 
     private void OnCoreMatchProduced(object? sender, CoreModels.RecitationMatchResult result)
@@ -92,6 +165,8 @@ public sealed class RecitationService : IRecitationService
             AyahNum = result.AyahNum,
             ArabicText = result.ArabicText,
             Confidence = result.Confidence,
+            ProcessedWordCount = result.ProcessedWordCount,
+            MatchedWordCount = result.MatchedWordCount,
             Mismatches = result.Mismatches
                 .Select(m => new WordMismatch(m.Position, m.Spoken, m.Expected))
                 .ToList()

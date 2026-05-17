@@ -11,6 +11,8 @@ public sealed class RecitationMatchResult
     public int AyahNum { get; init; }
     public string ArabicText { get; init; } = string.Empty;
     public double Confidence { get; init; }
+    public int ProcessedWordCount { get; init; }
+    public int MatchedWordCount { get; init; }
     public IReadOnlyList<RecitationWordMismatch> Mismatches { get; init; } = [];
 }
 
