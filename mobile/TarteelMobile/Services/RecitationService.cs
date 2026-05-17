@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Configuration;
 using TarteelMobile.Models;
 
 namespace TarteelMobile.Services;
@@ -14,14 +15,20 @@ public interface IRecitationService
 public class RecitationService : IRecitationService, IAsyncDisposable
 {
     private HubConnection? _hub;
-    private const string HubUrl = "https://localhost:7001/hubs/recitation";
+    private readonly string _hubUrl;
 
     public event EventHandler<MatchResult>? MatchResultReceived;
+
+    public RecitationService(IConfiguration config)
+    {
+        var baseUrl = config["ApiService:BaseUrl"] ?? "https://localhost:7001";
+        _hubUrl = $"{baseUrl}/hubs/recitation";
+    }
 
     public async Task ConnectAsync(string token)
     {
         _hub = new HubConnectionBuilder()
-            .WithUrl($"{HubUrl}?access_token={token}")
+            .WithUrl($"{_hubUrl}?access_token={token}")
             .WithAutomaticReconnect()
             .Build();
 

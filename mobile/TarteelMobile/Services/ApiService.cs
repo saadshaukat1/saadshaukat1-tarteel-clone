@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 using TarteelMobile.Models;
 
 namespace TarteelMobile.Services;
@@ -14,13 +15,14 @@ public interface IApiService
 public class ApiService : IApiService
 {
     private readonly HttpClient _http;
-    private const string BaseUrl = "https://localhost:7001"; // override in prod
 
     public string? AuthToken { get; private set; }
 
-    public ApiService()
+    public ApiService(IConfiguration config)
     {
-        _http = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+        var baseUrl = config["ApiService:BaseUrl"]
+            ?? "https://localhost:7001";
+        _http = new HttpClient { BaseAddress = new Uri(baseUrl) };
     }
 
     public async Task<bool> LoginAsync(string email, string password)

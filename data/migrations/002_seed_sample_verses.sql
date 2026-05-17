@@ -1,5 +1,5 @@
 -- ============================================================
--- Seed: 001_seed_sample_verses.sql
+-- Seed: 002_seed_sample_verses.sql
 -- A handful of sample verses to bootstrap development
 -- (Full dataset: load from quran-json or quran.com API)
 -- ============================================================

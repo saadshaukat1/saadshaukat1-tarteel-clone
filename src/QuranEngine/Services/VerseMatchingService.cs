@@ -1,5 +1,6 @@
 using FuzzySharp;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TarteelClone.QuranEngine.Data;
 using TarteelClone.QuranEngine.Models;
 
@@ -9,12 +10,21 @@ namespace TarteelClone.QuranEngine.Services;
 /// Matches transcribed Arabic text against stored Quran verses using
 /// FuzzySharp (Levenshtein / token-set ratio) for tolerance of tajweed
 /// variations and minor transcription errors.
+/// All verse data is cached in memory after first load to support
+/// low-latency real-time recitation.
 /// </summary>
 public class VerseMatchingService : IVerseMatchingService
 {
-    private readonly QuranDbContext _db;
+    private readonly QuranDbContext  _db;
+    private readonly IMemoryCache    _cache;
+    private static readonly TimeSpan CacheExpiry = TimeSpan.FromHours(1);
+    private const string             CacheKey    = "all_verses";
 
-    public VerseMatchingService(QuranDbContext db) => _db = db;
+    public VerseMatchingService(QuranDbContext db, IMemoryCache cache)
+    {
+        _db    = db;
+        _cache = cache;
+    }
 
     public Task<Verse?> GetVerseAsync(int surahNum, int ayahNum,
         CancellationToken ct = default)
@@ -31,13 +41,16 @@ public class VerseMatchingService : IVerseMatchingService
 
     /// <summary>
     /// Finds the best-matching verse for the given transcribed Arabic text,
-    /// then computes per-word mismatches.
+    /// then computes per-word mismatches. Verse data is loaded from cache.
     /// </summary>
     public async Task<MatchResult> MatchAsync(string arabicText,
         CancellationToken ct = default)
     {
-        // Load all verses (production: cache this, don't hit DB per call).
-        var verses = await _db.Verses.ToListAsync(ct);
+        var verses = await _cache.GetOrCreateAsync(CacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheExpiry;
+            return await _db.Verses.AsNoTracking().ToListAsync(ct);
+        }) ?? [];
 
         Verse? bestVerse = null;
         int    bestScore = -1;
@@ -70,6 +83,9 @@ public class VerseMatchingService : IVerseMatchingService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // Threshold below which a spoken word is considered a mismatch (0–100 Fuzz ratio).
+    private const int WordMatchThreshold = 80;
+
     private static List<WordMismatch> ComputeMismatches(string spoken, string expected)
     {
         var spokenWords   = spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -79,7 +95,7 @@ public class VerseMatchingService : IVerseMatchingService
         int len = Math.Min(spokenWords.Length, expectedWords.Length);
         for (int i = 0; i < len; i++)
         {
-            if (Fuzz.Ratio(spokenWords[i], expectedWords[i]) < 80)
+            if (Fuzz.Ratio(spokenWords[i], expectedWords[i]) < WordMatchThreshold)
                 mismatches.Add(new WordMismatch(i, spokenWords[i], expectedWords[i]));
         }
 

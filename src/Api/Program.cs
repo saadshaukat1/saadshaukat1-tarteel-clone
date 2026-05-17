@@ -12,6 +12,9 @@ using TarteelClone.SearchService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── In-memory cache (verse matching) ─────────────────────────────────────────
+builder.Services.AddMemoryCache();
+
 // ── Databases ─────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<QuranDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("QuranDb")));

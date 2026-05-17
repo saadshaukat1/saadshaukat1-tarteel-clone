@@ -17,6 +17,10 @@ public class ProgressService : IProgressService
                     .OrderBy(mp => mp.SurahNum).ThenBy(mp => mp.AyahNum)
                     .ToListAsync(ct);
 
+    // Exponential moving average to smooth out score updates.
+    private const double EmaCurrentWeight = 0.7;
+    private const double EmaNewWeight     = 1.0 - EmaCurrentWeight;
+
     public async Task RecordRecitationAsync(int userId, int surahNum, int ayahNum,
         double masteryScore, CancellationToken ct = default)
     {
@@ -38,8 +42,7 @@ public class ProgressService : IProgressService
         }
         else
         {
-            // Exponential moving average to smooth out score updates.
-            existing.MasteryScore = 0.7 * existing.MasteryScore + 0.3 * masteryScore;
+            existing.MasteryScore = EmaCurrentWeight * existing.MasteryScore + EmaNewWeight * masteryScore;
         }
 
         await _db.SaveChangesAsync(ct);
