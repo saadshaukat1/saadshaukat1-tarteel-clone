@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/mobile/">
+    <Project Path="mobile/TarteelMobile/TarteelMobile.csproj" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/TarteelClone.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/QuranEngine/">
+    <Project Path="src/QuranEngine/TarteelClone.QuranEngine.csproj" />
+  </Folder>
+  <Folder Name="/src/SearchService/">
+    <Project Path="src/SearchService/TarteelClone.SearchService.csproj" />
+  </Folder>
+  <Folder Name="/src/UserService/">
+    <Project Path="src/UserService/TarteelClone.UserService.csproj" />
+  </Folder>
+</Solution>
