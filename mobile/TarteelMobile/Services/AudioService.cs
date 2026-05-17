@@ -21,6 +21,7 @@ public static class AudioCaptureDefaults
     public const int SampleRateHz = 16000;
     public const short BitsPerSample = 16;
     public const short Channels = 1;
-    public const int ChunkDurationMilliseconds = 1000;
+    // Lower chunk duration improves perceived recitation responsiveness.
+    public const int ChunkDurationMilliseconds = 2200;
     public const int CaptureBufferMilliseconds = 100;
 }

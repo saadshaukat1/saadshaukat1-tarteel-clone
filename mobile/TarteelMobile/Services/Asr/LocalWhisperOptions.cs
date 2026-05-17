@@ -36,4 +36,5 @@ public sealed class LocalWhisperOptions
 public sealed class WhisperModelTierDefinition
 {
     public string ModelPath { get; set; } = string.Empty;
+    public string DownloadUrl { get; set; } = string.Empty;
 }
