@@ -23,5 +23,7 @@ public static class AudioCaptureDefaults
     public const short Channels = 1;
     // Lower chunk duration improves perceived recitation responsiveness.
     public const int ChunkDurationMilliseconds = 2200;
+    // Include a short trailing overlap from the previous chunk to reduce cut words.
+    public const int ChunkOverlapMilliseconds = 400;
     public const int CaptureBufferMilliseconds = 100;
 }

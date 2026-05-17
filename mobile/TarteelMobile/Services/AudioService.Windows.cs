@@ -11,6 +11,7 @@ public sealed class AudioService : IAudioService, IDisposable
     private readonly object _sync = new();
     private WaveInEvent? _waveIn;
     private MemoryStream? _currentChunkStream;
+    private bool _hasFreshAudioSinceChunkReset;
     private bool _disposed;
     private DateTimeOffset _chunkStartedAtUtc;
     private Exception? _captureError;
@@ -33,6 +34,7 @@ public sealed class AudioService : IAudioService, IDisposable
             _captureError = null;
             _currentChunkStream = new MemoryStream();
             _chunkStartedAtUtc = DateTimeOffset.UtcNow;
+            _hasFreshAudioSinceChunkReset = false;
 
             try
             {
@@ -115,6 +117,10 @@ public sealed class AudioService : IAudioService, IDisposable
             }
 
             _currentChunkStream.Write(e.Buffer, 0, e.BytesRecorded);
+            if (e.BytesRecorded > 0)
+            {
+                _hasFreshAudioSinceChunkReset = true;
+            }
 
             var elapsed = DateTimeOffset.UtcNow - _chunkStartedAtUtc;
             if (elapsed.TotalMilliseconds >= AudioCaptureDefaults.ChunkDurationMilliseconds)
@@ -163,20 +169,56 @@ public sealed class AudioService : IAudioService, IDisposable
 
     private byte[] BuildWavChunkAndResetUnsafe()
     {
-        if (_currentChunkStream is null || _currentChunkStream.Length == 0)
+        if (_currentChunkStream is null || _currentChunkStream.Length == 0 || !_hasFreshAudioSinceChunkReset)
         {
             _currentChunkStream?.Dispose();
             _chunkStartedAtUtc = DateTimeOffset.UtcNow;
             _currentChunkStream = new MemoryStream();
+            _hasFreshAudioSinceChunkReset = false;
             return [];
         }
 
         byte[] pcmBytes = _currentChunkStream.ToArray();
+        var overlapByteCount = ComputeOverlapByteCount(pcmBytes.Length);
+        var overlapBytes = overlapByteCount > 0
+            ? pcmBytes[^overlapByteCount..]
+            : [];
+
         _currentChunkStream.Dispose();
         _currentChunkStream = new MemoryStream();
+        if (overlapBytes.Length > 0)
+        {
+            _currentChunkStream.Write(overlapBytes, 0, overlapBytes.Length);
+        }
         _chunkStartedAtUtc = DateTimeOffset.UtcNow;
+        _hasFreshAudioSinceChunkReset = false;
 
         return BuildWaveFileBytes(pcmBytes);
+    }
+
+    private static int ComputeOverlapByteCount(int availableBytes)
+    {
+        if (availableBytes <= 0 || AudioCaptureDefaults.ChunkOverlapMilliseconds <= 0)
+        {
+            return 0;
+        }
+
+        var bytesPerSample = AudioCaptureDefaults.BitsPerSample / 8;
+        var blockAlign = bytesPerSample * AudioCaptureDefaults.Channels;
+        if (blockAlign <= 0)
+        {
+            return 0;
+        }
+
+        var bytesPerMillisecond = (AudioCaptureDefaults.SampleRateHz * blockAlign) / 1000;
+        if (bytesPerMillisecond <= 0)
+        {
+            return 0;
+        }
+
+        var requestedBytes = AudioCaptureDefaults.ChunkOverlapMilliseconds * bytesPerMillisecond;
+        var boundedBytes = Math.Min(requestedBytes, availableBytes);
+        return boundedBytes - (boundedBytes % blockAlign);
     }
 
     private static byte[] BuildWaveFileBytes(byte[] pcmBytes)
