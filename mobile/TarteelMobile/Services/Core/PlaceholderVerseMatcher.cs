@@ -141,8 +141,44 @@ public sealed class PlaceholderVerseMatcher : CoreAbstractions.IVerseMatcher
         return (matchedWords, mismatches);
     }
 
-    private static bool TokensEqual(WordToken expected, WordToken spoken) =>
-        string.Equals(expected.Normalized, spoken.Normalized, StringComparison.Ordinal);
+    private static bool TokensEqual(WordToken expected, WordToken spoken)
+    {
+        if (string.Equals(expected.Normalized, spoken.Normalized, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var expectedCanonical = RemoveCommonArabicPrefix(expected.Normalized);
+        var spokenCanonical = RemoveCommonArabicPrefix(spoken.Normalized);
+        if (string.Equals(expectedCanonical, spokenCanonical, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var minLength = Math.Min(expectedCanonical.Length, spokenCanonical.Length);
+        if (minLength == 0)
+        {
+            return false;
+        }
+
+        var similarity = ComputeCharacterSimilarity(expectedCanonical, spokenCanonical);
+        var similarityThreshold = minLength <= 3 ? 0.78 : 0.64;
+        if (similarity >= similarityThreshold)
+        {
+            return true;
+        }
+
+        if (minLength >= 3)
+        {
+            var lcsRatio = ComputeLongestCommonSubsequenceRatio(expectedCanonical, spokenCanonical);
+            if (lcsRatio >= 0.67)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static double ComputeConfidence(
         IReadOnlyList<WordToken> expectedTokens,
@@ -182,6 +218,48 @@ public sealed class PlaceholderVerseMatcher : CoreAbstractions.IVerseMatcher
         }
 
         return Math.Clamp(1.0 - ((double)distance / maxLength), 0, 1);
+    }
+
+    private static string RemoveCommonArabicPrefix(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return string.Empty;
+        }
+
+        return token.StartsWith("ال", StringComparison.Ordinal) && token.Length > 2
+            ? token[2..]
+            : token;
+    }
+
+    private static double ComputeLongestCommonSubsequenceRatio(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return 0;
+        }
+
+        var rows = left.Length + 1;
+        var cols = right.Length + 1;
+        var dp = new int[rows, cols];
+        for (var row = 1; row < rows; row++)
+        {
+            for (var col = 1; col < cols; col++)
+            {
+                if (left[row - 1] == right[col - 1])
+                {
+                    dp[row, col] = dp[row - 1, col - 1] + 1;
+                }
+                else
+                {
+                    dp[row, col] = Math.Max(dp[row - 1, col], dp[row, col - 1]);
+                }
+            }
+        }
+
+        var lcsLength = dp[rows - 1, cols - 1];
+        var minLength = Math.Min(left.Length, right.Length);
+        return minLength == 0 ? 0 : (double)lcsLength / minLength;
     }
 
     private static int ComputeLevenshteinDistance(string source, string target)
