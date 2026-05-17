@@ -1,0 +1,127 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL (Quran data) ─────────────────────────────────────────────────
+  quran-db:
+    image: postgres:16-alpine
+    container_name: tarteel_quran_db
+    environment:
+      POSTGRES_DB:       tarteel_quran
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - quran_data:/var/lib/postgresql/data
+      - ./data/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./data/migrations/002_seed_sample_verses.sql:/docker-entrypoint-initdb.d/02_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tarteel_quran"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── PostgreSQL (User data) ──────────────────────────────────────────────────
+  user-db:
+    image: postgres:16-alpine
+    container_name: tarteel_user_db
+    environment:
+      POSTGRES_DB:       tarteel_users
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tarteel_users"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tarteel_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Elasticsearch ───────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: tarteel_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # ── Python ASR Service (Whisper) ────────────────────────────────────────────
+  asr-service:
+    build:
+      context: ./src/ASRService
+      dockerfile: Dockerfile
+      args:
+        WHISPER_MODEL: medium   # use large-v3 in production
+    container_name: tarteel_asr
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]   # remove if no GPU
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── ASP.NET Core API Gateway ────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+    container_name: tarteel_api
+    ports:
+      - "7001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__QuranDb=Host=quran-db;Database=tarteel_quran;Username=postgres;Password=postgres
+      - ConnectionStrings__UserDb=Host=user-db;Database=tarteel_users;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=redis:6379
+      - Elasticsearch__Uri=http://elasticsearch:9200
+      - ASRService__BaseUrl=http://asr-service:8000
+      - Jwt__Key=CHANGE_ME_USE_A_LONG_RANDOM_SECRET_KEY_IN_PRODUCTION
+      - Jwt__Issuer=TarteelCloneApi
+      - Jwt__Audience=TarteelCloneClients
+    depends_on:
+      quran-db:
+        condition: service_healthy
+      user-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  quran_data:
+  user_data:
+  es_data:
