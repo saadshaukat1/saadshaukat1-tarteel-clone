@@ -19,7 +19,14 @@ public class BoolToColorConverter : IValueConverter
             return Colors.Transparent;
         }
 
-        return Color.FromArgb(isTrue ? colors[0] : colors[1]);
+        try
+        {
+            return Color.FromArgb(isTrue ? colors[0] : colors[1]);
+        }
+        catch (ArgumentException)
+        {
+            return Colors.Transparent;
+        }
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
