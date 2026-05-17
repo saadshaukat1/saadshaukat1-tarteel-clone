@@ -1,0 +1,172 @@
+name: windows-desktop-ci
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration
+        required: false
+        default: Release
+      runtimeIdentifier:
+        description: Runtime identifier
+        required: false
+        default: win10-x64
+      buildOnly:
+        description: Build only (skip publish/MSIX)
+        required: false
+        type: boolean
+        default: true
+      modelDir:
+        description: Offline model directory (repo relative)
+        required: false
+        default: offline-assets/models
+      dataDir:
+        description: Offline data directory (repo relative)
+        required: false
+        default: offline-assets/data
+      extrasDir:
+        description: Offline extras directory (repo relative)
+        required: false
+        default: offline-assets/extras
+  pull_request:
+    paths:
+      - mobile/TarteelMobile/**
+      - src/LocalRecitationCore/**
+      - offline-assets/**
+      - scripts/release/**
+      - .github/workflows/windows-packaging-release.yml
+  push:
+    branches:
+      - main
+    paths:
+      - mobile/TarteelMobile/**
+      - scripts/release/**
+      - .github/workflows/windows-packaging-release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-windows-desktop:
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore MAUI desktop project
+        shell: pwsh
+        run: >
+          dotnet restore mobile/TarteelMobile/TarteelMobile.csproj
+          -p:TargetFramework=net10.0-windows10.0.19041.0
+          -p:RuntimeIdentifier=win-x64
+          -p:MSBuildEnableWorkloadResolver=false
+
+      - name: Build Local Recitation Core
+        shell: pwsh
+        run: dotnet build src/LocalRecitationCore/TarteelClone.LocalRecitationCore.csproj -c Release
+
+      - name: Build MAUI Windows desktop target
+        shell: pwsh
+        run: >
+          dotnet build mobile/TarteelMobile/TarteelMobile.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
+          -p:RuntimeIdentifier=win-x64
+          -p:MSBuildEnableWorkloadResolver=false
+
+      - name: Validate packaging script (dry-run)
+        shell: pwsh
+        run: >
+          powershell -ExecutionPolicy Bypass
+          -File .\scripts\release\windows-package.ps1
+          -BuildOnly
+          -DryRun
+
+  package-windows:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run packaging script
+        shell: pwsh
+        run: |
+          $configuration = '${{ inputs.configuration }}'
+          if ([string]::IsNullOrWhiteSpace($configuration)) {
+            $configuration = "Release"
+          }
+
+          $runtimeIdentifier = '${{ inputs.runtimeIdentifier }}'
+          if ([string]::IsNullOrWhiteSpace($runtimeIdentifier)) {
+            $runtimeIdentifier = "win10-x64"
+          }
+
+          $modelDir = '${{ inputs.modelDir }}'
+          if ([string]::IsNullOrWhiteSpace($modelDir)) {
+            $modelDir = "offline-assets/models"
+          }
+
+          $dataDir = '${{ inputs.dataDir }}'
+          if ([string]::IsNullOrWhiteSpace($dataDir)) {
+            $dataDir = "offline-assets/data"
+          }
+
+          $extrasDir = '${{ inputs.extrasDir }}'
+          if ([string]::IsNullOrWhiteSpace($extrasDir)) {
+            $extrasDir = "offline-assets/extras"
+          }
+
+          $buildOnly = '${{ inputs.buildOnly }}'
+          if ([string]::IsNullOrWhiteSpace($buildOnly)) {
+            $buildOnly = "true"
+          }
+
+          $args = @(
+            "-ExecutionPolicy", "Bypass",
+            "-File", ".\scripts\release\windows-package.ps1",
+            "-Configuration", $configuration,
+            "-RuntimeIdentifier", $runtimeIdentifier,
+            "-ModelDir", $modelDir,
+            "-DataDir", $dataDir,
+            "-ExtrasDir", $extrasDir
+          )
+
+          if ($buildOnly -match "^(?i:true)$") {
+            $args += "-BuildOnly"
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace('${{ secrets.WINDOWS_CERT_PATH }}')) {
+            $args += @("-CertPath", '${{ secrets.WINDOWS_CERT_PATH }}')
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace('${{ secrets.WINDOWS_CERT_THUMBPRINT }}')) {
+            $args += @("-CertThumbprint", '${{ secrets.WINDOWS_CERT_THUMBPRINT }}')
+          }
+
+          & pwsh @args
+
+      - name: Upload packaging artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packaging-artifacts
+          path: artifacts/windows-packaging/**
+          if-no-files-found: warn

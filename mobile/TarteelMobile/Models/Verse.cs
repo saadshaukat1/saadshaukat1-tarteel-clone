@@ -1,6 +1,6 @@
 namespace TarteelMobile.Models;
 
-/// <summary>A single Quran verse as returned by the API.</summary>
+/// <summary>A single Quran verse loaded from local offline repository data.</summary>
 public class Verse
 {
     public int    SurahNum    { get; set; }

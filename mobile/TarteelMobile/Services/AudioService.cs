@@ -2,11 +2,11 @@ namespace TarteelMobile.Services;
 
 /// <summary>
 /// Platform-agnostic abstraction over native microphone recording.
-/// Each platform (Android, iOS, Windows) provides its own implementation.
 /// </summary>
 public interface IAudioService
 {
     event EventHandler<byte[]>? AudioChunkReady;
+    event EventHandler<Exception>? RecordingError;
 
     Task StartRecordingAsync();
     Task StopRecordingAsync();
@@ -14,26 +14,13 @@ public interface IAudioService
 }
 
 /// <summary>
-/// Stub implementation used in unit tests / when no mic is available.
-/// Real implementations live in Platforms/ folders.
+/// Shared defaults for PCM/WAV chunk capture used by platform services.
 /// </summary>
-public class AudioService : IAudioService
+public static class AudioCaptureDefaults
 {
-    public event EventHandler<byte[]>? AudioChunkReady;
-    public bool IsRecording { get; private set; }
-
-    public Task StartRecordingAsync()
-    {
-        IsRecording = true;
-        return Task.CompletedTask;
-    }
-
-    public Task StopRecordingAsync()
-    {
-        IsRecording = false;
-        return Task.CompletedTask;
-    }
-
-    protected void OnAudioChunkReady(byte[] chunk)
-        => AudioChunkReady?.Invoke(this, chunk);
+    public const int SampleRateHz = 16000;
+    public const short BitsPerSample = 16;
+    public const short Channels = 1;
+    public const int ChunkDurationMilliseconds = 1000;
+    public const int CaptureBufferMilliseconds = 100;
 }

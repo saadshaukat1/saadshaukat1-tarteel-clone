@@ -452,3 +452,11 @@ data/quran/*.txt
 
 # ── Docker ────────────────────────────────────────────────────
 .docker/
+
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc
+
+# Keep Windows packaging automation tracked
+!scripts/release/
+!scripts/release/**

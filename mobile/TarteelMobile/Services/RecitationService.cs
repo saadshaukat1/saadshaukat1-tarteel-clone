@@ -1,61 +1,100 @@
-using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.Extensions.Configuration;
 using TarteelMobile.Models;
+using CoreAbstractions = TarteelClone.LocalRecitationCore.Abstractions;
+using CoreModels = TarteelClone.LocalRecitationCore.Models;
 
 namespace TarteelMobile.Services;
 
 public interface IRecitationService
 {
     event EventHandler<MatchResult>? MatchResultReceived;
-    Task ConnectAsync(string token);
+    bool RequiresAuthentication { get; }
+    Task ConnectAsync();
     Task DisconnectAsync();
     Task SendAudioChunkAsync(byte[] audioChunk);
 }
 
-public class RecitationService : IRecitationService, IAsyncDisposable
+public sealed class RecitationService : IRecitationService
 {
-    private HubConnection? _hub;
-    private readonly string _hubUrl;
+    private readonly CoreAbstractions.IRecitationOrchestrator _orchestrator;
+    private readonly ISessionService _session;
+    private readonly IAppDiagnosticsService _diagnostics;
+    private readonly object _sync = new();
+    private bool _connected;
 
     public event EventHandler<MatchResult>? MatchResultReceived;
+    // Offline desktop mode should not block recitation behind login.
+    public bool RequiresAuthentication => false;
 
-    public RecitationService(IConfiguration config)
+    public RecitationService(
+        CoreAbstractions.IRecitationOrchestrator orchestrator,
+        ISessionService session,
+        IAppDiagnosticsService diagnostics)
     {
-        var baseUrl = config["ApiService:BaseUrl"] ?? "https://localhost:7001";
-        _hubUrl = $"{baseUrl}/hubs/recitation";
+        _orchestrator = orchestrator;
+        _session = session;
+        _diagnostics = diagnostics;
+        _orchestrator.MatchProduced += OnCoreMatchProduced;
     }
 
-    public async Task ConnectAsync(string token)
+    public async Task ConnectAsync()
     {
-        _hub = new HubConnectionBuilder()
-            .WithUrl($"{_hubUrl}?access_token={token}")
-            .WithAutomaticReconnect()
-            .Build();
+        if (RequiresAuthentication && !_session.IsAuthenticated)
+        {
+            _diagnostics.Warn("Recitation connect requested without authenticated local session.");
+            throw new InvalidOperationException("Please log in before starting recitation.");
+        }
 
-        _hub.On<MatchResult>("ReceiveMatchResult", result =>
-            MatchResultReceived?.Invoke(this, result));
+        lock (_sync)
+        {
+            _connected = true;
+        }
 
-        await _hub.StartAsync();
+        await _orchestrator.StartAsync();
+        _diagnostics.Info($"Recitation auth requirement: {RequiresAuthentication}.");
+        _diagnostics.Info("Recitation pipeline connected in local in-process mode.");
     }
 
-    public async Task DisconnectAsync()
+    public Task DisconnectAsync()
     {
-        if (_hub is not null)
-            await _hub.StopAsync();
+        lock (_sync)
+        {
+            _connected = false;
+        }
+
+        _diagnostics.Info("Recitation pipeline disconnected.");
+        return _orchestrator.StopAsync();
     }
 
     public async Task SendAudioChunkAsync(byte[] audioChunk)
     {
-        if (_hub?.State != HubConnectionState.Connected)
+        if (audioChunk is null || audioChunk.Length == 0)
+        {
+            return;
+        }
+
+        bool isConnected;
+        lock (_sync)
+        {
+            isConnected = _connected;
+        }
+
+        if (!isConnected)
             return;
 
-        var base64 = Convert.ToBase64String(audioChunk);
-        await _hub.InvokeAsync("SendAudioChunk", base64);
+        await _orchestrator.SubmitAudioChunkAsync(audioChunk);
     }
 
-    public async ValueTask DisposeAsync()
+    private void OnCoreMatchProduced(object? sender, CoreModels.RecitationMatchResult result)
     {
-        if (_hub is not null)
-            await _hub.DisposeAsync();
+        MatchResultReceived?.Invoke(this, new MatchResult
+        {
+            SurahNum = result.SurahNum,
+            AyahNum = result.AyahNum,
+            ArabicText = result.ArabicText,
+            Confidence = result.Confidence,
+            Mismatches = result.Mismatches
+                .Select(m => new WordMismatch(m.Position, m.Spoken, m.Expected))
+                .ToList()
+        });
     }
 }

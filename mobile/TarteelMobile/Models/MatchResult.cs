@@ -1,6 +1,6 @@
 namespace TarteelMobile.Models;
 
-/// <summary>Real-time match result pushed from the SignalR hub.</summary>
+/// <summary>Real-time match result emitted by the local recitation pipeline.</summary>
 public class MatchResult
 {
     public int    SurahNum   { get; set; }

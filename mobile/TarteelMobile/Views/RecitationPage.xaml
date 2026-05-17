@@ -32,18 +32,23 @@
                TextColor="{StaticResource Primary}"
                Margin="0,4" />
 
-        <!-- Mic button -->
-        <Button Grid.Row="3"
-                Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
-                BackgroundColor="{Binding IsRecording,
-                    Converter={StaticResource BoolToColorConverter},
-                    ConverterParameter='#E53935|#1A6B3C'}"
-                TextColor="White"
-                CornerRadius="40"
-                HeightRequest="80"
-                WidthRequest="80"
-                HorizontalOptions="Center"
-                Command="{Binding ToggleRecordingCommand}"
-                Margin="0,16,0,0" />
+        <HorizontalStackLayout Grid.Row="3" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
+            <!-- Mic button -->
+            <Button Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
+                    BackgroundColor="{Binding IsRecording,
+                        Converter={StaticResource BoolToColorConverter},
+                        ConverterParameter='#E53935|#1A6B3C'}"
+                    TextColor="White"
+                    CornerRadius="40"
+                    HeightRequest="80"
+                    WidthRequest="80"
+                    Command="{Binding ToggleRecordingCommand}" />
+            <Button Text="Reset Session"
+                    BackgroundColor="{StaticResource PrimaryDark}"
+                    TextColor="White"
+                    HeightRequest="44"
+                    VerticalOptions="Center"
+                    Command="{Binding StopSessionCommand}" />
+        </HorizontalStackLayout>
     </Grid>
 </ContentPage>

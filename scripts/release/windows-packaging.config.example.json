@@ -1,0 +1,22 @@
+{
+  "projectPath": "mobile/TarteelMobile/TarteelMobile.csproj",
+  "configuration": "Release",
+  "targetFramework": "net10.0-windows10.0.19041.0",
+  "runtimeIdentifier": "win10-x64",
+  "outputRoot": "artifacts/windows-packaging",
+  "version": "1",
+  "displayVersion": "1.0.0",
+  "buildOnly": false,
+  "dryRun": false,
+  "selfContained": false,
+  "offlineAssets": {
+    "modelDir": "offline-assets/models",
+    "dataDir": "offline-assets/data",
+    "extrasDir": "offline-assets/extras"
+  },
+  "signing": {
+    "certificatePath": "",
+    "certificateThumbprint": "",
+    "certificatePasswordEnvVar": "WINDOWS_CERT_PASSWORD"
+  }
+}

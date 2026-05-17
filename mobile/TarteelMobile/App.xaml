@@ -7,6 +7,8 @@
         <ResourceDictionary>
             <converters:BoolToMicTextConverter x:Key="BoolToMicTextConverter" />
             <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+            <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
+            <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
 
             <!-- Primary palette -->
             <Color x:Key="Primary">#1A6B3C</Color>
