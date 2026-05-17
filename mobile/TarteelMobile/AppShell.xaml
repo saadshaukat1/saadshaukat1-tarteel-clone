@@ -7,11 +7,9 @@
 
     <TabBar>
         <ShellContent Title="Recite"
-                      Icon="mic.png"
                       ContentTemplate="{DataTemplate views:RecitationPage}"
                       Route="RecitationPage" />
         <ShellContent Title="Progress"
-                      Icon="chart.png"
                       ContentTemplate="{DataTemplate views:ProgressPage}"
                       Route="ProgressPage" />
     </TabBar>

@@ -1,0 +1,761 @@
+using System.Text.Json;
+using Microsoft.Maui.Storage;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
+using TarteelMobile.Models;
+
+namespace TarteelMobile.Services;
+
+public interface IVerseRepository
+{
+    string DatabasePath { get; }
+    Task EnsureInitializedAsync(CancellationToken cancellationToken = default);
+    Task<int> GetVerseCountAsync(CancellationToken cancellationToken = default);
+    Task<Verse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Verse>> GetMemorizedVersesAsync(string? userKey = null, CancellationToken cancellationToken = default);
+    Task RecordRecitationAsync(
+        string? userKey,
+        int surahNum,
+        int ayahNum,
+        double masteryScore,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class LocalVerseRepository : IVerseRepository
+{
+    private const double EmaCurrentWeight = 0.7;
+    private const double EmaNewWeight = 1.0 - EmaCurrentWeight;
+    private static readonly JsonDocumentOptions ParseJsonOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+    private static readonly IReadOnlyList<ImportVerse> BuiltInFallbackVerses =
+    [
+        new ImportVerse(
+            1,
+            1,
+            "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+            "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+            [new ImportTranslation("en", "In the name of Allah, the Entirely Merciful, the Especially Merciful.", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            2,
+            "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+            "ٱلۡحَمۡدُ لِلَّهِ رَبِّ ٱلۡعَٰلَمِينَ",
+            [new ImportTranslation("en", "[All] praise is [due] to Allah, Lord of the worlds -", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            3,
+            "الرَّحْمَٰنِ الرَّحِيمِ",
+            "ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ",
+            [new ImportTranslation("en", "The Entirely Merciful, the Especially Merciful,", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            4,
+            "مَالِكِ يَوْمِ الدِّينِ",
+            "مَٰلِكِ يَوۡمِ ٱلدِّينِ",
+            [new ImportTranslation("en", "Sovereign of the Day of Recompense.", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            5,
+            "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
+            "إِيَّاكَ نَعۡبُدُ وَإِيَّاكَ نَسۡتَعِينُ",
+            [new ImportTranslation("en", "It is You we worship and You we ask for help.", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            6,
+            "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+            "ٱهۡدِنَا ٱلصِّرَٰطَ ٱلۡمُسۡتَقِيمَ",
+            [new ImportTranslation("en", "Guide us to the straight path -", "Saheeh International")]),
+        new ImportVerse(
+            1,
+            7,
+            "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
+            "صِرَٰطَ ٱلَّذِينَ أَنۡعَمۡتَ عَلَيۡهِمۡ غَيۡرِ ٱلۡمَغۡضُوبِ عَلَيۡهِمۡ وَلَا ٱلضَّآلِّينَ",
+            [new ImportTranslation("en", "The path of those upon whom You have bestowed favor, not of those who have earned [Your] anger or of those who are astray.", "Saheeh International")])
+    ];
+    private const string SchemaSql = """
+        CREATE TABLE IF NOT EXISTS verses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            arabic_text TEXT NOT NULL,
+            uthmani_text TEXT,
+            UNIQUE(surah_num, ayah_num)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_verses_surah ON verses (surah_num);
+
+        CREATE TABLE IF NOT EXISTS translations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            verse_id INTEGER NOT NULL REFERENCES verses(id) ON DELETE CASCADE,
+            language TEXT NOT NULL,
+            text TEXT NOT NULL,
+            translator TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_translations_verse_language_translator
+            ON translations (verse_id, language, translator);
+        CREATE INDEX IF NOT EXISTS idx_translations_verse ON translations (verse_id);
+        CREATE INDEX IF NOT EXISTS idx_translations_language ON translations (language);
+
+        CREATE TABLE IF NOT EXISTS memorization_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_key TEXT NOT NULL,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            mastery_score REAL NOT NULL DEFAULT 0.0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(user_key, surah_num, ayah_num)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_progress_user_key ON memorization_progress (user_key);
+        """;
+
+    private readonly LocalQuranDataOptions _options;
+    private readonly IAppDiagnosticsService _diagnostics;
+    private readonly SemaphoreSlim _initializeLock = new(1, 1);
+    private bool _isInitialized;
+
+    public LocalVerseRepository(
+        IOptions<LocalQuranDataOptions> options,
+        IAppDiagnosticsService diagnostics)
+    {
+        _options = options.Value;
+        _diagnostics = diagnostics;
+
+        var baseDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TarteelClone",
+            "data");
+        Directory.CreateDirectory(baseDir);
+
+        var fileName = string.IsNullOrWhiteSpace(_options.DatabaseFileName)
+            ? "quran-local.db"
+            : _options.DatabaseFileName.Trim();
+        DatabasePath = Path.Combine(baseDir, fileName);
+    }
+
+    public string DatabasePath { get; }
+
+    public async Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_isInitialized)
+        {
+            return;
+        }
+
+        await _initializeLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+
+            await using var connection = CreateOpenConnection();
+            await ApplySchemaAsync(connection, cancellationToken);
+
+            var verseCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM verses;", cancellationToken);
+            if (verseCount == 0)
+            {
+                var importedCount = await ImportBootstrapDataAsync(connection, cancellationToken);
+                _diagnostics.Info($"Imported {importedCount} verse(s) into local SQLite store.");
+            }
+            else
+            {
+                _diagnostics.Info($"Local SQLite store already initialized with {verseCount} verse(s).");
+            }
+
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializeLock.Release();
+        }
+    }
+
+    public async Task<int> GetVerseCountAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        return await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM verses;", cancellationToken);
+    }
+
+    public async Task<Verse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                v.surah_num,
+                v.ayah_num,
+                v.arabic_text,
+                COALESCE(
+                    (
+                        SELECT tr.text
+                        FROM translations tr
+                        WHERE tr.verse_id = v.id
+                          AND tr.language = @language
+                        ORDER BY tr.id
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT tr.text
+                        FROM translations tr
+                        WHERE tr.verse_id = v.id
+                        ORDER BY tr.id
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS translation
+            FROM verses v
+            WHERE v.surah_num = @surah_num
+              AND v.ayah_num = @ayah_num
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("@surah_num", surahNum);
+        command.Parameters.AddWithValue("@ayah_num", ayahNum);
+        command.Parameters.AddWithValue("@language", _options.DefaultTranslationLanguage);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new Verse
+        {
+            SurahNum = reader.GetInt32(0),
+            AyahNum = reader.GetInt32(1),
+            ArabicText = reader.GetString(2),
+            Translation = reader.GetString(3)
+        };
+    }
+
+    public async Task<IReadOnlyList<Verse>> GetMemorizedVersesAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                p.surah_num,
+                p.ayah_num,
+                v.arabic_text,
+                COALESCE(
+                    (
+                        SELECT tr.text
+                        FROM translations tr
+                        WHERE tr.verse_id = v.id
+                          AND tr.language = @language
+                        ORDER BY tr.id
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT tr.text
+                        FROM translations tr
+                        WHERE tr.verse_id = v.id
+                        ORDER BY tr.id
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS translation
+            FROM memorization_progress p
+            INNER JOIN verses v
+                ON v.surah_num = p.surah_num
+               AND v.ayah_num = p.ayah_num
+            WHERE p.user_key = @user_key
+            ORDER BY p.surah_num, p.ayah_num;
+            """;
+        command.Parameters.AddWithValue("@language", _options.DefaultTranslationLanguage);
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+
+        var verses = new List<Verse>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            verses.Add(new Verse
+            {
+                SurahNum = reader.GetInt32(0),
+                AyahNum = reader.GetInt32(1),
+                ArabicText = reader.GetString(2),
+                Translation = reader.GetString(3)
+            });
+        }
+
+        return verses;
+    }
+
+    public async Task RecordRecitationAsync(
+        string? userKey,
+        int surahNum,
+        int ayahNum,
+        double masteryScore,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO memorization_progress (
+                user_key,
+                surah_num,
+                ayah_num,
+                mastery_score,
+                updated_at
+            )
+            VALUES (
+                @user_key,
+                @surah_num,
+                @ayah_num,
+                @mastery_score,
+                @updated_at
+            )
+            ON CONFLICT(user_key, surah_num, ayah_num)
+            DO UPDATE SET
+                mastery_score = (memorization_progress.mastery_score * @ema_current)
+                              + (@mastery_score * @ema_new),
+                updated_at = @updated_at;
+            """;
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        command.Parameters.AddWithValue("@surah_num", surahNum);
+        command.Parameters.AddWithValue("@ayah_num", ayahNum);
+        command.Parameters.AddWithValue("@mastery_score", Math.Clamp(masteryScore, 0.0, 1.0));
+        command.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("@ema_current", EmaCurrentWeight);
+        command.Parameters.AddWithValue("@ema_new", EmaNewWeight);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private SqliteConnection CreateOpenConnection()
+    {
+        var connectionStringBuilder = new SqliteConnectionStringBuilder
+        {
+            DataSource = DatabasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared
+        };
+        var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
+        connection.Open();
+        return connection;
+    }
+
+    private static async Task ApplySchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using var pragmaCommand = connection.CreateCommand();
+        pragmaCommand.CommandText = "PRAGMA foreign_keys = ON;";
+        await pragmaCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using var schemaCommand = connection.CreateCommand();
+        schemaCommand.CommandText = SchemaSql;
+        await schemaCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task<int> ImportBootstrapDataAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var importSource = await LoadImportDatasetAsync(cancellationToken);
+        var records = importSource.Verses;
+        if (records.Count == 0)
+        {
+            records = BuiltInFallbackVerses;
+            _diagnostics.Warn("No import file yielded verse records; using built-in fallback verses.");
+        }
+
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        foreach (var verse in records)
+        {
+            var verseId = await UpsertVerseAsync(connection, transaction, verse, cancellationToken);
+            foreach (var translation in verse.Translations)
+            {
+                await UpsertTranslationAsync(connection, transaction, verseId, translation, cancellationToken);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        _diagnostics.Info($"Bootstrap import source: {importSource.Source}.");
+        return records.Count;
+    }
+
+    private async Task<(string Source, IReadOnlyList<ImportVerse> Verses)> LoadImportDatasetAsync(CancellationToken cancellationToken)
+    {
+        var externalPath = _options.ExternalImportFile?.Trim();
+        if (!string.IsNullOrWhiteSpace(externalPath))
+        {
+            var resolvedPath = Path.GetFullPath(externalPath);
+            if (File.Exists(resolvedPath))
+            {
+                await using var externalStream = File.OpenRead(resolvedPath);
+                var parsed = await ParseImportVersesAsync(externalStream, cancellationToken);
+                if (parsed.Count > 0)
+                {
+                    return ($"external-file:{resolvedPath}", parsed);
+                }
+            }
+            else
+            {
+                _diagnostics.Warn($"Configured external Quran data file not found: {resolvedPath}");
+            }
+        }
+
+        var primaryAsset = await TryReadAssetVersesAsync(_options.PreferredAssetImportFile, cancellationToken);
+        if (primaryAsset.Count > 0)
+        {
+            return ($"asset:{_options.PreferredAssetImportFile}", primaryAsset);
+        }
+
+        var seedAsset = await TryReadAssetVersesAsync(_options.FallbackSeedAssetImportFile, cancellationToken);
+        if (seedAsset.Count > 0)
+        {
+            return ($"asset:{_options.FallbackSeedAssetImportFile}", seedAsset);
+        }
+
+        return ("built-in-fallback", []);
+    }
+
+    private async Task<IReadOnlyList<ImportVerse>> TryReadAssetVersesAsync(string assetPath, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            await using var stream = await FileSystem.OpenAppPackageFileAsync(assetPath);
+            var parsed = await ParseImportVersesAsync(stream, cancellationToken);
+            if (parsed.Count == 0)
+            {
+                _diagnostics.Warn($"Asset '{assetPath}' was found but had no usable verses.");
+            }
+
+            return parsed;
+        }
+        catch (FileNotFoundException)
+        {
+            _diagnostics.Warn($"Quran data asset not found: {assetPath}");
+            return [];
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Error($"Failed to load Quran asset '{assetPath}'.", ex);
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyList<ImportVerse>> ParseImportVersesAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var jsonDocument = await JsonDocument.ParseAsync(
+                stream,
+                ParseJsonOptions,
+                cancellationToken);
+
+            var verses = new List<ImportVerse>();
+            foreach (var verseElement in ExtractVerseElements(jsonDocument.RootElement))
+            {
+                if (TryParseVerse(verseElement, out var verse))
+                {
+                    verses.Add(verse);
+                }
+            }
+
+            return verses;
+        }
+        catch (JsonException ex)
+        {
+            _diagnostics.Error("Failed to parse Quran import JSON.", ex);
+            return [];
+        }
+    }
+
+    private static IEnumerable<JsonElement> ExtractVerseElements(JsonElement rootElement)
+    {
+        if (rootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var element in rootElement.EnumerateArray())
+            {
+                yield return element;
+            }
+
+            yield break;
+        }
+
+        if (rootElement.ValueKind == JsonValueKind.Object &&
+            TryGetProperty(rootElement, "verses", out var versesElement) &&
+            versesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var element in versesElement.EnumerateArray())
+            {
+                yield return element;
+            }
+        }
+    }
+
+    private bool TryParseVerse(JsonElement verseElement, out ImportVerse verse)
+    {
+        verse = default!;
+        if (verseElement.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (!TryReadInt(verseElement, ["surah_num", "surahNum", "surah"], out var surahNum) ||
+            !TryReadInt(verseElement, ["ayah_num", "ayahNum", "ayah"], out var ayahNum))
+        {
+            return false;
+        }
+
+        var arabicText = ReadString(verseElement, ["arabic_text", "arabicText", "text"]);
+        if (string.IsNullOrWhiteSpace(arabicText))
+        {
+            return false;
+        }
+
+        var uthmaniText = ReadString(verseElement, ["uthmani_text", "uthmaniText"]);
+        var translations = ParseTranslations(verseElement);
+
+        verse = new ImportVerse(surahNum, ayahNum, arabicText, uthmaniText, translations);
+        return true;
+    }
+
+    private IReadOnlyList<ImportTranslation> ParseTranslations(JsonElement verseElement)
+    {
+        var translations = new List<ImportTranslation>();
+
+        if (TryGetProperty(verseElement, "translations", out var translationsElement) &&
+            translationsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var translationElement in translationsElement.EnumerateArray())
+            {
+                if (translationElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var language = ReadString(translationElement, ["language", "lang"]);
+                if (string.IsNullOrWhiteSpace(language))
+                {
+                    language = _options.DefaultTranslationLanguage;
+                }
+
+                var text = ReadString(translationElement, ["text", "translation"]);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                var translator = ReadString(translationElement, ["translator", "author", "source"]);
+                if (string.IsNullOrWhiteSpace(translator))
+                {
+                    translator = _options.DefaultTranslator;
+                }
+
+                translations.Add(new ImportTranslation(language, text, translator));
+            }
+        }
+
+        if (translations.Count > 0)
+        {
+            return translations;
+        }
+
+        var inlineTranslation = ReadString(verseElement, ["translation", "translation_text"]);
+        if (string.IsNullOrWhiteSpace(inlineTranslation))
+        {
+            return [];
+        }
+
+        return
+        [
+            new ImportTranslation(
+                _options.DefaultTranslationLanguage,
+                inlineTranslation,
+                _options.DefaultTranslator)
+        ];
+    }
+
+    private static bool TryReadInt(JsonElement element, IEnumerable<string> propertyNames, out int value)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetProperty(element, propertyName, out var propertyValue))
+            {
+                continue;
+            }
+
+            if (propertyValue.ValueKind == JsonValueKind.Number &&
+                propertyValue.TryGetInt32(out value))
+            {
+                return true;
+            }
+
+            if (propertyValue.ValueKind == JsonValueKind.String &&
+                int.TryParse(propertyValue.GetString(), out value))
+            {
+                return true;
+            }
+        }
+
+        value = 0;
+        return false;
+    }
+
+    private static string ReadString(JsonElement element, IEnumerable<string> propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetProperty(element, propertyName, out var propertyValue))
+            {
+                continue;
+            }
+
+            if (propertyValue.ValueKind == JsonValueKind.String)
+            {
+                var text = propertyValue.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text.Trim();
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement propertyValue)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                propertyValue = property.Value;
+                return true;
+            }
+        }
+
+        propertyValue = default;
+        return false;
+    }
+
+    private static async Task<int> UpsertVerseAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ImportVerse verse,
+        CancellationToken cancellationToken)
+    {
+        await using var upsertCommand = connection.CreateCommand();
+        upsertCommand.Transaction = transaction;
+        upsertCommand.CommandText = """
+            INSERT INTO verses (
+                surah_num,
+                ayah_num,
+                arabic_text,
+                uthmani_text
+            )
+            VALUES (
+                @surah_num,
+                @ayah_num,
+                @arabic_text,
+                @uthmani_text
+            )
+            ON CONFLICT(surah_num, ayah_num)
+            DO UPDATE SET
+                arabic_text = excluded.arabic_text,
+                uthmani_text = excluded.uthmani_text;
+            """;
+        upsertCommand.Parameters.AddWithValue("@surah_num", verse.SurahNum);
+        upsertCommand.Parameters.AddWithValue("@ayah_num", verse.AyahNum);
+        upsertCommand.Parameters.AddWithValue("@arabic_text", verse.ArabicText);
+        upsertCommand.Parameters.AddWithValue("@uthmani_text", string.IsNullOrWhiteSpace(verse.UthmaniText) ? DBNull.Value : verse.UthmaniText);
+        await upsertCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using var getIdCommand = connection.CreateCommand();
+        getIdCommand.Transaction = transaction;
+        getIdCommand.CommandText = """
+            SELECT id
+            FROM verses
+            WHERE surah_num = @surah_num
+              AND ayah_num = @ayah_num
+            LIMIT 1;
+            """;
+        getIdCommand.Parameters.AddWithValue("@surah_num", verse.SurahNum);
+        getIdCommand.Parameters.AddWithValue("@ayah_num", verse.AyahNum);
+
+        var verseId = await getIdCommand.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(verseId);
+    }
+
+    private static async Task UpsertTranslationAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        int verseId,
+        ImportTranslation translation,
+        CancellationToken cancellationToken)
+    {
+        await using var upsertCommand = connection.CreateCommand();
+        upsertCommand.Transaction = transaction;
+        upsertCommand.CommandText = """
+            INSERT INTO translations (
+                verse_id,
+                language,
+                text,
+                translator
+            )
+            VALUES (
+                @verse_id,
+                @language,
+                @text,
+                @translator
+            )
+            ON CONFLICT(verse_id, language, translator)
+            DO UPDATE SET
+                text = excluded.text;
+            """;
+        upsertCommand.Parameters.AddWithValue("@verse_id", verseId);
+        upsertCommand.Parameters.AddWithValue("@language", translation.Language);
+        upsertCommand.Parameters.AddWithValue("@text", translation.Text);
+        upsertCommand.Parameters.AddWithValue("@translator", translation.Translator);
+        await upsertCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task<int> ExecuteScalarIntAsync(
+        SqliteConnection connection,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(value);
+    }
+
+    private string ResolveUserKey(string? userKey)
+    {
+        var normalized = userKey?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = _options.DefaultUserKey;
+        }
+
+        return normalized!;
+    }
+
+    private sealed record ImportVerse(
+        int SurahNum,
+        int AyahNum,
+        string ArabicText,
+        string UthmaniText,
+        IReadOnlyList<ImportTranslation> Translations);
+
+    private sealed record ImportTranslation(
+        string Language,
+        string Text,
+        string Translator);
+}

@@ -1,62 +1,68 @@
-using System.Net.Http.Json;
-using Microsoft.Extensions.Configuration;
-using TarteelMobile.Models;
-
 namespace TarteelMobile.Services;
 
-public interface IApiService
+public interface ISessionService
 {
-    string? AuthToken { get; }
+    bool IsAuthenticated { get; }
+    string? CurrentUserEmail { get; }
     Task<bool>  LoginAsync(string email, string password);
     Task<bool>  RegisterAsync(string email, string password);
-    Task<Verse?> GetVerseAsync(int surahNum, int ayahNum);
+    Task LogoutAsync();
 }
 
-public class ApiService : IApiService
+public sealed class LocalSessionService : ISessionService
 {
-    private readonly HttpClient _http;
+    private readonly IAppDiagnosticsService _diagnostics;
 
-    public string? AuthToken { get; private set; }
+    public bool IsAuthenticated { get; private set; }
+    public string? CurrentUserEmail { get; private set; }
 
-    public ApiService(IConfiguration config)
+    public LocalSessionService(IAppDiagnosticsService diagnostics)
     {
-        var baseUrl = config["ApiService:BaseUrl"]
-            ?? "https://localhost:7001";
-        _http = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        _diagnostics = diagnostics;
     }
 
-    public async Task<bool> LoginAsync(string email, string password)
+    public Task<bool> LoginAsync(string email, string password)
+        => Task.FromResult(TryAuthenticate(email, password, "login"));
+
+    public Task<bool> RegisterAsync(string email, string password)
+        => Task.FromResult(TryAuthenticate(email, password, "registration"));
+
+    public Task LogoutAsync()
     {
-        var response = await _http.PostAsJsonAsync("/api/auth/login",
-            new { email, password });
-        if (!response.IsSuccessStatusCode) return false;
+        if (IsAuthenticated)
+        {
+            _diagnostics.Info($"User '{CurrentUserEmail}' logged out from local session.");
+        }
 
-        var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
-        if (result?.Token is null) return false;
+        IsAuthenticated = false;
+        CurrentUserEmail = null;
+        return Task.CompletedTask;
+    }
 
-        AuthToken = result.Token;
-        _http.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AuthToken);
+    private bool TryAuthenticate(string email, string password, string operation)
+    {
+        var normalizedEmail = email.Trim();
+        if (!IsValidEmail(normalizedEmail) || password.Trim().Length < 4)
+        {
+            _diagnostics.Warn($"Rejected local {operation} attempt due to invalid credentials format.");
+            return false;
+        }
+
+        IsAuthenticated = true;
+        CurrentUserEmail = normalizedEmail;
+        _diagnostics.Info($"Accepted local {operation} for '{normalizedEmail}'.");
         return true;
     }
 
-    public async Task<bool> RegisterAsync(string email, string password)
+    private static bool IsValidEmail(string email)
     {
-        var response = await _http.PostAsJsonAsync("/api/auth/register",
-            new { email, password });
-        if (!response.IsSuccessStatusCode) return false;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return false;
+        }
 
-        var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
-        if (result?.Token is null) return false;
-
-        AuthToken = result.Token;
-        _http.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AuthToken);
-        return true;
+        return email.Contains('@', StringComparison.Ordinal) &&
+               email.IndexOf(' ') < 0 &&
+               email.Contains('.', StringComparison.Ordinal);
     }
-
-    public async Task<Verse?> GetVerseAsync(int surahNum, int ayahNum)
-        => await _http.GetFromJsonAsync<Verse>($"/api/quran/{surahNum}/{ayahNum}");
-
-    private record TokenResponse(string Token);
 }

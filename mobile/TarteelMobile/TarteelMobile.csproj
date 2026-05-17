@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>TarteelMobile</RootNamespace>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
+    <WindowsPackageType>None</WindowsPackageType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -14,23 +15,45 @@
     <ApplicationId>com.tarteel.mobile</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+
+    <!-- Packaging script can override these at publish time -->
+    <OfflineModelDir Condition="'$(OfflineModelDir)' == ''">$(MSBuildProjectDirectory)\..\..\offline-assets\models</OfflineModelDir>
+    <OfflineDataDir Condition="'$(OfflineDataDir)' == ''">$(MSBuildProjectDirectory)\..\..\offline-assets\data</OfflineDataDir>
+    <OfflineExtrasDir Condition="'$(OfflineExtrasDir)' == ''">$(MSBuildProjectDirectory)\..\..\offline-assets\extras</OfflineExtrasDir>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- App Icon -->
     <MauiIcon Include="Resources/AppIcon/appicon.svg" ForegroundFile="Resources/AppIcon/appiconfg.svg" Color="#512BD4" />
     <!-- Splash Screen -->
-    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#512BD4" BaseSize="128,128" />
+    <MauiSplashScreen Include="Resources/AppIcon/appicon.svg" Color="#512BD4" BaseSize="128,128" />
     <!-- Fonts -->
     <MauiFont Include="Resources/Fonts/*.ttf" />
     <!-- Raw Assets (audio prompts, etc.) -->
     <MauiAsset Include="Resources/Raw/**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineModelDir)')">
+    <MauiAsset Include="$(OfflineModelDir)\**\*" LogicalName="offline/models/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineDataDir)')">
+    <MauiAsset Include="$(OfflineDataDir)\**\*" LogicalName="offline/data/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineExtrasDir)')">
+    <MauiAsset Include="$(OfflineExtrasDir)\**\*" LogicalName="offline/extras/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.8" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.10" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LocalRecitationCore\TarteelClone.LocalRecitationCore.csproj" />
   </ItemGroup>
 
 </Project>
