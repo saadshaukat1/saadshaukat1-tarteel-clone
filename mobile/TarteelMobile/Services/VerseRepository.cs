@@ -111,6 +111,11 @@ public sealed class LocalVerseRepository : IVerseRepository
         );
 
         CREATE INDEX IF NOT EXISTS idx_progress_user_key ON memorization_progress (user_key);
+
+        CREATE TABLE IF NOT EXISTS dataset_metadata (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        );
         """;
 
     private readonly LocalQuranDataOptions _options;
@@ -161,11 +166,25 @@ public sealed class LocalVerseRepository : IVerseRepository
             if (verseCount == 0)
             {
                 var importedCount = await ImportBootstrapDataAsync(connection, cancellationToken);
+                await SetDatasetMetadataAsync(connection, "imported_verse_count", importedCount.ToString(), cancellationToken);
                 _diagnostics.Info($"Imported {importedCount} verse(s) into local SQLite store.");
             }
             else
             {
-                _diagnostics.Info($"Local SQLite store already initialized with {verseCount} verse(s).");
+                // Re-import if the asset has more verses than what was last recorded, so that
+                // expanding the Quran data asset updates an existing installation.
+                var storedImportCount = await GetDatasetMetadataAsync(connection, "imported_verse_count", cancellationToken);
+                var assetVerseCount = await CountImportDatasetVersesAsync(cancellationToken);
+                if (assetVerseCount > verseCount || (storedImportCount is not null && assetVerseCount > int.Parse(storedImportCount)))
+                {
+                    var importedCount = await ImportBootstrapDataAsync(connection, cancellationToken);
+                    await SetDatasetMetadataAsync(connection, "imported_verse_count", importedCount.ToString(), cancellationToken);
+                    _diagnostics.Info($"Re-imported {importedCount} verse(s) after dataset expansion (was {verseCount}).");
+                }
+                else
+                {
+                    _diagnostics.Info($"Local SQLite store already initialized with {verseCount} verse(s).");
+                }
             }
 
             _isInitialized = true;
@@ -355,6 +374,33 @@ public sealed class LocalVerseRepository : IVerseRepository
         await using var schemaCommand = connection.CreateCommand();
         schemaCommand.CommandText = SchemaSql;
         await schemaCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task SetDatasetMetadataAsync(SqliteConnection connection, string key, string value, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO dataset_metadata (key, value) VALUES (@key, @value)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+            """;
+        command.Parameters.AddWithValue("@key", key);
+        command.Parameters.AddWithValue("@value", value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task<string?> GetDatasetMetadataAsync(SqliteConnection connection, string key, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM dataset_metadata WHERE key = @key LIMIT 1;";
+        command.Parameters.AddWithValue("@key", key);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result as string;
+    }
+
+    private async Task<int> CountImportDatasetVersesAsync(CancellationToken cancellationToken)
+    {
+        var importSource = await LoadImportDatasetAsync(cancellationToken);
+        return importSource.Verses.Count > 0 ? importSource.Verses.Count : BuiltInFallbackVerses.Count;
     }
 
     private async Task<int> ImportBootstrapDataAsync(SqliteConnection connection, CancellationToken cancellationToken)

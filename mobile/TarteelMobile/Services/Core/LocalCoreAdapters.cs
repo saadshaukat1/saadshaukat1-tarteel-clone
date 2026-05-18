@@ -41,17 +41,37 @@ public sealed class VerseRepositoryCoreAdapter : CoreAbstractions.IVerseReposito
 
 public sealed class DiagnosticsProgressStore : CoreAbstractions.IProgressStore
 {
+    private readonly IVerseRepository _verseRepository;
+    private readonly ISessionService _session;
     private readonly IAppDiagnosticsService _diagnostics;
 
-    public DiagnosticsProgressStore(IAppDiagnosticsService diagnostics)
+    public DiagnosticsProgressStore(
+        IVerseRepository verseRepository,
+        ISessionService session,
+        IAppDiagnosticsService diagnostics)
     {
+        _verseRepository = verseRepository;
+        _session = session;
         _diagnostics = diagnostics;
     }
 
     public async Task SaveAsync(CoreModels.RecitationMatchResult result, CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask;
         _diagnostics.Info(
-            $"Progress checkpoint (baseline): Surah {result.SurahNum}:{result.AyahNum} confidence {result.Confidence:0.00}.");
+            $"Progress checkpoint: Surah {result.SurahNum}:{result.AyahNum} confidence {result.Confidence:0.00}.");
+
+        try
+        {
+            await _verseRepository.RecordRecitationAsync(
+                _session.CurrentUserEmail,
+                result.SurahNum,
+                result.AyahNum,
+                result.Confidence,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Could not persist recitation progress to local store: {ex.Message}");
+        }
     }
 }

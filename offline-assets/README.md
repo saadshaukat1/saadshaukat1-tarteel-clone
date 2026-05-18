@@ -17,10 +17,11 @@ offline-assets/
 - `data/`: offline Quran datasets or SQLite seed files.
 - `extras/`: any additional runtime assets required offline.
 
-## Zero-config default discovery
+## Default asset discovery
 
-The desktop app now tries to auto-discover Whisper runtime/model files at startup.
-If you place files in the default locations below, no manual path edits are needed:
+The desktop app auto-discovers Whisper runtime/model files when the recitation
+pipeline first starts (not during app startup). If you place files in the default
+locations below, no manual path edits are needed:
 
 - Runtime executable:
   - `offline-assets/extras/whisper-cli.exe`

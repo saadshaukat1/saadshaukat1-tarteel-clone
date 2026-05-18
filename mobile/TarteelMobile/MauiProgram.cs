@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TarteelMobile.Services;
 using TarteelMobile.Services.Asr;
-using TarteelMobile.Services.Core;
 using TarteelMobile.ViewModels;
 using TarteelMobile.Views;
 using CoreAbstractions = TarteelClone.LocalRecitationCore.Abstractions;
@@ -52,7 +51,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAsrEngine, LocalWhisperAsrEngine>();
         builder.Services.AddSingleton<CoreAbstractions.IAsrEngine, AsrEngineCoreAdapter>();
         builder.Services.AddSingleton<CoreAbstractions.IVerseRepository, VerseRepositoryCoreAdapter>();
-        builder.Services.AddSingleton<CoreAbstractions.IVerseMatcher, PlaceholderVerseMatcher>();
+        builder.Services.AddSingleton<CoreAbstractions.IVerseMatcher, CoreServices.PlaceholderVerseMatcher>();
         builder.Services.AddSingleton<CoreAbstractions.IProgressStore, DiagnosticsProgressStore>();
         builder.Services.AddSingleton<CoreAbstractions.IRecitationOrchestrator, CoreServices.OfflineRecitationOrchestrator>();
         builder.Services.AddSingleton<IRecitationService, RecitationService>();

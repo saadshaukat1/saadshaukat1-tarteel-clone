@@ -129,9 +129,11 @@ public sealed class RecitationService : IRecitationService
         if (!isConnected)
             return;
 
+        bool acquired = false;
         try
         {
             await _chunkProcessingGate.WaitAsync(sessionToken);
+            acquired = true;
             lock (_sync)
             {
                 if (!_connected)
@@ -150,7 +152,7 @@ public sealed class RecitationService : IRecitationService
         }
         finally
         {
-            if (_chunkProcessingGate.CurrentCount == 0)
+            if (acquired && _chunkProcessingGate.CurrentCount == 0)
             {
                 _chunkProcessingGate.Release();
             }

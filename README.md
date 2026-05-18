@@ -58,27 +58,30 @@ tarteel-clone/
 - `offline-assets/models/ggml-small.bin`
 - optional: `offline-assets/models/ggml-medium.bin`
 
-### 2) Build desktop app
+### 2) Install the MAUI workload
+
+```powershell
+dotnet workload install maui
+```
+
+### 3) Build desktop app
 
 ```powershell
 dotnet restore mobile/TarteelMobile/TarteelMobile.csproj `
   -p:TargetFramework=net10.0-windows10.0.19041.0 `
-  -p:RuntimeIdentifier=win-x64 `
-  -p:MSBuildEnableWorkloadResolver=false
+  -p:RuntimeIdentifier=win-x64
 
 dotnet build mobile/TarteelMobile/TarteelMobile.csproj `
   -f net10.0-windows10.0.19041.0 `
-  -p:RuntimeIdentifier=win-x64 `
-  -p:MSBuildEnableWorkloadResolver=false
+  -p:RuntimeIdentifier=win-x64
 ```
 
-### 3) Run desktop app
+### 4) Run desktop app
 
 ```powershell
 dotnet run --project mobile/TarteelMobile/TarteelMobile.csproj `
   -f net10.0-windows10.0.19041.0 `
-  -p:RuntimeIdentifier=win-x64 `
-  -p:MSBuildEnableWorkloadResolver=false
+  -p:RuntimeIdentifier=win-x64
 ```
 
 ---

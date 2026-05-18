@@ -22,43 +22,64 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         string arabicText,
         CancellationToken cancellationToken = default)
     {
-        var verse = await _verses.GetVerseAsync(1, 1, cancellationToken);
-        if (verse is null)
+        var candidates = await _verses.GetMemorizedVersesAsync(cancellationToken);
+
+        // Fall back to Surah 1:1 when there are no memorized verses.
+        if (candidates.Count == 0)
         {
-            return new RecitationMatchResult
-            {
-                Confidence = 0
-            };
+            var fallback = await _verses.GetVerseAsync(1, 1, cancellationToken);
+            candidates = fallback is not null ? [fallback] : [];
         }
 
-        var expectedText = verse.ArabicText;
-        var expectedTokens = Tokenize(expectedText);
-        var spokenTokens = Tokenize(arabicText);
-        if (spokenTokens.Count == 0 || expectedTokens.Count == 0)
+        if (candidates.Count == 0)
         {
+            return new RecitationMatchResult { Confidence = 0 };
+        }
+
+        var spokenTokens = Tokenize(arabicText);
+
+        RecitationMatchResult? bestResult = null;
+
+        foreach (var candidate in candidates)
+        {
+            var expectedTokens = Tokenize(candidate.ArabicText);
+            if (spokenTokens.Count == 0 || expectedTokens.Count == 0)
+            {
+                continue;
+            }
+
+            var (matchedWords, mismatches) = CompareTokens(expectedTokens, spokenTokens);
+            var confidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
+
+            if (bestResult is null || confidence > bestResult.Confidence)
+            {
+                bestResult = new RecitationMatchResult
+                {
+                    SurahNum = candidate.SurahNum,
+                    AyahNum = candidate.AyahNum,
+                    ArabicText = candidate.ArabicText,
+                    Confidence = confidence,
+                    ProcessedWordCount = Math.Min(spokenTokens.Count, expectedTokens.Count),
+                    MatchedWordCount = matchedWords,
+                    Mismatches = mismatches
+                };
+            }
+        }
+
+        if (bestResult is null)
+        {
+            var first = candidates[0];
             return new RecitationMatchResult
             {
-                SurahNum = verse.SurahNum,
-                AyahNum = verse.AyahNum,
+                SurahNum = first.SurahNum,
+                AyahNum = first.AyahNum,
                 ArabicText = string.Empty,
                 Confidence = 0,
                 Mismatches = []
             };
         }
 
-        var (matchedWords, mismatches) = CompareTokens(expectedTokens, spokenTokens);
-        var confidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
-
-        return new RecitationMatchResult
-        {
-            SurahNum = verse.SurahNum,
-            AyahNum = verse.AyahNum,
-            ArabicText = expectedText,
-            Confidence = confidence,
-            ProcessedWordCount = Math.Min(spokenTokens.Count, expectedTokens.Count),
-            MatchedWordCount = matchedWords,
-            Mismatches = mismatches
-        };
+        return bestResult;
     }
 
     private static IReadOnlyList<WordToken> Tokenize(string text)

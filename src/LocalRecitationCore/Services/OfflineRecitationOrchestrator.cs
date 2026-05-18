@@ -36,16 +36,28 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        lock (_sync)
-        {
-            _isRunning = true;
-        }
         lock (_transcriptSync)
         {
             _sessionTranscriptTokens.Clear();
         }
 
-        await _asrEngine.InitializeAsync(cancellationToken);
+        try
+        {
+            await _asrEngine.InitializeAsync(cancellationToken);
+        }
+        catch
+        {
+            lock (_sync)
+            {
+                _isRunning = false;
+            }
+            throw;
+        }
+
+        lock (_sync)
+        {
+            _isRunning = true;
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)

@@ -21,9 +21,15 @@ public sealed class LocalWhisperAsrEngine(
 
     private readonly LocalWhisperOptions _options = options.Value;
     private readonly ILogger<LocalWhisperAsrEngine> _logger = logger;
+    // One inference at a time: whisper-cli is a single-shot process per audio file.
+    // A semaphore prevents chunk backlog from spawning concurrent processes that would
+    // compete for CPU. Chunks queued while inference runs are dropped by the caller.
+    private readonly SemaphoreSlim _inferenceLock = new(1, 1);
     private bool _isInitialized;
     private bool _isUsingMockMode;
     private string? _resolvedRuntimePath;
+    // Resolved model paths are cached after first validation so repeated transcriptions
+    // skip redundant file-system probing on every chunk.
     private readonly Dictionary<string, string> _resolvedTierModelPaths = new(StringComparer.OrdinalIgnoreCase);
 
     public bool IsReady => _isInitialized;
@@ -52,7 +58,17 @@ public sealed class LocalWhisperAsrEngine(
         {
             _logger.LogWarning("Local Whisper init blocked: {SetupError}", setupError);
             _isInitialized = false;
-            _isUsingMockMode = false;
+
+            if (_options.AllowMockWhenUnavailable)
+            {
+                _isUsingMockMode = true;
+                _isInitialized = true;
+                _logger.LogInformation("Local Whisper falling back to mock mode (AllowMockWhenUnavailable=true).");
+            }
+            else
+            {
+                _isUsingMockMode = false;
+            }
             return;
         }
 
@@ -72,6 +88,12 @@ public sealed class LocalWhisperAsrEngine(
         if (audioChunk.Length == 0)
         {
             return RecitationTranscriptionResult.Failure("Audio chunk was empty.", ActiveTier);
+        }
+
+        if (_isUsingMockMode)
+        {
+            _logger.LogDebug("ASR mock mode active — returning empty transcript.");
+            return RecitationTranscriptionResult.Failure("ASR running in mock mode; no real transcription available.", ActiveTier);
         }
 
         var primary = _options.PrimaryTier.Trim().ToLowerInvariant();
@@ -154,6 +176,13 @@ public sealed class LocalWhisperAsrEngine(
             return RecitationTranscriptionResult.Failure(validationError, tier, usedFallback);
         }
 
+        // Serialize inference: skip this chunk if another is already in progress so we
+        // do not queue up back-to-back processes during continuous audio capture.
+        if (!await _inferenceLock.WaitAsync(0, cancellationToken))
+        {
+            return RecitationTranscriptionResult.Failure("Inference busy; chunk skipped.", tier, usedFallback);
+        }
+
         var tempAudioPath = Path.Combine(
             Path.GetTempPath(),
             $"tarteel-asr-{Guid.NewGuid():N}.wav");
@@ -230,6 +259,7 @@ public sealed class LocalWhisperAsrEngine(
 
             process?.Dispose();
             TryDeleteTempFile(tempAudioPath);
+            _inferenceLock.Release();
         }
     }
 
@@ -263,9 +293,22 @@ public sealed class LocalWhisperAsrEngine(
                 return (false, $"Failed to download model for tier '{tier}'. HTTP {(int)response.StatusCode}.");
             }
 
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var destination = File.Create(targetModelPath);
-            await source.CopyToAsync(destination, cancellationToken);
+            var tempModelPath = targetModelPath + ".download";
+            try
+            {
+                await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+                await using (var destination = File.Create(tempModelPath))
+                {
+                    await source.CopyToAsync(destination, cancellationToken);
+                }
+
+                File.Move(tempModelPath, targetModelPath, overwrite: true);
+            }
+            catch
+            {
+                TryDeleteTempFile(tempModelPath);
+                throw;
+            }
 
             if (!File.Exists(targetModelPath))
             {

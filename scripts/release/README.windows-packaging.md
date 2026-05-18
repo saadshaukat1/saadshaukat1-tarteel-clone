@@ -18,7 +18,7 @@ This folder provides an initial, repeatable Windows packaging scaffold for `Tart
   - Build-only validation (`-BuildOnly`) to verify packaging inputs without emitting MSIX.
   - Publish + MSIX packaging (default) to produce release artifacts.
 - Supports signing-ready options but does not require credentials:
-  - Unsinged package flow works with no cert inputs.
+  - Unsigned package flow works with no cert inputs.
   - Signed package flow can be enabled by setting certificate path/thumbprint and password.
 
 ## Quick start (local, unsigned)

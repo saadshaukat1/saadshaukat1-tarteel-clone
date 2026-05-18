@@ -70,6 +70,8 @@ public sealed class OfflineReadinessService : IOfflineReadinessService
             IsReady: !string.IsNullOrWhiteSpace(_diagnostics.LogPath),
             Details: $"Log file path: {_diagnostics.LogPath}"));
 
+        await _asrEngine.InitializeAsync();
+
         checks.Add(new ReadinessCheckResult(
             Name: "Local ASR runtime",
             IsReady: _asrEngine.IsReady && !_asrEngine.IsUsingMockMode,

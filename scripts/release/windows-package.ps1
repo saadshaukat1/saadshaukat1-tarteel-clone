@@ -55,6 +55,11 @@ function Format-DotNetCommand {
 
     $parts = @("dotnet")
     foreach ($arg in $Arguments) {
+        # Redact certificate password from logged output.
+        if ($arg -match "(?i)PackageCertificatePassword=") {
+            $parts += "-p:PackageCertificatePassword=***"
+            continue
+        }
         if ($arg -match "\s") {
             $parts += '"' + ($arg.Replace('"', '\"')) + '"'
         } else {
@@ -217,8 +222,11 @@ if ($signingEnabled) {
     if (-not [string]::IsNullOrWhiteSpace($CertThumbprint)) {
         $sharedArgs += "-p:PackageCertificateThumbprint=$CertThumbprint"
     }
+    # Pass the certificate password through an environment variable so it is never
+    # written to the build log or visible in process argument lists.
     if (-not [string]::IsNullOrWhiteSpace($CertPassword)) {
-        $sharedArgs += "-p:PackageCertificatePassword=$CertPassword"
+        $env:PackageCertificatePassword = $CertPassword
+        $sharedArgs += "-p:PackageCertificatePassword=$($env:PackageCertificatePassword)"
     }
 } else {
     $sharedArgs += "-p:AppxPackageSigningEnabled=false"

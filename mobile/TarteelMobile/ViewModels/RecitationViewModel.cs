@@ -152,16 +152,47 @@ public partial class RecitationViewModel : ObservableObject
             var chunkNumber = Interlocked.Increment(ref _chunkDispatchCount);
             if (chunkNumber <= 5 || chunkNumber % 10 == 0)
             {
-                ProcessingSummary = $"Audio chunks flowing: {chunkNumber}. Waiting for ASR transcript…";
+                var summary = $"Audio chunks flowing: {chunkNumber}. Waiting for ASR transcript…";
+                if (MainThread.IsMainThread)
+                {
+                    ProcessingSummary = summary;
+                }
+                else
+                {
+                    MainThread.BeginInvokeOnMainThread(() => ProcessingSummary = summary);
+                }
             }
 
             await _recitation.SendAudioChunkAsync(chunk);
         }
         catch (Exception ex)
         {
-            SetMicFailureState("Mic stream failed. Please start again.");
             _diagnostics.Error("Unhandled error while sending audio chunk.", ex);
+            await StopPipelineOnFailureAsync("Mic stream failed. Please start again.");
         }
+    }
+
+    private async Task StopPipelineOnFailureAsync(string message)
+    {
+        try
+        {
+            await _audio.StopRecordingAsync();
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Could not stop audio recording after pipeline failure: {ex.Message}");
+        }
+
+        try
+        {
+            await _recitation.DisconnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Could not disconnect recitation pipeline after failure: {ex.Message}");
+        }
+
+        SetMicFailureState(message);
     }
 
     private void OnAudioRecordingError(object? sender, Exception exception)
@@ -237,10 +268,6 @@ public partial class RecitationViewModel : ObservableObject
             }
         }
         await _recitation.DisconnectAsync();
-        if (_session.IsAuthenticated)
-        {
-            await _session.LogoutAsync();
-        }
 
         IsRecording = false;
         ArabicText = string.Empty;
@@ -323,19 +350,30 @@ public partial class RecitationViewModel : ObservableObject
         var formatted = new FormattedString();
         for (var index = 0; index < words.Length; index++)
         {
-            var stateColor = index >= processedWords
+            var isPending = index >= processedWords;
+            var isMismatch = mismatchPositions.Contains(index);
+            var isMatched = !isPending && !isMismatch;
+
+            var stateColor = isPending
                 ? Color.FromArgb("#6B7280") // pending
-                : mismatchPositions.Contains(index)
+                : isMismatch
                     ? shouldRenderRed
                         ? Color.FromArgb("#E53935") // mismatch
                         : Color.FromArgb("#6B7280") // low-confidence mismatch remains pending
                     : Color.FromArgb("#1A6B3C"); // matched
 
+            // Append a non-color accessibility marker so screen readers and color-blind
+            // users can identify each word's state without relying on color alone.
+            var stateMarker = isPending ? "○" : isMismatch ? "✗" : "✓";
+
             formatted.Spans.Add(new Span
             {
-                Text = index == words.Length - 1 ? words[index] : $"{words[index]} ",
+                Text = $"{stateMarker}{words[index]}{(index == words.Length - 1 ? string.Empty : " ")}",
                 TextColor = stateColor,
-                FontAttributes = mismatchPositions.Contains(index) ? FontAttributes.Bold : FontAttributes.None
+                FontAttributes = isMismatch ? FontAttributes.Bold : FontAttributes.None,
+                AutomationId = isMatched ? $"word-matched-{index}"
+                    : isMismatch ? $"word-correction-{index}"
+                    : $"word-pending-{index}"
             });
         }
 

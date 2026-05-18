@@ -40,6 +40,7 @@ on:
       - main
     paths:
       - mobile/TarteelMobile/**
+      - src/LocalRecitationCore/**
       - scripts/release/**
       - .github/workflows/windows-packaging-release.yml
 
@@ -61,13 +62,16 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install MAUI workload
+        shell: pwsh
+        run: dotnet workload install maui
+
       - name: Restore MAUI desktop project
         shell: pwsh
         run: >
           dotnet restore mobile/TarteelMobile/TarteelMobile.csproj
           -p:TargetFramework=net10.0-windows10.0.19041.0
           -p:RuntimeIdentifier=win-x64
-          -p:MSBuildEnableWorkloadResolver=false
 
       - name: Build Local Recitation Core
         shell: pwsh
@@ -80,7 +84,6 @@ jobs:
           -c Release
           -f net10.0-windows10.0.19041.0
           -p:RuntimeIdentifier=win-x64
-          -p:MSBuildEnableWorkloadResolver=false
 
       - name: Validate packaging script (dry-run)
         shell: pwsh
