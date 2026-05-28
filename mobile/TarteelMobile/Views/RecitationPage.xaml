@@ -5,27 +5,167 @@
              x:Class="TarteelMobile.Views.RecitationPage"
              Title="Recite">
 
-    <Grid RowDefinitions="*,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
 
-        <!-- Arabic verse display -->
-        <ScrollView Grid.Row="0">
-            <Label x:Name="ArabicLabel"
-                   FormattedText="{Binding HighlightedArabicText}"
-                   FontFamily="ArabicRegular"
-                   FontSize="28"
-                   HorizontalTextAlignment="End"
-                   LineBreakMode="WordWrap"
-                   TextColor="{StaticResource OnSurface}" />
+        <!-- ── Model download progress overlay ──────────────────────────── -->
+        <Border Grid.Row="0"
+                IsVisible="{Binding IsModelDownloading}"
+                Padding="16,12"
+                Margin="0,0,0,8"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 8"
+                Stroke="#2563EB"
+                BackgroundColor="#EFF6FF">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="⬇️ Downloading Whisper model — please wait…"
+                       FontAttributes="Bold"
+                       FontSize="13"
+                       TextColor="#1D4ED8" />
+                <Label Text="{Binding ModelDownloadStatus}"
+                       FontSize="12"
+                       TextColor="#1E40AF" />
+                <!-- Determinate progress bar when total size is known -->
+                <ProgressBar Progress="{Binding ModelDownloadProgress}"
+                             ProgressColor="#2563EB"
+                             IsVisible="{Binding IsModelDownloadIndeterminate,
+                                 Converter={StaticResource InvertedBoolConverter}}"
+                             HeightRequest="6" />
+                <!-- Indeterminate activity indicator when size is unknown -->
+                <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
+                                   IsVisible="{Binding IsModelDownloadIndeterminate}"
+                                   Color="#2563EB"
+                                   HeightRequest="24" />
+                <Label Text="The mic is disabled until the download finishes. This is a one-time download."
+                       FontSize="11"
+                       TextColor="#3B82F6"
+                       FontAttributes="Italic" />
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ── Verse selector ─────────────────────────────────────────────── -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,12">
+            <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
+            <Picker Grid.Column="1"
+                    ItemsSource="{Binding SurahNumbers}"
+                    SelectedItem="{Binding SelectedSurah}"
+                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" />
+            <Label Grid.Column="2" Text="Ayah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
+            <Picker Grid.Column="3"
+                    ItemsSource="{Binding AyahNumbers}"
+                    SelectedItem="{Binding SelectedAyah}"
+                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" />
+            <Button Grid.Column="4"
+                    Text="Load"
+                    BackgroundColor="{StaticResource Primary}"
+                    TextColor="White"
+                    HeightRequest="38"
+                    WidthRequest="60"
+                    FontSize="13"
+                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                    Command="{Binding LoadSelectedVerseCommand}" />
+        </Grid>
+
+        <!-- ── Arabic verse display ───────────────────────────────────────── -->
+        <ScrollView Grid.Row="2">
+            <VerticalStackLayout Spacing="8">
+
+                <!-- Verse panel -->
+                <Border Padding="16"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 10"
+                        IsVisible="{Binding IsVerseVisible}"
+                        Stroke="{Binding IsVerseCorrect,
+                                    Converter={StaticResource BoolToColorConverter},
+                                    ConverterParameter='#1A6B3C|#E53935'}"
+                        BackgroundColor="{Binding IsVerseCorrect,
+                                    Converter={StaticResource BoolToColorConverter},
+                                    ConverterParameter='#E8F5E9|#FFF8F8'}">
+                    <Label x:Name="ArabicLabel"
+                           FormattedText="{Binding HighlightedArabicText}"
+                           FontFamily="ArabicRegular"
+                           FontSize="28"
+                           HorizontalTextAlignment="End"
+                           LineBreakMode="WordWrap"
+                           TextColor="{StaticResource OnSurface}" />
+                </Border>
+
+                <!-- Placeholder shown when verse is hidden -->
+                <Border Padding="16"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 10"
+                        IsVisible="{Binding IsVerseVisible, Converter={StaticResource InvertedBoolConverter}}"
+                        Stroke="#CCCCCC"
+                        BackgroundColor="#F0F0F0">
+                    <Label Text="Verse hidden — recite from memory"
+                           HorizontalTextAlignment="Center"
+                           FontSize="15"
+                           FontAttributes="Italic"
+                           TextColor="#6B7280" />
+                </Border>
+
+                <!-- ── Tajweed violations panel ──────────────────────────── -->
+                <Border IsVisible="{Binding HasTajweedViolations}"
+                        Padding="12"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        Stroke="#F59E0B"
+                        BackgroundColor="#FFFBEB">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🔔 Tajweed Corrections"
+                               FontAttributes="Bold"
+                               FontSize="13"
+                               TextColor="#92400E" />
+                        <CollectionView ItemsSource="{Binding TajweedViolations}">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <VerticalStackLayout Padding="0,4" Spacing="2">
+                                        <Label Text="{Binding RuleDisplayName}"
+                                               FontSize="13"
+                                               FontAttributes="Bold"
+                                               TextColor="#B45309" />
+                                        <Label Text="{Binding Hint}"
+                                               FontSize="12"
+                                               TextColor="#78350F" />
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- ── ASR / Whisper debug panel ─────────────────────────── -->
+                <Border IsVisible="{Binding IsAsrDebugVisible}"
+                        Padding="12"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        Stroke="#374151"
+                        BackgroundColor="#111827">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="🛠 Whisper Debug Log"
+                               FontAttributes="Bold"
+                               FontSize="12"
+                               TextColor="#9CA3AF" />
+                        <Label Text="{Binding AsrDebugLog}"
+                               FontSize="11"
+                               FontFamily="Courier New"
+                               TextColor="#D1FAE5"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
         </ScrollView>
 
-        <!-- Confidence bar -->
-        <ProgressBar Grid.Row="1"
+        <!-- ── Confidence bar ─────────────────────────────────────────────── -->
+        <ProgressBar Grid.Row="3"
                      Progress="{Binding Confidence}"
-                     ProgressColor="{StaticResource Primary}"
+                     ProgressColor="{Binding IsVerseCorrect,
+                                Converter={StaticResource BoolToColorConverter},
+                                ConverterParameter='#1A6B3C|#E53935'}"
                      Margin="0,8" />
 
-        <!-- Status message -->
-        <VerticalStackLayout Grid.Row="2" Spacing="2" Margin="0,4">
+        <!-- ── Status message ─────────────────────────────────────────────── -->
+        <VerticalStackLayout Grid.Row="4" Spacing="2" Margin="0,4">
             <Label Text="{Binding StatusMessage}"
                    HorizontalTextAlignment="Center"
                    FontSize="14"
@@ -34,13 +174,15 @@
                    HorizontalTextAlignment="Center"
                    FontSize="12"
                    TextColor="#6B7280" />
-            <Label Text="Legend: Green = matched • Red = needs correction • Gray = not processed yet"
+            <Label Text="Green = matched word  •  Red = needs correction  •  Gray = not yet processed"
                    HorizontalTextAlignment="Center"
                    FontSize="11"
                    TextColor="#6B7280" />
         </VerticalStackLayout>
 
-        <HorizontalStackLayout Grid.Row="3" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
+        <!-- ── Buttons ────────────────────────────────────────────────────── -->
+        <HorizontalStackLayout Grid.Row="5" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
+
             <!-- Mic button -->
             <Button Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
                     BackgroundColor="{Binding IsRecording,
@@ -51,12 +193,38 @@
                     HeightRequest="80"
                     WidthRequest="80"
                     Command="{Binding ToggleRecordingCommand}" />
-            <Button Text="Reset Session"
+
+            <!-- Show / Hide verse toggle -->
+            <Button BackgroundColor="{StaticResource PrimaryDark}"
+                    TextColor="White"
+                    HeightRequest="44"
+                    WidthRequest="110"
+                    VerticalOptions="Center"
+                    Command="{Binding ToggleVerseVisibilityCommand}">
+                <Button.Triggers>
+                    <DataTrigger TargetType="Button"
+                                 Binding="{Binding IsVerseVisible}"
+                                 Value="True">
+                        <Setter Property="Text" Value="Hide Verse" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Button"
+                                 Binding="{Binding IsVerseVisible}"
+                                 Value="False">
+                        <Setter Property="Text" Value="Show Verse" />
+                    </DataTrigger>
+                </Button.Triggers>
+            </Button>
+
+            <!-- Reset session -->
+            <Button Text="Reset"
                     BackgroundColor="{StaticResource PrimaryDark}"
                     TextColor="White"
                     HeightRequest="44"
                     VerticalOptions="Center"
                     Command="{Binding StopSessionCommand}" />
+
         </HorizontalStackLayout>
+
     </Grid>
 </ContentPage>
+

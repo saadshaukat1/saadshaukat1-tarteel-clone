@@ -3,7 +3,7 @@ param(
     [string]$ProjectPath = "mobile/TarteelMobile/TarteelMobile.csproj",
     [string]$Configuration = "Release",
     [string]$TargetFramework = "net10.0-windows10.0.19041.0",
-    [string]$RuntimeIdentifier = "win10-x64",
+    [string]$RuntimeIdentifier = "win-x64",
     [string]$OutputRoot = "artifacts/windows-packaging",
     [string]$ModelDir = "",
     [string]$DataDir = "",
@@ -265,7 +265,6 @@ if ($buildOnlyEnabled) {
 } else {
     if (-not $dryRunEnabled) {
         New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
-        New-Item -ItemType Directory -Force -Path $msixDir | Out-Null
     }
 
     $publishLifecycleArgs = @()
@@ -275,13 +274,12 @@ if ($buildOnlyEnabled) {
         $publishLifecycleArgs += "--no-self-contained"
     }
 
-    Write-Section "Running Publish + MSIX Packaging"
+    Write-Section "Running Publish + Folder Packaging"
     Invoke-DotNet -Arguments (@(
             "publish"
         ) + $sharedArgs + $publishLifecycleArgs + @(
-            "-p:WindowsPackageType=MSIX",
-            "-p:GenerateAppxPackageOnBuild=true",
-            "-p:AppxPackageDir=$msixDir\",
+            "-p:WindowsPackageType=None",
+            "-p:GenerateAppxPackageOnBuild=false",
             "-p:PublishDir=$publishDir\"
         ))
 }

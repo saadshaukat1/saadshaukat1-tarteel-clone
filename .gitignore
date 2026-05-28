@@ -460,3 +460,4 @@ data/quran/*.txt
 # Keep Windows packaging automation tracked
 !scripts/release/
 !scripts/release/**
+/offline-assets/models/ggml-small.bin

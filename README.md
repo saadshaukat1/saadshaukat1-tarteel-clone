@@ -58,6 +58,18 @@ tarteel-clone/
 - `offline-assets/models/ggml-small.bin`
 - optional: `offline-assets/models/ggml-medium.bin`
 
+### 1b) Download the full Quran dataset
+
+The app ships with a 7-verse seed fallback. To load all 6236 verses run the
+provided script once (requires internet, PowerShell 7+):
+
+```powershell
+pwsh ./scripts/fetch-full-quran.ps1
+```
+
+This writes `offline-assets/data/quran/import/full_quran.json`.
+The app detects the file automatically on next launch and re-imports.
+
 ### 2) Install the MAUI workload
 
 ```powershell

@@ -7,6 +7,7 @@ namespace TarteelMobile.Services;
 public interface IRecitationService
 {
     event EventHandler<MatchResult>? MatchResultReceived;
+    event EventHandler<string>? DiagnosticEmitted;
     bool RequiresAuthentication { get; }
     Task ConnectAsync();
     Task FlushAsync(CancellationToken cancellationToken = default);
@@ -25,6 +26,7 @@ public sealed class RecitationService : IRecitationService
     private bool _connected;
 
     public event EventHandler<MatchResult>? MatchResultReceived;
+    public event EventHandler<string>? DiagnosticEmitted;
     // Offline desktop mode should not block recitation behind login.
     public bool RequiresAuthentication => false;
 
@@ -37,6 +39,7 @@ public sealed class RecitationService : IRecitationService
         _session = session;
         _diagnostics = diagnostics;
         _orchestrator.MatchProduced += OnCoreMatchProduced;
+        _orchestrator.DiagnosticEmitted += OnCoreDiagnosticEmitted;
     }
 
     public async Task ConnectAsync()
@@ -171,7 +174,16 @@ public sealed class RecitationService : IRecitationService
             MatchedWordCount = result.MatchedWordCount,
             Mismatches = result.Mismatches
                 .Select(m => new WordMismatch(m.Position, m.Spoken, m.Expected))
+                .ToList(),
+            TajweedViolations = result.TajweedViolations
+                .Select(v => new TajweedViolation(
+                    v.WordPosition, v.Rule, v.ExpectedWord, v.SpokenWord, v.Hint, v.RuleDisplayName))
                 .ToList()
         });
+    }
+
+    private void OnCoreDiagnosticEmitted(object? sender, string message)
+    {
+        DiagnosticEmitted?.Invoke(this, message);
     }
 }

@@ -3,7 +3,8 @@ namespace TarteelMobile.Services;
 public sealed record ReadinessCheckResult(
     string Name,
     bool IsReady,
-    string Details);
+    string Details,
+    bool IsRequired = true);
 
 public sealed record OfflineReadinessReport(
     bool IsReady,
@@ -12,7 +13,7 @@ public sealed record OfflineReadinessReport(
     public string Summary =>
         IsReady
             ? "Offline readiness checks passed."
-            : $"Offline readiness checks failed: {Checks.Count(c => !c.IsReady)} issue(s).";
+            : $"Offline readiness checks failed: {Checks.Count(c => c.IsRequired && !c.IsReady)} issue(s).";
 }
 
 public interface IOfflineReadinessService
@@ -77,12 +78,13 @@ public sealed class OfflineReadinessService : IOfflineReadinessService
             IsReady: _asrEngine.IsReady && !_asrEngine.IsUsingMockMode,
             Details: _asrEngine.IsReady
                 ? (_asrEngine.IsUsingMockMode
-                    ? $"ASR running in mock mode on tier '{_asrEngine.ActiveTier}'."
+                    ? $"ASR running in mock mode on tier '{_asrEngine.ActiveTier}' (real assets not found)."
                     : $"ASR ready on tier '{_asrEngine.ActiveTier}'.")
-                : "ASR runtime not initialized yet (expected before full ASR phase)."));
+                : "ASR assets not installed; recitation will be unavailable until assets are placed.",
+            IsRequired: false));
 
         var report = new OfflineReadinessReport(
-            IsReady: checks.All(c => c.IsReady),
+            IsReady: checks.Where(c => c.IsRequired).All(c => c.IsReady),
             Checks: checks);
 
         if (report.IsReady)

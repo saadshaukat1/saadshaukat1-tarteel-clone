@@ -53,6 +53,10 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
 
             if (bestResult is null || confidence > bestResult.Confidence)
             {
+                var expectedWords = expectedTokens.Select(t => t.Original).ToList();
+                var spokenWords   = spokenTokens.Select(t => t.Original).ToList();
+                var tajweedViolations = TajweedRuleEngine.Analyze(expectedWords, spokenWords, mismatches);
+
                 bestResult = new RecitationMatchResult
                 {
                     SurahNum = candidate.SurahNum,
@@ -61,7 +65,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                     Confidence = confidence,
                     ProcessedWordCount = Math.Min(spokenTokens.Count, expectedTokens.Count),
                     MatchedWordCount = matchedWords,
-                    Mismatches = mismatches
+                    Mismatches = mismatches,
+                    TajweedViolations = tajweedViolations
                 };
             }
         }

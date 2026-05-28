@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TarteelMobile.Services;
 using TarteelMobile.Services.Asr;
+using TarteelMobile.Services.Core;
 using TarteelMobile.ViewModels;
 using TarteelMobile.Views;
 using CoreAbstractions = TarteelClone.LocalRecitationCore.Abstractions;

@@ -13,6 +13,7 @@ public interface IVerseRepository
     Task<int> GetVerseCountAsync(CancellationToken cancellationToken = default);
     Task<Verse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetMemorizedVersesAsync(string? userKey = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VerseProgress>> GetProgressAsync(string? userKey = null, CancellationToken cancellationToken = default);
     Task RecordRecitationAsync(
         string? userKey,
         int surahNum,
@@ -350,6 +351,44 @@ public sealed class LocalVerseRepository : IVerseRepository
         command.Parameters.AddWithValue("@ema_new", EmaNewWeight);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<VerseProgress>> GetProgressAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                p.surah_num,
+                p.ayah_num,
+                v.arabic_text,
+                p.mastery_score,
+                p.updated_at
+            FROM memorization_progress p
+            INNER JOIN verses v
+                ON v.surah_num = p.surah_num
+               AND v.ayah_num = p.ayah_num
+            WHERE p.user_key = @user_key
+            ORDER BY p.surah_num, p.ayah_num;
+            """;
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+
+        var results = new List<VerseProgress>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new VerseProgress(
+                SurahNum: reader.GetInt32(0),
+                AyahNum: reader.GetInt32(1),
+                ArabicText: reader.GetString(2),
+                MasteryScore: reader.GetDouble(3),
+                UpdatedAt: DateTimeOffset.TryParse(reader.GetString(4), out var dt) ? dt : DateTimeOffset.MinValue));
+        }
+
+        return results;
     }
 
     private SqliteConnection CreateOpenConnection()

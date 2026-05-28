@@ -15,23 +15,29 @@ public partial class App : Application
         _diagnostics = diagnostics;
 
         InitializeComponent();
-        MainPage = new AppShell();
-        _ = RunStartupReadinessAsync();
     }
 
-    private async Task RunStartupReadinessAsync()
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        var window = new Window(new AppShell());
+        _ = RunStartupReadinessAsync(window);
+        return window;
+    }
+
+    private async Task RunStartupReadinessAsync(Window window)
     {
         try
         {
             var report = await _readiness.RunStartupChecksAsync();
             _diagnostics.Info($"Startup readiness: {report.Summary}");
+
             if (!report.IsReady)
             {
                 await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    if (Current?.MainPage is not null)
+                    if (window.Page is Page page)
                     {
-                        await Current.MainPage.DisplayAlert(
+                        await page.DisplayAlertAsync(
                             "Offline setup incomplete",
                             report.Summary,
                             "OK");

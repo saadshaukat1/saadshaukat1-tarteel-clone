@@ -42,6 +42,7 @@ public interface IProgressStore
 public interface IRecitationOrchestrator
 {
     event EventHandler<RecitationMatchResult>? MatchProduced;
+    event EventHandler<string>? DiagnosticEmitted;
     Task StartAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SubmitAudioChunkAsync(byte[] audioChunk, CancellationToken cancellationToken = default);

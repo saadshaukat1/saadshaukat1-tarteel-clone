@@ -33,6 +33,7 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
     }
 
     public event EventHandler<RecitationMatchResult>? MatchProduced;
+    public event EventHandler<string>? DiagnosticEmitted;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -96,6 +97,17 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
 
         var submitted = Interlocked.Increment(ref _submittedCount);
         var transcription = await _asrEngine.TranscribeAsync(audioChunk, cancellationToken);
+
+        // ── Emit a diagnostic line after every attempt so the UI can show live status ──
+        var isMock = transcription.DiagnosticMessage?.Contains("mock", StringComparison.OrdinalIgnoreCase) == true
+                  || transcription.DiagnosticMessage?.Contains("Mock transcript", StringComparison.OrdinalIgnoreCase) == true;
+        var diagLine = transcription.IsSuccess
+            ? $"✅ chunk #{submitted} | tier: {transcription.TierUsed} | transcript: \"{transcription.Text?.Trim()}\""
+            : isMock
+                ? $"⚠️ chunk #{submitted} | MOCK MODE — whisper-cli.exe or model not found. Check offline/extras & offline/models folders."
+                : $"❌ chunk #{submitted} | tier: {transcription.TierUsed} | {transcription.DiagnosticMessage}";
+        DiagnosticEmitted?.Invoke(this, diagLine);
+
         if (!transcription.IsSuccess)
         {
             return;
@@ -105,13 +117,8 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         if (string.IsNullOrWhiteSpace(transcriptionText))
         {
             var emptyCount = Interlocked.Increment(ref _emptyTranscriptCount);
-            if (emptyCount <= 5 || emptyCount % 10 == 0)
-            {
-                // Light-weight, throttled instrumentation for "why no UI updates?" debugging.
-                Console.WriteLine(
-                    $"[recitation] chunk#{submitted} produced empty transcript (tier={transcription.TierUsed}, " +
-                    $"mock={transcription.DiagnosticMessage?.Contains("Mock transcript mode active", StringComparison.OrdinalIgnoreCase) == true}).");
-            }
+            DiagnosticEmitted?.Invoke(this,
+                $"🔇 chunk #{submitted} | Whisper returned empty transcript (total empty: {emptyCount}, tier: {transcription.TierUsed})");
             return;
         }
 
@@ -123,12 +130,8 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
 
         var match = await _verseMatcher.MatchAsync(aggregatedTranscript, cancellationToken);
         var matchCount = Interlocked.Increment(ref _matchCount);
-        if (matchCount <= 5 || matchCount % 10 == 0)
-        {
-            Console.WriteLine(
-                $"[recitation] match#{matchCount} s={match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} " +
-                $"processed={match.ProcessedWordCount} matched={match.MatchedWordCount} mismatches={match.Mismatches.Count}");
-        }
+        DiagnosticEmitted?.Invoke(this,
+            $"🎯 match #{matchCount} | {match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount} mismatches={match.Mismatches.Count}");
 
         await _progressStore.SaveAsync(match, cancellationToken);
         MatchProduced?.Invoke(this, match);

@@ -1,32 +1,91 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:TarteelMobile.Models"
              x:Class="TarteelMobile.Views.ProgressPage"
              Title="My Progress">
 
-    <Grid RowDefinitions="Auto,*" Padding="16" BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="16" BackgroundColor="{StaticResource Surface}">
 
         <Label Grid.Row="0"
                Text="Hifz Progress"
                FontSize="22"
                FontAttributes="Bold"
                TextColor="{StaticResource Primary}"
-               Margin="0,0,0,12" />
+               Margin="0,0,0,4" />
 
-        <CollectionView Grid.Row="1"
-                        ItemsSource="{Binding MemorizedVerses}"
-                        EmptyView="No verses recorded yet.">
+        <!-- Overall summary bar -->
+        <Border Grid.Row="1"
+                Padding="12"
+                Margin="0,0,0,12"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 8"
+                Stroke="{StaticResource Primary}"
+                BackgroundColor="#F0FDF4">
+            <Label Text="{Binding OverallSummary}"
+                   FontSize="13"
+                   TextColor="{StaticResource Primary}" />
+        </Border>
+
+        <!-- Per-verse progress list -->
+        <CollectionView Grid.Row="2"
+                        ItemsSource="{Binding VerseProgress}"
+                        EmptyView="No verses practiced yet. Start reciting on the Recite tab!">
             <CollectionView.ItemTemplate>
-                <DataTemplate>
-                    <Grid ColumnDefinitions="*,Auto" Padding="8">
-                        <Label Grid.Column="0"
+                <DataTemplate x:DataType="models:VerseProgress">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                          Padding="8,6"
+                          ColumnSpacing="12">
+
+                        <!-- Surah:Ayah badge -->
+                        <Border Grid.Column="0"
+                                BackgroundColor="{StaticResource Primary}"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 6"
+                                Padding="6,2">
+                            <Label Text="{Binding Label}"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="White" />
+                        </Border>
+
+                        <!-- Arabic snippet -->
+                        <Label Grid.Column="1"
                                Text="{Binding ArabicText}"
                                FontFamily="ArabicRegular"
-                               FontSize="18"
-                               HorizontalTextAlignment="End" />
+                               FontSize="16"
+                               HorizontalTextAlignment="End"
+                               LineBreakMode="TailTruncation"
+                               VerticalOptions="Center" />
+
+                        <!-- Mastery % -->
+                        <Label Grid.Column="2"
+                               Text="{Binding MasteryDisplay}"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="{Binding MasteryColor}"
+                               VerticalOptions="Center" />
+
+                        <!-- Last practiced date -->
+                        <Label Grid.Column="3"
+                               Text="{Binding UpdatedDisplay}"
+                               FontSize="11"
+                               TextColor="#6B7280"
+                               VerticalOptions="Center" />
+
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
+
+        <!-- Refresh button -->
+        <Button Grid.Row="3"
+                Text="Refresh"
+                BackgroundColor="{StaticResource Primary}"
+                TextColor="White"
+                Margin="0,12,0,0"
+                Command="{Binding RefreshCommand}" />
+
     </Grid>
 </ContentPage>
+

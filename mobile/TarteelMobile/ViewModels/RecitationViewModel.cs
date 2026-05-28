@@ -5,6 +5,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using TarteelMobile.Models;
 using TarteelMobile.Services;
+using TarteelMobile.Services.Asr;
 
 namespace TarteelMobile.ViewModels;
 
@@ -24,6 +25,7 @@ public partial class RecitationViewModel : ObservableObject
     private readonly IVerseRepository _verseRepository;
     private readonly ISessionService _session;
     private readonly IAppDiagnosticsService _diagnostics;
+    private readonly IAsrEngine _asrEngine;
     private long _chunkDispatchCount;
     private MatchResult? _bestSessionResult;
     private int _bestPrefixLength;
@@ -52,21 +54,109 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private string _processingSummary = "Awaiting audio processing…";
 
+    [ObservableProperty]
+    private bool _isVerseVisible = true;
+
+    [ObservableProperty]
+    private bool _isVerseCorrect;
+
+    [ObservableProperty]
+    private List<TajweedViolation> _tajweedViolations = [];
+
+    [ObservableProperty]
+    private bool _hasTajweedViolations;
+
+    // ── Verse selector ────────────────────────────────────────────────────
+    [ObservableProperty]
+    private int _selectedSurah = 1;
+
+    [ObservableProperty]
+    private int _selectedAyah = 1;
+
+    public List<int> SurahNumbers { get; } = Enumerable.Range(1, 114).ToList();
+    public List<int> AyahNumbers  { get; } = Enumerable.Range(1, 286).ToList();
+
+    // ── ASR debug log (last 8 lines, shown while recording) ──────────────
+    [ObservableProperty]
+    private string _asrDebugLog = string.Empty;
+
+    [ObservableProperty]
+    private bool _isAsrDebugVisible;
+
+    private readonly Queue<string> _debugLines = new();
+
+    // ── Model download progress ───────────────────────────────────────────
+    [ObservableProperty]
+    private bool _isModelDownloading;
+
+    [ObservableProperty]
+    private double _modelDownloadProgress;   // 0.0 – 1.0
+
+    [ObservableProperty]
+    private string _modelDownloadStatus = string.Empty;
+
+    [ObservableProperty]
+    private bool _isModelDownloadIndeterminate;  // true when total size unknown
+
     public RecitationViewModel(IAudioService audio,
         IRecitationService recitation,
         IVerseRepository verseRepository,
         ISessionService session,
-        IAppDiagnosticsService diagnostics)
+        IAppDiagnosticsService diagnostics,
+        IAsrEngine asrEngine)
     {
         _audio      = audio;
         _recitation = recitation;
         _verseRepository = verseRepository;
         _session = session;
         _diagnostics = diagnostics;
+        _asrEngine = asrEngine;
 
         _audio.AudioChunkReady        += OnAudioChunkReady;
         _audio.RecordingError         += OnAudioRecordingError;
         _recitation.MatchResultReceived += OnMatchResultReceived;
+        _recitation.DiagnosticEmitted   += OnDiagnosticEmitted;
+        _asrEngine.DownloadProgressChanged += OnModelDownloadProgress;
+
+        // If the engine isn't ready yet, trigger init now so the download
+        // progress bar appears immediately on screen rather than on first mic tap.
+        if (!_asrEngine.IsReady)
+        {
+            IsModelDownloading = true;
+            ModelDownloadStatus = "Checking Whisper model…";
+            StatusMessage = "Checking Whisper model — please wait…";
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _asrEngine.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    _diagnostics.Warn($"Background ASR init failed: {ex.Message}");
+                }
+                finally
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        IsModelDownloading = false;
+                        if (string.IsNullOrWhiteSpace(ModelDownloadStatus) || ModelDownloadStatus.StartsWith("Checking"))
+                        {
+                            ModelDownloadStatus = string.Empty;
+                        }
+
+                        if (_asrEngine.IsReady && !_asrEngine.IsUsingMockMode)
+                        {
+                            StatusMessage = "Model ready — tap the mic to start reciting.";
+                        }
+                        else if (_asrEngine.IsUsingMockMode)
+                        {
+                            StatusMessage = "⚠️ Mock mode — model unavailable. Check debug log.";
+                        }
+                    });
+                }
+            });
+        }
     }
 
     [RelayCommand]
@@ -75,6 +165,12 @@ public partial class RecitationViewModel : ObservableObject
         if (_recitation.RequiresAuthentication && !_session.IsAuthenticated)
         {
             StatusMessage = "Please log in first";
+            return;
+        }
+
+        if (IsModelDownloading)
+        {
+            StatusMessage = "Please wait — Whisper model is still downloading…";
             return;
         }
 
@@ -97,6 +193,7 @@ public partial class RecitationViewModel : ObservableObject
                 await _recitation.DisconnectAsync();
                 IsRecording    = false;
                 StatusMessage  = "Recitation paused";
+                IsAsrDebugVisible = false;
                 _diagnostics.Info("Recitation recording paused.");
             }
             else
@@ -105,7 +202,13 @@ public partial class RecitationViewModel : ObservableObject
                 Confidence = 0;
                 ArabicText = string.Empty;
                 Mismatches = [];
+                TajweedViolations = [];
+                HasTajweedViolations = false;
                 HighlightedArabicText = new FormattedString();
+                _debugLines.Clear();
+                AsrDebugLog = string.Empty;
+                IsAsrDebugVisible = true;
+                IsVerseCorrect = false;
                 Interlocked.Exchange(ref _chunkDispatchCount, 0);
                 _bestSessionResult = null;
                 _bestPrefixLength = 0;
@@ -129,8 +232,8 @@ public partial class RecitationViewModel : ObservableObject
                 await LoadPracticeVersePlaceholderAsync();
 
                 IsRecording   = true;
-                StatusMessage = "Listening… recite aloud—scores update after speech is recognized.";
-                ProcessingSummary = "Audio stream active. Waiting for first recognized words…";
+                StatusMessage = "Listening… recite for 5 s then pause — Whisper will transcribe.";
+                ProcessingSummary = "Audio stream active. First result appears after ~5–10 s on CPU.";
                 _diagnostics.Info("Recitation recording started.");
             }
         }
@@ -152,7 +255,7 @@ public partial class RecitationViewModel : ObservableObject
             var chunkNumber = Interlocked.Increment(ref _chunkDispatchCount);
             if (chunkNumber <= 5 || chunkNumber % 10 == 0)
             {
-                var summary = $"Audio chunks flowing: {chunkNumber}. Waiting for ASR transcript…";
+                var summary = $"Chunk #{chunkNumber} sent to Whisper — processing (5 s audio, ~5–10 s on CPU)…";
                 if (MainThread.IsMainThread)
                 {
                     ProcessingSummary = summary;
@@ -232,8 +335,12 @@ public partial class RecitationViewModel : ObservableObject
         ArabicText = _bestSessionResult.ArabicText;
         Confidence = _bestSessionResult.Confidence;
         Mismatches = _bestSessionResult.Mismatches;
+        TajweedViolations = _bestSessionResult.TajweedViolations;
+        HasTajweedViolations = _bestSessionResult.TajweedViolations.Count > 0;
         HighlightedArabicText = BuildHighlightedArabicText(_bestSessionResult);
         ProcessingSummary = BuildProcessingSummary(_bestSessionResult);
+        IsVerseCorrect = _bestSessionResult.Mismatches.Count == 0
+                         && _bestSessionResult.Confidence >= PerfectConfidenceThreshold;
 
         if (_bestSessionResult.Confidence < MatchConfidenceThreshold)
         {
@@ -273,7 +380,13 @@ public partial class RecitationViewModel : ObservableObject
         ArabicText = string.Empty;
         Confidence = 0;
         Mismatches = [];
+        TajweedViolations = [];
+        HasTajweedViolations = false;
         HighlightedArabicText = new FormattedString();
+        IsAsrDebugVisible = false;
+        _debugLines.Clear();
+        AsrDebugLog = string.Empty;
+        IsVerseCorrect = false;
         Interlocked.Exchange(ref _chunkDispatchCount, 0);
         _bestSessionResult = null;
         _bestPrefixLength = 0;
@@ -283,6 +396,12 @@ public partial class RecitationViewModel : ObservableObject
         ProcessingSummary = "Session stopped.";
         StatusMessage = "Session reset. Tap Start to recite again.";
         _diagnostics.Info("Local recitation session reset from recitation screen.");
+    }
+
+    [RelayCommand]
+    private void ToggleVerseVisibility()
+    {
+        IsVerseVisible = !IsVerseVisible;
     }
 
     private void SetMicFailureState(string message)
@@ -297,12 +416,64 @@ public partial class RecitationViewModel : ObservableObject
         StatusMessage = message;
     }
 
+    private void OnDiagnosticEmitted(object? sender, string message)
+    {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnDiagnosticEmitted(sender, message));
+            return;
+        }
+
+        _debugLines.Enqueue(message);
+        while (_debugLines.Count > 8)
+        {
+            _debugLines.Dequeue();
+        }
+
+        AsrDebugLog = string.Join(Environment.NewLine, _debugLines);
+    }
+
+    private void OnModelDownloadProgress(object? sender, AsrDownloadProgress progress)
+    {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(() => OnModelDownloadProgress(sender, progress));
+            return;
+        }
+
+        var isComplete = progress.Fraction >= 1.0;
+        IsModelDownloading = !isComplete;
+        IsModelDownloadIndeterminate = progress.Fraction < 0;
+        ModelDownloadProgress = Math.Max(0, Math.Min(1.0, progress.Fraction));
+        ModelDownloadStatus = progress.StatusMessage;
+
+        if (isComplete)
+        {
+            StatusMessage = "Model ready — tap the mic to start reciting.";
+        }
+        else
+        {
+            StatusMessage = progress.StatusMessage;
+        }
+    }
+
     private async Task LoadPracticeVersePlaceholderAsync()
+    {
+        await LoadVerseAsync(SelectedSurah, SelectedAyah);
+    }
+
+    [RelayCommand]
+    private async Task LoadSelectedVerseAsync()
+    {
+        await LoadVerseAsync(SelectedSurah, SelectedAyah);
+    }
+
+    private async Task LoadVerseAsync(int surah, int ayah)
     {
         try
         {
             await _verseRepository.EnsureInitializedAsync();
-            var verse = await _verseRepository.GetVerseAsync(1, 1);
+            var verse = await _verseRepository.GetVerseAsync(surah, ayah);
             if (verse is null)
             {
                 return;
@@ -313,7 +484,7 @@ public partial class RecitationViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _diagnostics.Warn($"Could not preload practice verse text: {ex.Message}");
+            _diagnostics.Warn($"Could not load verse {surah}:{ayah} — {ex.Message}");
         }
     }
 
@@ -362,13 +533,9 @@ public partial class RecitationViewModel : ObservableObject
                         : Color.FromArgb("#6B7280") // low-confidence mismatch remains pending
                     : Color.FromArgb("#1A6B3C"); // matched
 
-            // Append a non-color accessibility marker so screen readers and color-blind
-            // users can identify each word's state without relying on color alone.
-            var stateMarker = isPending ? "○" : isMismatch ? "✗" : "✓";
-
             formatted.Spans.Add(new Span
             {
-                Text = $"{stateMarker}{words[index]}{(index == words.Length - 1 ? string.Empty : " ")}",
+                Text = $"{words[index]}{(index == words.Length - 1 ? string.Empty : " ")}",
                 TextColor = stateColor,
                 FontAttributes = isMismatch ? FontAttributes.Bold : FontAttributes.None,
                 AutomationId = isMatched ? $"word-matched-{index}"
