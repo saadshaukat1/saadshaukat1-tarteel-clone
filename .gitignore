@@ -443,6 +443,8 @@ dist/
 
 # Whisper model cache (large binary files – download at build time)
 ~/.cache/whisper/
+/offline-assets/models/ggml-small.bin
+/offline-assets/models/ggml-base.bin
 
 # ── Quran raw datasets ────────────────────────────────────────
 data/quran/*.json
@@ -460,5 +462,4 @@ data/quran/*.txt
 # Keep Windows packaging automation tracked
 !scripts/release/
 !scripts/release/**
-/offline-assets/models/ggml-small.bin
-/offline-assets/models/ggml-base.bin
+
