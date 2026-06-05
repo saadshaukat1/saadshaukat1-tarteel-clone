@@ -10,6 +10,9 @@
             <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
             <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
 
+            <x:String x:Key="UiFontFamily">Segoe UI</x:String>
+            <x:String x:Key="ArabicFontFamily">Segoe UI</x:String>
+
             <!-- Primary palette -->
             <Color x:Key="Primary">#1A6B3C</Color>
             <Color x:Key="PrimaryDark">#0F3D22</Color>
@@ -20,7 +23,7 @@
 
             <Style TargetType="Label">
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
-                <Setter Property="FontFamily" Value="OpenSansRegular" />
+                <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

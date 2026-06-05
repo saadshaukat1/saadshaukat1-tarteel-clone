@@ -42,7 +42,7 @@ public partial class ProgressViewModel : ObservableObject
         {
             var avg = results.Average(r => r.MasteryScore);
             var mastered = results.Count(r => r.MasteryScore >= 0.9);
-            OverallSummary = $"{results.Count} verse(s) practiced • {mastered} mastered • Avg accuracy {avg:P0}";
+            OverallSummary = $"{results.Count} verse(s) practiced | {mastered} mastered | Avg accuracy {avg:P0}";
         }
     }
 }

@@ -25,9 +25,8 @@ public static class MauiProgram
             .UseMauiApp<App>()
             .ConfigureFonts(fonts =>
             {
-                fonts.AddFont("OpenSans-Regular.ttf",    "OpenSansRegular");
-                fonts.AddFont("OpenSans-Semibold.ttf",   "OpenSansSemibold");
-                fonts.AddFont("NotoNaskhArabic-Regular.ttf", "ArabicRegular");
+                // Keep default system fonts until packaged font assets are added.
+                // This avoids broken font aliases when Resources/Fonts is empty.
             });
 
         ConfigureAppConfiguration(builder);

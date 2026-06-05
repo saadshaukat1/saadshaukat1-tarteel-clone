@@ -52,7 +52,7 @@
                         <!-- Arabic snippet -->
                         <Label Grid.Column="1"
                                Text="{Binding ArabicText}"
-                               FontFamily="ArabicRegular"
+                               FontFamily="{StaticResource ArabicFontFamily}"
                                FontSize="16"
                                HorizontalTextAlignment="End"
                                LineBreakMode="TailTruncation"

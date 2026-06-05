@@ -5,45 +5,99 @@
              x:Class="TarteelMobile.Views.RecitationPage"
              Title="Recite">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
 
-        <!-- ── Model download progress overlay ──────────────────────────── -->
-        <Border Grid.Row="0"
-                IsVisible="{Binding IsModelDownloading}"
-                Padding="16,12"
-                Margin="0,0,0,8"
-                StrokeThickness="1"
-                StrokeShape="RoundRectangle 8"
-                Stroke="#2563EB"
-                BackgroundColor="#EFF6FF">
-            <VerticalStackLayout Spacing="8">
-                <Label Text="⬇️ Downloading Whisper model — please wait…"
-                       FontAttributes="Bold"
-                       FontSize="13"
-                       TextColor="#1D4ED8" />
-                <Label Text="{Binding ModelDownloadStatus}"
-                       FontSize="12"
-                       TextColor="#1E40AF" />
-                <!-- Determinate progress bar when total size is known -->
-                <ProgressBar Progress="{Binding ModelDownloadProgress}"
-                             ProgressColor="#2563EB"
-                             IsVisible="{Binding IsModelDownloadIndeterminate,
-                                 Converter={StaticResource InvertedBoolConverter}}"
-                             HeightRequest="6" />
-                <!-- Indeterminate activity indicator when size is unknown -->
-                <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
-                                   IsVisible="{Binding IsModelDownloadIndeterminate}"
-                                   Color="#2563EB"
-                                   HeightRequest="24" />
-                <Label Text="The mic is disabled until the download finishes. This is a one-time download."
-                       FontSize="11"
-                       TextColor="#3B82F6"
-                       FontAttributes="Italic" />
-            </VerticalStackLayout>
-        </Border>
+        <!-- ── Hifz-first top bar ─────────────────────────────────────────── -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <Label Grid.Column="0"
+                   Text="Hifz Practice"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   VerticalOptions="Center" />
+            <Button Grid.Column="1"
+                    BackgroundColor="{StaticResource PrimaryDark}"
+                    TextColor="White"
+                    HeightRequest="34"
+                    WidthRequest="120"
+                    Command="{Binding ToggleAdvancedModeCommand}">
+                <Button.Triggers>
+                    <DataTrigger TargetType="Button"
+                                 Binding="{Binding IsAdvancedMode}"
+                                 Value="True">
+                        <Setter Property="Text" Value="Advanced On" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Button"
+                                 Binding="{Binding IsAdvancedMode}"
+                                 Value="False">
+                        <Setter Property="Text" Value="Advanced Off" />
+                    </DataTrigger>
+                </Button.Triggers>
+            </Button>
+        </Grid>
+
+        <!-- ── Model setup overlay (missing prompt / download progress) ──── -->
+        <VerticalStackLayout Grid.Row="1" Spacing="0">
+
+            <!-- Model not found: let user browse from disk or download -->
+                <Border IsVisible="{Binding ShowModelMissingPanel}"
+                    Padding="16,12"
+                    Margin="0,0,0,8"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    Stroke="#DC2626"
+                    BackgroundColor="#FEF2F2">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="⚠️ Whisper model not found"
+                           FontAttributes="Bold"
+                           FontSize="13"
+                           TextColor="#991B1B" />
+                    <Label Text="Pick the model file (.bin / .gguf) from disk."
+                           FontSize="12"
+                           TextColor="#7F1D1D" />
+                    <Button Text="📂 Browse from Disk"
+                            Command="{Binding BrowseForModelCommand}"
+                            BackgroundColor="#2563EB"
+                            TextColor="White"
+                            FontSize="13"
+                            HeightRequest="40" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Download / import progress -->
+                <Border IsVisible="{Binding ShowModelDownloadingPanel}"
+                    Padding="16,12"
+                    Margin="0,0,0,8"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    Stroke="#2563EB"
+                    BackgroundColor="#EFF6FF">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="{Binding ModelDownloadStatus, StringFormat='⬇️ {0}'}"
+                           FontAttributes="Bold"
+                           FontSize="13"
+                           TextColor="#1D4ED8" />
+                    <!-- Determinate progress bar when total size is known -->
+                    <ProgressBar Progress="{Binding ModelDownloadProgress}"
+                                 ProgressColor="#2563EB"
+                                 IsVisible="{Binding IsModelDownloadIndeterminate,
+                                     Converter={StaticResource InvertedBoolConverter}}"
+                                 HeightRequest="6" />
+                    <!-- Indeterminate activity indicator when size is unknown -->
+                    <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
+                                       IsVisible="{Binding IsModelDownloadIndeterminate}"
+                                       Color="#2563EB"
+                                       HeightRequest="24" />
+                    <Label Text="The mic is disabled until the operation finishes."
+                           FontSize="11"
+                           TextColor="#3B82F6"
+                           FontAttributes="Italic" />
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
 
         <!-- ── Verse selector ─────────────────────────────────────────────── -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,12">
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,12">
             <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
             <Picker Grid.Column="1"
                     ItemsSource="{Binding SurahNumbers}"
@@ -66,7 +120,7 @@
         </Grid>
 
         <!-- ── Arabic verse display ───────────────────────────────────────── -->
-        <ScrollView Grid.Row="2">
+        <ScrollView Grid.Row="3">
             <VerticalStackLayout Spacing="8">
 
                 <!-- Verse panel -->
@@ -82,7 +136,7 @@
                                     ConverterParameter='#E8F5E9|#FFF8F8'}">
                     <Label x:Name="ArabicLabel"
                            FormattedText="{Binding HighlightedArabicText}"
-                           FontFamily="ArabicRegular"
+                              FontFamily="{StaticResource ArabicFontFamily}"
                            FontSize="28"
                            HorizontalTextAlignment="End"
                            LineBreakMode="WordWrap"
@@ -134,7 +188,7 @@
                 </Border>
 
                 <!-- ── ASR / Whisper debug panel ─────────────────────────── -->
-                <Border IsVisible="{Binding IsAsrDebugVisible}"
+                <Border IsVisible="{Binding ShowAsrDebugPanel}"
                         Padding="12"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 8"
@@ -157,7 +211,7 @@
         </ScrollView>
 
         <!-- ── Confidence bar ─────────────────────────────────────────────── -->
-        <ProgressBar Grid.Row="3"
+        <ProgressBar Grid.Row="4"
                      Progress="{Binding Confidence}"
                      ProgressColor="{Binding IsVerseCorrect,
                                 Converter={StaticResource BoolToColorConverter},
@@ -165,7 +219,7 @@
                      Margin="0,8" />
 
         <!-- ── Status message ─────────────────────────────────────────────── -->
-        <VerticalStackLayout Grid.Row="4" Spacing="2" Margin="0,4">
+        <VerticalStackLayout Grid.Row="5" Spacing="2" Margin="0,4">
             <Label Text="{Binding StatusMessage}"
                    HorizontalTextAlignment="Center"
                    FontSize="14"
@@ -181,7 +235,7 @@
         </VerticalStackLayout>
 
         <!-- ── Buttons ────────────────────────────────────────────────────── -->
-        <HorizontalStackLayout Grid.Row="5" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
+        <HorizontalStackLayout Grid.Row="6" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
 
             <!-- Mic button -->
             <Button Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"

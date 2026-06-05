@@ -66,6 +66,9 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasTajweedViolations;
 
+    [ObservableProperty]
+    private bool _isAdvancedMode;
+
     // ── Verse selector ────────────────────────────────────────────────────
     [ObservableProperty]
     private int _selectedSurah = 1;
@@ -74,7 +77,19 @@ public partial class RecitationViewModel : ObservableObject
     private int _selectedAyah = 1;
 
     public List<int> SurahNumbers { get; } = Enumerable.Range(1, 114).ToList();
-    public List<int> AyahNumbers  { get; } = Enumerable.Range(1, 286).ToList();
+
+    [ObservableProperty]
+    private List<int> _ayahNumbers = Enumerable.Range(1, 7).ToList();
+
+    private static readonly int[] SurahAyahCounts =
+    [
+        7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98,
+        135, 112, 78, 118, 64, 77, 227, 93, 88, 69, 60, 34, 30, 73, 54, 45, 83, 182, 88, 75, 85,
+        54, 53, 89, 59, 37, 35, 38, 29, 18, 45, 60, 49, 62, 55, 78, 96, 29, 22, 24, 13, 14, 11,
+        11, 18, 12, 12, 30, 52, 52, 44, 28, 28, 20, 56, 40, 31, 50, 40, 46, 42, 29, 19, 36, 25,
+        22, 17, 19, 26, 30, 20, 15, 21, 11, 8, 8, 19, 5, 8, 8, 11, 11, 8, 3, 9, 5, 4, 7, 3, 6,
+        3, 5, 4, 5, 6
+    ];
 
     // ── ASR debug log (last 8 lines, shown while recording) ──────────────
     [ObservableProperty]
@@ -98,6 +113,13 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private bool _isModelDownloadIndeterminate;  // true when total size unknown
 
+    [ObservableProperty]
+    private bool _isModelMissing;  // true when model file not found — prompts user to browse or download
+
+    public bool ShowModelMissingPanel => IsAdvancedMode && IsModelMissing;
+    public bool ShowModelDownloadingPanel => IsAdvancedMode && IsModelDownloading;
+    public bool ShowAsrDebugPanel => IsAdvancedMode && IsAsrDebugVisible;
+
     public RecitationViewModel(IAudioService audio,
         IRecitationService recitation,
         IVerseRepository verseRepository,
@@ -115,48 +137,118 @@ public partial class RecitationViewModel : ObservableObject
         _audio.AudioChunkReady        += OnAudioChunkReady;
         _audio.RecordingError         += OnAudioRecordingError;
         _recitation.MatchResultReceived += OnMatchResultReceived;
-        _recitation.DiagnosticEmitted   += OnDiagnosticEmitted;
-        _asrEngine.DownloadProgressChanged += OnModelDownloadProgress;
+        _recitation.DiagnosticEmitted += OnDiagnosticEmitted;
 
-        // If the engine isn't ready yet, trigger init now so the download
-        // progress bar appears immediately on screen rather than on first mic tap.
+        RebuildAyahNumbersForSurah(SelectedSurah);
+
+        // If the engine isn't ready yet, check whether the model file exists before
+        // deciding whether to auto-load (model present) or prompt the user (model missing).
         if (!_asrEngine.IsReady)
         {
-            IsModelDownloading = true;
-            ModelDownloadStatus = "Checking Whisper model…";
-            StatusMessage = "Checking Whisper model — please wait…";
-            _ = Task.Run(async () =>
+            if (_asrEngine.IsModelPresent)
             {
-                try
-                {
-                    await _asrEngine.InitializeAsync();
-                }
-                catch (Exception ex)
-                {
-                    _diagnostics.Warn($"Background ASR init failed: {ex.Message}");
-                }
-                finally
-                {
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        IsModelDownloading = false;
-                        if (string.IsNullOrWhiteSpace(ModelDownloadStatus) || ModelDownloadStatus.StartsWith("Checking"))
-                        {
-                            ModelDownloadStatus = string.Empty;
-                        }
-
-                        if (_asrEngine.IsReady && !_asrEngine.IsUsingMockMode)
-                        {
-                            StatusMessage = "Model ready — tap the mic to start reciting.";
-                        }
-                        else if (_asrEngine.IsUsingMockMode)
-                        {
-                            StatusMessage = "⚠️ Mock mode — model unavailable. Check debug log.";
-                        }
-                    });
-                }
-            });
+                StartBackgroundInit();
+            }
+            else
+            {
+                IsModelMissing = true;
+                StatusMessage = "Whisper model not found — pick a file from disk.";
+            }
         }
+    }
+
+    /// <summary>Kicks off background model loading when the model file is already on disk.</summary>
+    private void StartBackgroundInit()
+    {
+        IsModelDownloading = true;
+        ModelDownloadStatus = "Loading Whisper model…";
+        StatusMessage = "Loading Whisper model — please wait…";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _asrEngine.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                _diagnostics.Warn($"Background ASR init failed: {ex.Message}");
+            }
+            finally
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    IsModelDownloading = false;
+                    if (string.IsNullOrWhiteSpace(ModelDownloadStatus) || ModelDownloadStatus.StartsWith("Loading"))
+                    {
+                        ModelDownloadStatus = string.Empty;
+                    }
+
+                    if (_asrEngine.IsReady && !_asrEngine.IsUsingMockMode)
+                    {
+                        StatusMessage = "Model ready — tap the mic to start reciting.";
+                    }
+                    else if (_asrEngine.IsUsingMockMode)
+                    {
+                        StatusMessage = "⚠️ Mock mode — model unavailable. Check debug log.";
+                    }
+                });
+            }
+        });
+    }
+
+    /// <summary>Lets the user pick a model file (.bin/.gguf) from disk and imports it.</summary>
+    [RelayCommand]
+    private async Task BrowseForModelAsync()
+    {
+        var options = new PickOptions
+        {
+            PickerTitle = "Select Whisper model file (.bin / .gguf)",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.WinUI,       new[] { ".bin", ".gguf" } },
+                { DevicePlatform.Android,     new[] { "*/*" } },
+                { DevicePlatform.iOS,         new[] { "public.data" } },
+                { DevicePlatform.MacCatalyst, new[] { "public.data" } },
+            })
+        };
+
+        var picked = await FilePicker.Default.PickAsync(options);
+        if (picked is null)
+            return;
+
+        IsModelMissing = false;
+        IsModelDownloading = true;
+        ModelDownloadStatus = "Copying model from disk…";
+        StatusMessage = "Importing Whisper model — please wait…";
+
+        try
+        {
+            // Use OpenReadAsync() — on Windows MAUI the FilePicker holds a file lock
+            // that causes File.OpenRead(FullPath) to throw "used by another process".
+            await using var stream = await picked.OpenReadAsync();
+            await _asrEngine.ImportModelFromStreamAsync(stream, picked.FullPath is { Length: > 0 }
+                ? new FileInfo(picked.FullPath).Exists ? new FileInfo(picked.FullPath).Length : (long?)null
+                : null);
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Model import failed: {ex.Message}");
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                IsModelDownloading = false;
+                IsModelMissing = true;
+                StatusMessage = $"Import failed: {ex.Message}";
+            });
+            return;
+        }
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            IsModelDownloading = false;
+            StatusMessage = _asrEngine.IsReady && !_asrEngine.IsUsingMockMode
+                ? "Model ready — tap the mic to start reciting."
+                : "⚠️ Model could not be loaded after import.";
+        });
     }
 
     [RelayCommand]
@@ -404,6 +496,64 @@ public partial class RecitationViewModel : ObservableObject
         IsVerseVisible = !IsVerseVisible;
     }
 
+    [RelayCommand]
+    private void ToggleAdvancedMode()
+    {
+        IsAdvancedMode = !IsAdvancedMode;
+    }
+
+    partial void OnSelectedSurahChanged(int value)
+    {
+        RebuildAyahNumbersForSurah(value);
+    }
+
+    partial void OnIsAdvancedModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowModelMissingPanel));
+        OnPropertyChanged(nameof(ShowModelDownloadingPanel));
+        OnPropertyChanged(nameof(ShowAsrDebugPanel));
+    }
+
+    partial void OnIsModelMissingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowModelMissingPanel));
+    }
+
+    partial void OnIsModelDownloadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowModelDownloadingPanel));
+    }
+
+    partial void OnIsAsrDebugVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAsrDebugPanel));
+    }
+
+    private void RebuildAyahNumbersForSurah(int surah)
+    {
+        var ayahCount = GetAyahCount(surah);
+        AyahNumbers = Enumerable.Range(1, ayahCount).ToList();
+
+        if (SelectedAyah > ayahCount)
+        {
+            SelectedAyah = ayahCount;
+        }
+        else if (SelectedAyah < 1)
+        {
+            SelectedAyah = 1;
+        }
+    }
+
+    private static int GetAyahCount(int surah)
+    {
+        if (surah < 1 || surah > SurahAyahCounts.Length)
+        {
+            return 7;
+        }
+
+        return SurahAyahCounts[surah - 1];
+    }
+
     private void SetMicFailureState(string message)
     {
         if (!MainThread.IsMainThread)
@@ -431,30 +581,6 @@ public partial class RecitationViewModel : ObservableObject
         }
 
         AsrDebugLog = string.Join(Environment.NewLine, _debugLines);
-    }
-
-    private void OnModelDownloadProgress(object? sender, AsrDownloadProgress progress)
-    {
-        if (!MainThread.IsMainThread)
-        {
-            MainThread.BeginInvokeOnMainThread(() => OnModelDownloadProgress(sender, progress));
-            return;
-        }
-
-        var isComplete = progress.Fraction >= 1.0;
-        IsModelDownloading = !isComplete;
-        IsModelDownloadIndeterminate = progress.Fraction < 0;
-        ModelDownloadProgress = Math.Max(0, Math.Min(1.0, progress.Fraction));
-        ModelDownloadStatus = progress.StatusMessage;
-
-        if (isComplete)
-        {
-            StatusMessage = "Model ready — tap the mic to start reciting.";
-        }
-        else
-        {
-            StatusMessage = progress.StatusMessage;
-        }
     }
 
     private async Task LoadPracticeVersePlaceholderAsync()
