@@ -2,7 +2,11 @@
   <Folder Name="/mobile/">
     <Project Path="mobile/TarteelMobile/TarteelMobile.csproj" />
   </Folder>
+  <Folder Name="/src/" />
   <Folder Name="/src/LocalRecitationCore/">
     <Project Path="src/LocalRecitationCore/TarteelClone.LocalRecitationCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj" />
   </Folder>
 </Solution>

@@ -79,17 +79,7 @@ public partial class RecitationViewModel : ObservableObject
     public List<int> SurahNumbers { get; } = Enumerable.Range(1, 114).ToList();
 
     [ObservableProperty]
-    private List<int> _ayahNumbers = Enumerable.Range(1, 7).ToList();
-
-    private static readonly int[] SurahAyahCounts =
-    [
-        7, 286, 200, 176, 120, 165, 206, 75, 129, 109, 123, 111, 43, 52, 99, 128, 111, 110, 98,
-        135, 112, 78, 118, 64, 77, 227, 93, 88, 69, 60, 34, 30, 73, 54, 45, 83, 182, 88, 75, 85,
-        54, 53, 89, 59, 37, 35, 38, 29, 18, 45, 60, 49, 62, 55, 78, 96, 29, 22, 24, 13, 14, 11,
-        11, 18, 12, 12, 30, 52, 52, 44, 28, 28, 20, 56, 40, 31, 50, 40, 46, 42, 29, 19, 36, 25,
-        22, 17, 19, 26, 30, 20, 15, 21, 11, 8, 8, 19, 5, 8, 8, 11, 11, 8, 3, 9, 5, 4, 7, 3, 6,
-        3, 5, 4, 5, 6
-    ];
+    private List<int> _ayahNumbers = RecitationPracticeSettings.BuildAyahNumbers(1);
 
     // ── ASR debug log (last 8 lines, shown while recording) ──────────────
     [ObservableProperty]
@@ -116,9 +106,9 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private bool _isModelMissing;  // true when model file not found — prompts user to browse or download
 
-    public bool ShowModelMissingPanel => IsAdvancedMode && IsModelMissing;
-    public bool ShowModelDownloadingPanel => IsAdvancedMode && IsModelDownloading;
-    public bool ShowAsrDebugPanel => IsAdvancedMode && IsAsrDebugVisible;
+    public bool ShowModelMissingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelMissing);
+    public bool ShowModelDownloadingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelDownloading);
+    public bool ShowAsrDebugPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsAsrDebugVisible);
 
     public RecitationViewModel(IAudioService audio,
         IRecitationService recitation,
@@ -531,27 +521,8 @@ public partial class RecitationViewModel : ObservableObject
 
     private void RebuildAyahNumbersForSurah(int surah)
     {
-        var ayahCount = GetAyahCount(surah);
-        AyahNumbers = Enumerable.Range(1, ayahCount).ToList();
-
-        if (SelectedAyah > ayahCount)
-        {
-            SelectedAyah = ayahCount;
-        }
-        else if (SelectedAyah < 1)
-        {
-            SelectedAyah = 1;
-        }
-    }
-
-    private static int GetAyahCount(int surah)
-    {
-        if (surah < 1 || surah > SurahAyahCounts.Length)
-        {
-            return 7;
-        }
-
-        return SurahAyahCounts[surah - 1];
+        AyahNumbers = RecitationPracticeSettings.BuildAyahNumbers(surah);
+        SelectedAyah = RecitationPracticeSettings.ClampAyah(SelectedAyah, surah);
     }
 
     private void SetMicFailureState(string message)
