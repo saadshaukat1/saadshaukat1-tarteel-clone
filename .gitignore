@@ -461,3 +461,4 @@ data/quran/*.txt
 !scripts/release/
 !scripts/release/**
 /offline-assets/models/ggml-small.bin
+/offline-assets/models/ggml-base.bin
