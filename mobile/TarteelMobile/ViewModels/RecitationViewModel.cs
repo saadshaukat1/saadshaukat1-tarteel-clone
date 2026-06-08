@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
@@ -131,19 +131,11 @@ public partial class RecitationViewModel : ObservableObject
 
         RebuildAyahNumbersForSurah(SelectedSurah);
 
-        // If the engine isn't ready yet, check whether the model file exists before
-        // deciding whether to auto-load (model present) or prompt the user (model missing).
+        // Always attempt initialization if engine isn't ready.
+        // The engine handles extraction from packaged assets or download internally.
         if (!_asrEngine.IsReady)
         {
-            if (_asrEngine.IsModelPresent)
-            {
-                StartBackgroundInit();
-            }
-            else
-            {
-                IsModelMissing = true;
-                StatusMessage = "Whisper model not found — pick a file from disk.";
-            }
+            StartBackgroundInit();
         }
     }
 
