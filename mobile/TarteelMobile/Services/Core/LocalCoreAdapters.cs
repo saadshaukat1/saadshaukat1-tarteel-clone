@@ -29,6 +29,21 @@ public sealed class VerseRepositoryCoreAdapter : CoreAbstractions.IVerseReposito
         return verses.Select(MapVerse).ToArray();
     }
 
+    public async Task<IReadOnlyList<CoreModels.RecitationVerse>> GetAllVersesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var verses = await _inner.GetAllVersesAsync(cancellationToken);
+        return verses.Select(MapVerse).ToArray();
+    }
+
+    public async Task<IReadOnlyList<CoreModels.RecitationVerse>> GetCandidateVersesAsync(
+        IReadOnlyList<string> normalizedWords,
+        CancellationToken cancellationToken = default)
+    {
+        var verses = await _inner.GetVersesByWordsAsync(normalizedWords, cancellationToken);
+        return verses.Select(MapVerse).ToArray();
+    }
+
     private static CoreModels.RecitationVerse MapVerse(MobileModels.Verse verse) =>
         new()
         {

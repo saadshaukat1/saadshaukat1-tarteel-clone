@@ -1,4 +1,5 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using TarteelClone.LocalRecitationCore.Utilities;
 using Microsoft.Maui.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,14 @@ public interface IVerseRepository
     Task<Verse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetMemorizedVersesAsync(string? userKey = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VerseProgress>> GetProgressAsync(string? userKey = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> normalizedWords, CancellationToken cancellationToken = default);
+    Task<JuzInfo?> GetJuzForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
+    Task<JuzInfo?> GetJuzAsync(int juzNum, CancellationToken cancellationToken = default);
+    Task<SurahInfo?> GetSurahAsync(int surahNum, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int juzNum, CancellationToken cancellationToken = default);
     Task RecordRecitationAsync(
         string? userKey,
         int surahNum,
@@ -22,7 +31,7 @@ public interface IVerseRepository
         CancellationToken cancellationToken = default);
 }
 
-public sealed class LocalVerseRepository : IVerseRepository
+public partial class LocalVerseRepository : IVerseRepository
 {
     private const double EmaCurrentWeight = 0.7;
     private const double EmaNewWeight = 1.0 - EmaCurrentWeight;
@@ -117,6 +126,33 @@ public sealed class LocalVerseRepository : IVerseRepository
             key TEXT PRIMARY KEY NOT NULL,
             value TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS juz (
+            juz_num     INTEGER PRIMARY KEY,
+            start_surah INTEGER NOT NULL,
+            start_ayah  INTEGER NOT NULL,
+            end_surah   INTEGER NOT NULL,
+            end_ayah    INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS surahs (
+            surah_num           INTEGER PRIMARY KEY,
+            name_arabic         TEXT NOT NULL,
+            name_english        TEXT NOT NULL,
+            name_transliteration TEXT NOT NULL,
+            revelation_type     TEXT NOT NULL,
+            ayah_count          INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS word_index (
+            word        TEXT NOT NULL,
+            surah_num   INTEGER NOT NULL,
+            ayah_num    INTEGER NOT NULL,
+            position    INTEGER NOT NULL,
+            PRIMARY KEY (word, surah_num, ayah_num, position)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_word_index_word ON word_index(word);
         """;
 
     private readonly LocalQuranDataOptions _options;
@@ -187,6 +223,9 @@ public sealed class LocalVerseRepository : IVerseRepository
                     _diagnostics.Info($"Local SQLite store already initialized with {verseCount} verse(s).");
                 }
             }
+
+            await SeedReferenceDataAsync(connection, cancellationToken);
+            await BuildWordIndexIfEmptyAsync(connection, cancellationToken);
 
             _isInitialized = true;
         }
@@ -452,7 +491,7 @@ public sealed class LocalVerseRepository : IVerseRepository
             _diagnostics.Warn("No import file yielded verse records; using built-in fallback verses.");
         }
 
-        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         foreach (var verse in records)
         {
             var verseId = await UpsertVerseAsync(connection, transaction, verse, cancellationToken);
@@ -838,6 +877,332 @@ public sealed class LocalVerseRepository : IVerseRepository
         string ArabicText,
         string UthmaniText,
         IReadOnlyList<ImportTranslation> Translations);
+
+
+    private async Task SeedReferenceDataAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var juzCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM juz;", cancellationToken);
+        if (juzCount == 0)
+        {
+            var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            foreach (var juz in BuiltInJuzData)
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.Transaction = transaction;
+                cmd.CommandText = "INSERT OR IGNORE INTO juz (juz_num, start_surah, start_ayah, end_surah, end_ayah) VALUES (@num, @ss, @sa, @es, @ea);";
+                cmd.Parameters.AddWithValue("@num", juz.JuzNum);
+                cmd.Parameters.AddWithValue("@ss", juz.StartSurah);
+                cmd.Parameters.AddWithValue("@sa", juz.StartAyah);
+                cmd.Parameters.AddWithValue("@es", juz.EndSurah);
+                cmd.Parameters.AddWithValue("@ea", juz.EndAyah);
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        var surahCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM surahs;", cancellationToken);
+        if (surahCount == 0)
+        {
+            var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            foreach (var surah in BuiltInSurahData)
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.Transaction = transaction;
+                cmd.CommandText = "INSERT OR IGNORE INTO surahs (surah_num, name_arabic, name_english, name_transliteration, revelation_type, ayah_count) VALUES (@num, @na, @ne, @nt, @rt, @ac);";
+                cmd.Parameters.AddWithValue("@num", surah.SurahNum);
+                cmd.Parameters.AddWithValue("@na", surah.NameArabic);
+                cmd.Parameters.AddWithValue("@ne", surah.NameEnglish);
+                cmd.Parameters.AddWithValue("@nt", surah.NameTransliteration);
+                cmd.Parameters.AddWithValue("@rt", surah.RevelationType);
+                cmd.Parameters.AddWithValue("@ac", surah.AyahCount);
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await transaction.CommitAsync(cancellationToken);
+        }
+    }
+
+    private async Task BuildWordIndexIfEmptyAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var indexCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM word_index;", cancellationToken);
+        if (indexCount > 0)
+        {
+            return;
+        }
+
+        await using var readerCmd = connection.CreateCommand();
+        readerCmd.CommandText = "SELECT surah_num, ayah_num, arabic_text FROM verses ORDER BY surah_num, ayah_num;";
+        await using var reader = await readerCmd.ExecuteReaderAsync(cancellationToken);
+
+        var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        var batchCount = 0;
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var surahNum = reader.GetInt32(0);
+            var ayahNum = reader.GetInt32(1);
+            var arabicText = reader.GetString(2);
+
+            var words = ArabicNormalizer.TokenizeAndNormalize(arabicText);
+            for (var pos = 0; pos < words.Length; pos++)
+            {
+                var word = words[pos];
+                if (word.Length <= 1)
+                {
+                    continue;
+                }
+
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = "INSERT OR IGNORE INTO word_index (word, surah_num, ayah_num, position) VALUES (@w, @s, @a, @p);";
+                insertCmd.Parameters.AddWithValue("@w", word);
+                insertCmd.Parameters.AddWithValue("@s", surahNum);
+                insertCmd.Parameters.AddWithValue("@a", ayahNum);
+                insertCmd.Parameters.AddWithValue("@p", pos);
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            batchCount++;
+            if (batchCount % 500 == 0)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT
+                v.surah_num,
+                v.ayah_num,
+                v.arabic_text,
+                COALESCE(
+                    (SELECT tr.text FROM translations tr WHERE tr.verse_id = v.id AND tr.language = @language ORDER BY tr.id LIMIT 1),
+                    (SELECT tr.text FROM translations tr WHERE tr.verse_id = v.id ORDER BY tr.id LIMIT 1),
+                    ''
+                ) AS translation
+            FROM verses v
+            ORDER BY v.surah_num, v.ayah_num;";
+        command.Parameters.AddWithValue("@language", _options.DefaultTranslationLanguage);
+
+        var verses = new List<Verse>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            verses.Add(new Verse
+            {
+                SurahNum = reader.GetInt32(0),
+                AyahNum = reader.GetInt32(1),
+                ArabicText = reader.GetString(2),
+                Translation = reader.GetString(3)
+            });
+        }
+
+        return verses;
+    }
+
+    public async Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> normalizedWords, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        if (normalizedWords.Count == 0)
+        {
+            return [];
+        }
+
+        await using var connection = CreateOpenConnection();
+
+        var placeholders = string.Join(", ", normalizedWords.Select((_, i) => "@w" + i));
+
+        await using var lookupCmd = connection.CreateCommand();
+        lookupCmd.CommandText = "SELECT DISTINCT wi.surah_num, wi.ayah_num FROM word_index wi WHERE wi.word IN (" + placeholders + ") ORDER BY wi.surah_num, wi.ayah_num LIMIT 500;";
+
+        for (var i = 0; i < normalizedWords.Count; i++)
+        {
+            lookupCmd.Parameters.AddWithValue("@w" + i, normalizedWords[i]);
+        }
+
+        var candidates = new List<(int Surah, int Ayah)>();
+        await using var lookupReader = await lookupCmd.ExecuteReaderAsync(cancellationToken);
+        while (await lookupReader.ReadAsync(cancellationToken))
+        {
+            candidates.Add((lookupReader.GetInt32(0), lookupReader.GetInt32(1)));
+        }
+
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var verses = new List<Verse>();
+        foreach (var (surah, ayah) in candidates)
+        {
+            await using var verseCmd = connection.CreateCommand();
+            verseCmd.CommandText = @"
+                SELECT
+                    v.surah_num,
+                    v.ayah_num,
+                    v.arabic_text,
+                    COALESCE(
+                        (SELECT tr.text FROM translations tr WHERE tr.verse_id = v.id AND tr.language = @language ORDER BY tr.id LIMIT 1),
+                        (SELECT tr.text FROM translations tr WHERE tr.verse_id = v.id ORDER BY tr.id LIMIT 1),
+                        ''
+                    ) AS translation
+                FROM verses v
+                WHERE v.surah_num = @surah_num AND v.ayah_num = @ayah_num
+                LIMIT 1;";
+            verseCmd.Parameters.AddWithValue("@language", _options.DefaultTranslationLanguage);
+            verseCmd.Parameters.AddWithValue("@surah_num", surah);
+            verseCmd.Parameters.AddWithValue("@ayah_num", ayah);
+
+            await using var verseReader = await verseCmd.ExecuteReaderAsync(cancellationToken);
+            if (await verseReader.ReadAsync(cancellationToken))
+            {
+                verses.Add(new Verse
+                {
+                    SurahNum = verseReader.GetInt32(0),
+                    AyahNum = verseReader.GetInt32(1),
+                    ArabicText = verseReader.GetString(2),
+                    Translation = verseReader.GetString(3)
+                });
+            }
+        }
+
+        return verses;
+    }
+
+    public async Task<JuzInfo?> GetJuzForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT juz_num, start_surah, start_ayah, end_surah, end_ayah
+            FROM juz
+            WHERE (@sn > start_surah AND @sn < end_surah)
+               OR (@sn = start_surah AND @an >= start_ayah)
+               OR (@sn = end_surah AND @an <= end_ayah)
+            LIMIT 1;";
+
+        try
+        {
+            var resolvedSurahNum = surahNum;
+            command.Parameters.AddWithValue("@a0", resolvedSurahNum);
+            command.Parameters.AddWithValue("@a1", ayahNum);
+            command.Parameters.AddWithValue("@a2", resolvedSurahNum);
+            command.Parameters.AddWithValue("@a3", ayahNum);
+            command.Parameters.AddWithValue("@a4", resolvedSurahNum);
+            command.Parameters.AddWithValue("@a5", ayahNum);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            return new JuzInfo(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<JuzInfo?> GetJuzAsync(int juzNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT juz_num, start_surah, start_ayah, end_surah, end_ayah FROM juz WHERE juz_num = @num LIMIT 1;";
+        command.Parameters.AddWithValue("@num", juzNum);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new JuzInfo(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4));
+    }
+
+    public async Task<SurahInfo?> GetSurahAsync(int surahNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT surah_num, name_arabic, name_english, name_transliteration, revelation_type, ayah_count FROM surahs WHERE surah_num = @num LIMIT 1;";
+        command.Parameters.AddWithValue("@num", surahNum);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new SurahInfo(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5));
+    }
+
+    public async Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT juz_num, start_surah, start_ayah, end_surah, end_ayah FROM juz ORDER BY juz_num;";
+
+        var list = new List<JuzInfo>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(new JuzInfo(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4)));
+        }
+
+        return list;
+    }
+
+    public async Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT surah_num, name_arabic, name_english, name_transliteration, revelation_type, ayah_count FROM surahs ORDER BY surah_num;";
+
+        var list = new List<SurahInfo>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(new SurahInfo(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5)));
+        }
+
+        return list;
+    }
+
+    public async Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int juzNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT DISTINCT s.surah_num, s.name_arabic, s.name_english, s.name_transliteration, s.revelation_type, s.ayah_count
+            FROM surahs s
+            JOIN juz j ON s.surah_num BETWEEN j.start_surah AND j.end_surah
+            WHERE j.juz_num = @juzNum
+            ORDER BY s.surah_num;";
+        command.Parameters.AddWithValue("@juzNum", juzNum);
+
+        var list = new List<SurahInfo>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(new SurahInfo(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetInt32(5)));
+        }
+
+        return list;
+    }
 
     private sealed record ImportTranslation(
         string Language,

@@ -172,6 +172,9 @@ public sealed class RecitationService : IRecitationService
             Confidence = result.Confidence,
             ProcessedWordCount = result.ProcessedWordCount,
             MatchedWordCount = result.MatchedWordCount,
+            JuzNum = result.JuzNum,
+            SurahNameEnglish = result.SurahNameEnglish,
+            SurahNameArabic = result.SurahNameArabic,
             Mismatches = result.Mismatches
                 .Select(m => new WordMismatch(m.Position, m.Spoken, m.Expected))
                 .ToList(),

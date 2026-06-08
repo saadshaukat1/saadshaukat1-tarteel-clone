@@ -1,4 +1,4 @@
-using TarteelMobile.Models;
+﻿using TarteelMobile.Models;
 using TarteelMobile.Services;
 using TarteelMobile.ViewModels;
 using Xunit;
@@ -62,6 +62,14 @@ public sealed class ProgressViewModelTests
 
         public Task RecordRecitationAsync(string? userKey, int surahNum, int ayahNum, double masteryScore, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+        public Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
+        public Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> w, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
+        public Task<JuzInfo?> GetJuzForVerseAsync(int s, int a, CancellationToken ct = default) => Task.FromResult<JuzInfo?>(null);
+        public Task<JuzInfo?> GetJuzAsync(int j, CancellationToken ct = default) => Task.FromResult<JuzInfo?>(null);
+        public Task<SurahInfo?> GetSurahAsync(int s, CancellationToken ct = default) => Task.FromResult<SurahInfo?>(null);
+        public Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<JuzInfo>>([]);
+        public Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
+        public Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int j, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
     }
 
     private sealed class FakeSessionService : ISessionService
@@ -76,6 +84,14 @@ public sealed class ProgressViewModelTests
         public Task<bool> LoginAsync(string email, string password) => Task.FromResult(true);
         public Task<bool> RegisterAsync(string email, string password) => Task.FromResult(true);
         public Task LogoutAsync() => Task.CompletedTask;
+        public Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
+        public Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> w, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
+        public Task<JuzInfo?> GetJuzForVerseAsync(int s, int a, CancellationToken ct = default) => Task.FromResult<JuzInfo?>(null);
+        public Task<JuzInfo?> GetJuzAsync(int j, CancellationToken ct = default) => Task.FromResult<JuzInfo?>(null);
+        public Task<SurahInfo?> GetSurahAsync(int s, CancellationToken ct = default) => Task.FromResult<SurahInfo?>(null);
+        public Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<JuzInfo>>([]);
+        public Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
+        public Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int j, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
     }
 
     private sealed class FakeDiagnosticsService : IAppDiagnosticsService

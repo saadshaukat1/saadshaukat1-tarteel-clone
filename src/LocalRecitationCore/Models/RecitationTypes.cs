@@ -26,14 +26,14 @@ public sealed record TajweedViolation(
 {
     public string RuleDisplayName => Rule switch
     {
-        TajweedRuleType.Madd        => "?? Madd — Elongate this letter",
-        TajweedRuleType.Ghunna      => "?? Ghunna — Apply nasalization (2 counts)",
-        TajweedRuleType.Qalqalah    => "?? Qalqalah — Add echo on plosive letter",
-        TajweedRuleType.Idgham      => "?? Idgham — Merge n?n into following letter",
-        TajweedRuleType.Ikhfa       => "?? Ikhfa — Hide n?n with partial nasalization",
-        TajweedRuleType.Iqlab       => "?? Iqlab — Change n?n to m?m before b?'",
-        TajweedRuleType.Izhar       => "? Izhar — Pronounce n?n clearly",
-        _                           => "? Makhraj — Check articulation point",
+        TajweedRuleType.Madd        => "?? Madd ï¿½ Elongate this letter",
+        TajweedRuleType.Ghunna      => "?? Ghunna ï¿½ Apply nasalization (2 counts)",
+        TajweedRuleType.Qalqalah    => "?? Qalqalah ï¿½ Add echo on plosive letter",
+        TajweedRuleType.Idgham      => "?? Idgham ï¿½ Merge n?n into following letter",
+        TajweedRuleType.Ikhfa       => "?? Ikhfa ï¿½ Hide n?n with partial nasalization",
+        TajweedRuleType.Iqlab       => "?? Iqlab ï¿½ Change n?n to m?m before b?'",
+        TajweedRuleType.Izhar       => "? Izhar ï¿½ Pronounce n?n clearly",
+        _                           => "? Makhraj ï¿½ Check articulation point",
     };
 }
 
@@ -45,6 +45,9 @@ public sealed class RecitationMatchResult
     public double Confidence { get; init; }
     public int ProcessedWordCount { get; init; }
     public int MatchedWordCount { get; init; }
+    public int JuzNum { get; init; }
+    public string SurahNameEnglish { get; init; } = string.Empty;
+    public string SurahNameArabic { get; init; } = string.Empty;
     public IReadOnlyList<RecitationWordMismatch> Mismatches { get; init; } = [];
     public IReadOnlyList<TajweedViolation> TajweedViolations { get; init; } = [];
 }

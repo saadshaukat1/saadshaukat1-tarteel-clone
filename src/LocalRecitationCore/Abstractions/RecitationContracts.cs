@@ -32,6 +32,8 @@ public interface IVerseRepository
 {
     Task<RecitationVerse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RecitationVerse>> GetMemorizedVersesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RecitationVerse>> GetAllVersesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RecitationVerse>> GetCandidateVersesAsync(IReadOnlyList<string> normalizedWords, CancellationToken cancellationToken = default);
 }
 
 public interface IProgressStore

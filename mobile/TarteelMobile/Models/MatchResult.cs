@@ -11,6 +11,9 @@ public class MatchResult
     public double Confidence { get; set; }
     public int ProcessedWordCount { get; set; }
     public int MatchedWordCount { get; set; }
+    public int JuzNum { get; set; }
+    public string SurahNameEnglish { get; set; } = string.Empty;
+    public string SurahNameArabic { get; set; } = string.Empty;
     public List<WordMismatch> Mismatches { get; set; } = [];
     public List<TajweedViolation> TajweedViolations { get; set; } = [];
 }

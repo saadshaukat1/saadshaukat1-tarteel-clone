@@ -1,13 +1,9 @@
-using System.Globalization;
-using System.Text;
 using TarteelClone.LocalRecitationCore.Abstractions;
 using TarteelClone.LocalRecitationCore.Models;
+using TarteelClone.LocalRecitationCore.Utilities;
 
 namespace TarteelClone.LocalRecitationCore.Services;
 
-/// <summary>
-/// Baseline matcher used until full matcher extraction is completed.
-/// </summary>
 public sealed class PlaceholderVerseMatcher : IVerseMatcher
 {
     private readonly IVerseRepository _verses;
@@ -22,13 +18,34 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         string arabicText,
         CancellationToken cancellationToken = default)
     {
-        var candidates = await _verses.GetMemorizedVersesAsync(cancellationToken);
-
-        // Fall back to Surah 1:1 when there are no memorized verses.
-        if (candidates.Count == 0)
+        var spokenTokens = Tokenize(arabicText);
+        if (spokenTokens.Count == 0)
         {
-            var fallback = await _verses.GetVerseAsync(1, 1, cancellationToken);
-            candidates = fallback is not null ? [fallback] : [];
+            return new RecitationMatchResult { Confidence = 0 };
+        }
+
+        var contentWords = spokenTokens
+            .Select(t => t.Normalized)
+            .Where(w => w.Length > 1)
+            .Distinct()
+            .ToList();
+
+        IReadOnlyList<RecitationVerse> candidates;
+        if (contentWords.Count > 0)
+        {
+            candidates = await _verses.GetCandidateVersesAsync(contentWords, cancellationToken);
+            if (candidates.Count < 10)
+            {
+                var fullCandidates = await _verses.GetAllVersesAsync(cancellationToken);
+                if (fullCandidates.Count > candidates.Count)
+                {
+                    candidates = fullCandidates;
+                }
+            }
+        }
+        else
+        {
+            candidates = await _verses.GetAllVersesAsync(cancellationToken);
         }
 
         if (candidates.Count == 0)
@@ -36,14 +53,12 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
             return new RecitationMatchResult { Confidence = 0 };
         }
 
-        var spokenTokens = Tokenize(arabicText);
-
         RecitationMatchResult? bestResult = null;
 
         foreach (var candidate in candidates)
         {
             var expectedTokens = Tokenize(candidate.ArabicText);
-            if (spokenTokens.Count == 0 || expectedTokens.Count == 0)
+            if (expectedTokens.Count == 0)
             {
                 continue;
             }
@@ -98,7 +113,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         var tokens = new List<WordToken>(parts.Length);
         foreach (var part in parts)
         {
-            var normalized = NormalizeForComparison(part);
+            var normalized = ArabicNormalizer.Normalize(part);
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 continue;
@@ -136,14 +151,12 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
 
             if (spokenLookaheadMatches && !expectedLookaheadMatches)
             {
-                // Extra spoken token; skip it while keeping expected alignment.
                 spokenIndex++;
                 continue;
             }
 
             if (expectedLookaheadMatches && !spokenLookaheadMatches)
             {
-                // Missing spoken token for the current expected word.
                 mismatches.Add(new RecitationWordMismatch(expectedIndex, string.Empty, expectedTokens[expectedIndex].Original));
                 expectedIndex++;
                 continue;
@@ -316,51 +329,5 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         }
 
         return distance[rows - 1, cols - 1];
-    }
-
-    private static string NormalizeForComparison(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(text.Length);
-        foreach (var character in text.Normalize(NormalizationForm.FormD))
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
-            {
-                continue;
-            }
-
-            var mappedCharacter = character switch
-            {
-                'أ' or 'إ' or 'آ' or 'ٱ' => 'ا',
-                'ؤ' => 'و',
-                'ئ' or 'ى' => 'ي',
-                'ة' => 'ه',
-                'ـ' => '\0',
-                _ => character
-            };
-
-            if (mappedCharacter == '\0')
-            {
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(mappedCharacter) || char.IsWhiteSpace(mappedCharacter))
-            {
-                builder.Append(mappedCharacter);
-            }
-        }
-
-        var compact = builder.ToString().Normalize(NormalizationForm.FormC).Trim();
-        if (compact.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        var normalized = compact.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Join(' ', normalized);
     }
 }
