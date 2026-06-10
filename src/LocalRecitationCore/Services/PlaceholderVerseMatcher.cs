@@ -63,7 +63,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                 continue;
             }
 
-            var (matchedWords, mismatches) = CompareTokens(expectedTokens, spokenTokens);
+            var (matchedWords, processedWords, mismatches) = AlignTokens(expectedTokens, spokenTokens);
             var confidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
 
             if (bestResult is null || confidence > bestResult.Confidence)
@@ -78,7 +78,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                     AyahNum = candidate.AyahNum,
                     ArabicText = candidate.ArabicText,
                     Confidence = confidence,
-                    ProcessedWordCount = Math.Min(spokenTokens.Count, expectedTokens.Count),
+                    ProcessedWordCount = processedWords,
                     MatchedWordCount = matchedWords,
                     Mismatches = mismatches,
                     TajweedViolations = tajweedViolations
@@ -125,58 +125,85 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         return tokens;
     }
 
-    private static (int MatchedWords, IReadOnlyList<RecitationWordMismatch> Mismatches) CompareTokens(
+    private const double GapExtendPenalty = -0.5;
+
+    private static (int MatchedWords, int ProcessedWords, IReadOnlyList<RecitationWordMismatch> Mismatches) AlignTokens(
         IReadOnlyList<WordToken> expectedTokens,
         IReadOnlyList<WordToken> spokenTokens)
     {
+        var eLen = expectedTokens.Count;
+        var sLen = spokenTokens.Count;
+
+        if (eLen == 0 || sLen == 0)
+            return (0, 0, []);
+
+        var score = new double[eLen + 1, sLen + 1];
+        var trace = new byte[eLen + 1, sLen + 1];
+
+        for (var i = 0; i <= eLen; i++) { score[i, 0] = i * GapExtendPenalty; trace[i, 0] = 3; }
+        for (var j = 0; j <= sLen; j++) { score[0, j] = j * GapExtendPenalty; trace[0, j] = 2; }
+
+        for (var i = 1; i <= eLen; i++)
+        {
+            for (var j = 1; j <= sLen; j++)
+            {
+                var similarity = WordSimilarity(expectedTokens[i - 1], spokenTokens[j - 1]);
+                var diagScore = score[i - 1, j - 1] + similarity;
+                var upScore = score[i - 1, j] + GapExtendPenalty;
+                var leftScore = score[i, j - 1] + GapExtendPenalty;
+
+                if (diagScore >= upScore && diagScore >= leftScore)
+                    { score[i, j] = diagScore; trace[i, j] = 1; }
+                else if (upScore >= leftScore)
+                    { score[i, j] = upScore; trace[i, j] = 3; }
+                else
+                    { score[i, j] = leftScore; trace[i, j] = 2; }
+            }
+        }
+
         var mismatches = new List<RecitationWordMismatch>();
         var matchedWords = 0;
-        var expectedIndex = 0;
-        var spokenIndex = 0;
+        var ei = eLen;
+        var sj = sLen;
 
-        while (expectedIndex < expectedTokens.Count && spokenIndex < spokenTokens.Count)
+        while (ei > 0 || sj > 0)
         {
-            if (TokensEqual(expectedTokens[expectedIndex], spokenTokens[spokenIndex]))
+            switch (trace[ei, sj])
             {
-                matchedWords++;
-                expectedIndex++;
-                spokenIndex++;
-                continue;
+                case 1:
+                    ei--; sj--;
+                    if (TokensEqual(expectedTokens[ei], spokenTokens[sj]))
+                        matchedWords++;
+                    else
+                        mismatches.Add(new RecitationWordMismatch(ei, spokenTokens[sj].Original, expectedTokens[ei].Original));
+                    break;
+                case 2:
+                    sj--;
+                    break;
+                case 3:
+                    ei--;
+                    mismatches.Add(new RecitationWordMismatch(ei, string.Empty, expectedTokens[ei].Original));
+                    break;
             }
-
-            var spokenLookaheadMatches = spokenIndex + 1 < spokenTokens.Count &&
-                TokensEqual(expectedTokens[expectedIndex], spokenTokens[spokenIndex + 1]);
-            var expectedLookaheadMatches = expectedIndex + 1 < expectedTokens.Count &&
-                TokensEqual(expectedTokens[expectedIndex + 1], spokenTokens[spokenIndex]);
-
-            if (spokenLookaheadMatches && !expectedLookaheadMatches)
-            {
-                spokenIndex++;
-                continue;
-            }
-
-            if (expectedLookaheadMatches && !spokenLookaheadMatches)
-            {
-                mismatches.Add(new RecitationWordMismatch(expectedIndex, string.Empty, expectedTokens[expectedIndex].Original));
-                expectedIndex++;
-                continue;
-            }
-
-            mismatches.Add(new RecitationWordMismatch(
-                expectedIndex,
-                spokenTokens[spokenIndex].Original,
-                expectedTokens[expectedIndex].Original));
-            expectedIndex++;
-            spokenIndex++;
         }
 
-        while (expectedIndex < expectedTokens.Count)
-        {
-            mismatches.Add(new RecitationWordMismatch(expectedIndex, string.Empty, expectedTokens[expectedIndex].Original));
-            expectedIndex++;
-        }
+        mismatches.Reverse();
+        var processedWords = matchedWords + mismatches.Count;
+        return (matchedWords, processedWords, mismatches);
+    }
 
-        return (matchedWords, mismatches);
+    private static double WordSimilarity(WordToken expected, WordToken spoken)
+    {
+        if (TokensEqual(expected, spoken))
+            return 1.0;
+
+        var ec = RemoveCommonArabicPrefix(expected.Normalized);
+        var sc = RemoveCommonArabicPrefix(spoken.Normalized);
+        var minLen = Math.Min(ec.Length, sc.Length);
+        if (minLen == 0)
+            return -0.5;
+
+        return ComputeCharacterSimilarity(ec, sc) - 0.5;
     }
 
     private static bool TokensEqual(WordToken expected, WordToken spoken)

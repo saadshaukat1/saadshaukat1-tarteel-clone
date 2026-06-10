@@ -1,7 +1,8 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TarteelClone.LocalRecitationCore.Models;
+using TarteelClone.LocalRecitationCore.Utilities;
 using Whisper.net;
 
 namespace TarteelMobile.Services.Asr;
@@ -31,6 +32,10 @@ public sealed class LocalWhisperAsrEngine(
     private bool _isInitialized;
     private bool _isUsingMockMode;
     private bool _warmupDone;
+
+    // Cross-chunk context: carry last ~5 words of previous transcription
+    // as a prompt so Whisper maintains continuity across audio boundaries.
+    private string _crossChunkContext = string.Empty;
 
     public bool IsReady => _isInitialized;
 
@@ -335,21 +340,49 @@ public sealed class LocalWhisperAsrEngine(
             using var linkedCts = CancellationTokenSource
                 .CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            using var processor = _activeFactory
+            var builder = _activeFactory
                 .CreateBuilder()
                 .WithLanguage(_options.Language)
-                .WithNoContext()
-                .Build();
+                .WithBeamSearch(_options.BeamSearchWidth);
+
+            if (!string.IsNullOrWhiteSpace(_crossChunkContext))
+                builder = builder.WithPrompt(_crossChunkContext);
+            else
+                builder = builder.WithNoContext();
+
+            if (_options.Temperature > 0.0f)
+                builder = builder.WithTemperature(_options.Temperature);
+
+            if (_options.ThreadsOverride > 0)
+                builder = builder.WithThreads(_options.ThreadsOverride);
+
+            if (_options.NoSpeechThreshold > 0.0f)
+                builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
+
+            if (_options.EntropyThreshold > 0.0f)
+                builder = builder.WithEntropyThreshold(_options.EntropyThreshold);
+
+            if (_options.NoTimestamps)
+                builder = builder.WithNoTimestamps();
+
+            using var processor = builder.Build();
 
             var transcript = new System.Text.StringBuilder();
+            var segmentCount = 0;
+            var totalProbability = 0.0;
+            var maxNoSpeechProbability = 0.0;
             using var audioStream = new MemoryStream(audioChunk);
 
             await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
             {
                 transcript.Append(segment.Text);
+                segmentCount++;
+                totalProbability += segment.Probability;
+                if (segment.NoSpeechProbability > maxNoSpeechProbability)
+                    maxNoSpeechProbability = segment.NoSpeechProbability;
             }
 
-            var text = transcript.ToString().Trim();
+            var text = ArabicNormalizer.Normalize(transcript.ToString().Trim());
 
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -357,7 +390,29 @@ public sealed class LocalWhisperAsrEngine(
                     "Whisper.net produced empty transcript.", tier, usedFallback);
             }
 
-            return new RecitationTranscriptionResult(true, text, 0.75f, tier, usedFallback);
+            // If all segments are high no-speech-probability, treat as silent chunk.
+            if (segmentCount > 0 && maxNoSpeechProbability > 0.85)
+            {
+                _logger.LogDebug(
+                    "Whisper.net segment had high no-speech probability ({NoSpeechProb:0.00}), discarding.",
+                    maxNoSpeechProbability);
+                return RecitationTranscriptionResult.Failure(
+                    "Whisper.net detected silence/noise only.", tier, usedFallback);
+            }
+
+            var confidence = segmentCount > 0
+                ? (float)(totalProbability / segmentCount)
+                : 0.5f;
+
+            // Capture last ~5 words as cross-chunk context for the next chunk
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var contextWords = words.Length > 5 ? words[^5..] : words;
+                _crossChunkContext = string.Join(' ', contextWords);
+            }
+
+            return new RecitationTranscriptionResult(true, text, confidence, tier, usedFallback);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

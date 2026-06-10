@@ -13,6 +13,14 @@ public sealed class LocalWhisperOptions
     public string Language { get; set; } = "ar";
     public int InferenceTimeoutSeconds { get; set; } = 30;
 
+    // Whisper inference tuning
+    public int BeamSearchWidth { get; set; } = 8;
+    public float Temperature { get; set; } = 0.0f;
+    public int ThreadsOverride { get; set; } = 0;
+    public float NoSpeechThreshold { get; set; } = 0.6f;
+    public float EntropyThreshold { get; set; } = 2.4f;
+    public bool NoTimestamps { get; set; } = true;
+
     public WhisperModelTierDefinition Base   { get; set; } = new();
     public WhisperModelTierDefinition Small  { get; set; } = new();
     public WhisperModelTierDefinition Medium { get; set; } = new();
