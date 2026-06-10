@@ -7,7 +7,7 @@
 
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
 
-        <!-- ── Hifz-first top bar ─────────────────────────────────────────── -->
+        <!-- Top bar -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
             <Label Grid.Column="0"
                    Text="Hifz Practice"
@@ -35,11 +35,10 @@
             </Button>
         </Grid>
 
-        <!-- ── Model setup overlay (missing prompt / download progress) ──── -->
+        <!-- Model setup overlays -->
         <VerticalStackLayout Grid.Row="1" Spacing="0">
 
-            <!-- Model not found: let user browse from disk or download -->
-                <Border IsVisible="{Binding ShowModelMissingPanel}"
+            <Border IsVisible="{Binding ShowModelMissingPanel}"
                     Padding="16,12"
                     Margin="0,0,0,8"
                     StrokeThickness="1"
@@ -47,14 +46,14 @@
                     Stroke="#DC2626"
                     BackgroundColor="#FEF2F2">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="⚠️ Whisper model not found"
+                    <Label Text="Whisper model not found"
                            FontAttributes="Bold"
                            FontSize="13"
                            TextColor="#991B1B" />
                     <Label Text="Pick the model file (.bin / .gguf) from disk."
                            FontSize="12"
                            TextColor="#7F1D1D" />
-                    <Button Text="📂 Browse from Disk"
+                    <Button Text="Browse from Disk"
                             Command="{Binding BrowseForModelCommand}"
                             BackgroundColor="#2563EB"
                             TextColor="White"
@@ -63,8 +62,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Download / import progress -->
-                <Border IsVisible="{Binding ShowModelDownloadingPanel}"
+            <Border IsVisible="{Binding ShowModelDownloadingPanel}"
                     Padding="16,12"
                     Margin="0,0,0,8"
                     StrokeThickness="1"
@@ -72,17 +70,15 @@
                     Stroke="#2563EB"
                     BackgroundColor="#EFF6FF">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="{Binding ModelDownloadStatus, StringFormat='⬇️ {0}'}"
+                    <Label Text="{Binding ModelDownloadStatus, StringFormat='{0}'}"
                            FontAttributes="Bold"
                            FontSize="13"
                            TextColor="#1D4ED8" />
-                    <!-- Determinate progress bar when total size is known -->
                     <ProgressBar Progress="{Binding ModelDownloadProgress}"
                                  ProgressColor="#2563EB"
                                  IsVisible="{Binding IsModelDownloadIndeterminate,
                                      Converter={StaticResource InvertedBoolConverter}}"
                                  HeightRequest="6" />
-                    <!-- Indeterminate activity indicator when size is unknown -->
                     <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
                                        IsVisible="{Binding IsModelDownloadIndeterminate}"
                                        Color="#2563EB"
@@ -96,7 +92,7 @@
 
         </VerticalStackLayout>
 
-        <!-- ── Verse selector ─────────────────────────────────────────────── -->
+        <!-- Verse selector -->
         <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,12">
             <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
             <Picker Grid.Column="1"
@@ -119,9 +115,71 @@
                     Command="{Binding LoadSelectedVerseCommand}" />
         </Grid>
 
-        <!-- ── Arabic verse display ───────────────────────────────────────── -->
+        <!-- Main content area -->
         <ScrollView Grid.Row="3">
-            <VerticalStackLayout Spacing="8">
+            <VerticalStackLayout Spacing="12">
+
+                <!-- Transcription panel — what Whisper heard -->
+                <Border Padding="16"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 10"
+                        IsVisible="{Binding IsRecording}"
+                        Stroke="#D1D5DB"
+                        BackgroundColor="#F9FAFB">
+                    <VerticalStackLayout Spacing="8">
+
+                        <!-- Transcription header with status -->
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="What you recited"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#6B7280"
+                                   VerticalOptions="Center" />
+                            <!-- Pulsing activity indicator when transcribing -->
+                            <ActivityIndicator Grid.Column="2"
+                                               IsRunning="{Binding IsTranscribing}"
+                                               IsVisible="{Binding IsTranscribing}"
+                                               Color="#3B82F6"
+                                               HeightRequest="14"
+                                               WidthRequest="14"
+                                               VerticalOptions="Center" />
+                            <Label Grid.Column="2"
+                                   Text=""
+                                   IsVisible="{Binding IsTranscribing, Converter={StaticResource InvertedBoolConverter}}"
+                                   FontSize="12"
+                                   TextColor="#059669"
+                                   FontAttributes="Italic"
+                                   VerticalOptions="Center" />
+                        </Grid>
+
+                        <!-- Transcription text -->
+                        <Label Text="{Binding TranscriptionText}"
+                               FontFamily="{StaticResource ArabicFontFamily}"
+                               FontSize="20"
+                               HorizontalTextAlignment="End"
+                               LineBreakMode="WordWrap"
+                               TextColor="#374151"
+                               FontAttributes="Italic">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label"
+                                             Binding="{Binding TranscriptionText}"
+                                             Value="">
+                                    <Setter Property="IsVisible" Value="False" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+
+                        <!-- Empty state: waiting for first transcription -->
+                        <Label IsVisible="{Binding IsTranscribing}"
+                               Text="Transcribing your recitation…"
+                               FontSize="14"
+                               FontAttributes="Italic"
+                               TextColor="#9CA3AF"
+                               HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+                </Border>
 
                 <!-- Verse panel -->
                 <Border Padding="16"
@@ -136,14 +194,14 @@
                                     ConverterParameter='#E8F5E9|#FFF8F8'}">
                     <Label x:Name="ArabicLabel"
                            FormattedText="{Binding HighlightedArabicText}"
-                              FontFamily="{StaticResource ArabicFontFamily}"
+                           FontFamily="{StaticResource ArabicFontFamily}"
                            FontSize="28"
                            HorizontalTextAlignment="End"
                            LineBreakMode="WordWrap"
                            TextColor="{StaticResource OnSurface}" />
                 </Border>
 
-                <!-- Placeholder shown when verse is hidden -->
+                <!-- Placeholder when verse is hidden -->
                 <Border Padding="16"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 10"
@@ -157,7 +215,7 @@
                            TextColor="#6B7280" />
                 </Border>
 
-                <!-- ── Tajweed violations panel ──────────────────────────── -->
+                <!-- Tajweed violations panel -->
                 <Border IsVisible="{Binding HasTajweedViolations}"
                         Padding="12"
                         StrokeThickness="1"
@@ -165,7 +223,7 @@
                         Stroke="#F59E0B"
                         BackgroundColor="#FFFBEB">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="🔔 Tajweed Corrections"
+                        <Label Text="Tajweed Corrections"
                                FontAttributes="Bold"
                                FontSize="13"
                                TextColor="#92400E" />
@@ -187,7 +245,7 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- ── ASR / Whisper debug panel ─────────────────────────── -->
+                <!-- ASR debug panel -->
                 <Border IsVisible="{Binding ShowAsrDebugPanel}"
                         Padding="12"
                         StrokeThickness="1"
@@ -195,7 +253,7 @@
                         Stroke="#374151"
                         BackgroundColor="#111827">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="🛠 Whisper Debug Log"
+                        <Label Text="Whisper Debug Log"
                                FontAttributes="Bold"
                                FontSize="12"
                                TextColor="#9CA3AF" />
@@ -210,7 +268,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- ── Confidence bar ─────────────────────────────────────────────── -->
+        <!-- Confidence bar -->
         <ProgressBar Grid.Row="4"
                      Progress="{Binding Confidence}"
                      ProgressColor="{Binding IsVerseCorrect,
@@ -218,8 +276,8 @@
                                 ConverterParameter='#1A6B3C|#E53935'}"
                      Margin="0,8" />
 
-        <!-- ── Status message ─────────────────────────────────────────────── -->
-        <VerticalStackLayout Grid.Row="5" Spacing="2" Margin="0,4">
+        <!-- Status -->
+        <VerticalStackLayout Grid.Row="5" Spacing="4" Margin="0,4">
             <Label Text="{Binding StatusMessage}"
                    HorizontalTextAlignment="Center"
                    FontSize="14"
@@ -228,13 +286,13 @@
                    HorizontalTextAlignment="Center"
                    FontSize="12"
                    TextColor="#6B7280" />
-            <Label Text="Green = matched word  •  Red = needs correction  •  Gray = not yet processed"
+            <Label Text="Green = matched  •  Red = needs correction  •  Gray = not yet processed"
                    HorizontalTextAlignment="Center"
                    FontSize="11"
-                   TextColor="#6B7280" />
+                   TextColor="#9CA3AF" />
         </VerticalStackLayout>
 
-        <!-- ── Buttons ────────────────────────────────────────────────────── -->
+        <!-- Buttons -->
         <HorizontalStackLayout Grid.Row="6" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
 
             <!-- Mic button -->
@@ -281,4 +339,3 @@
 
     </Grid>
 </ContentPage>
-

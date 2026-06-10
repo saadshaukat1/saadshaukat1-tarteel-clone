@@ -42,6 +42,7 @@ public sealed class RecitationMatchResult
     public int SurahNum { get; init; }
     public int AyahNum { get; init; }
     public string ArabicText { get; init; } = string.Empty;
+    public string TranscriptionText { get; init; } = string.Empty;
     public double Confidence { get; init; }
     public int ProcessedWordCount { get; init; }
     public int MatchedWordCount { get; init; }

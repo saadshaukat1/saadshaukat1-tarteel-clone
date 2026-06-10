@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using TarteelClone.LocalRecitationCore.Models;
 using TarteelClone.LocalRecitationCore.Utilities;
 using Whisper.net;
+using Whisper.net.SamplingStrategy;
 
 namespace TarteelMobile.Services.Asr;
 
@@ -342,8 +343,7 @@ public sealed class LocalWhisperAsrEngine(
 
             var builder = _activeFactory
                 .CreateBuilder()
-                .WithLanguage(_options.Language)
-                .WithBeamSearch(_options.BeamSearchWidth);
+                .WithLanguage(_options.Language);
 
             if (!string.IsNullOrWhiteSpace(_crossChunkContext))
                 builder = builder.WithPrompt(_crossChunkContext);
@@ -363,14 +363,19 @@ public sealed class LocalWhisperAsrEngine(
                 builder = builder.WithEntropyThreshold(_options.EntropyThreshold);
 
             if (_options.NoTimestamps)
-                builder = builder.WithNoTimestamps();
+                builder = builder.WithPrintTimestamps(false);
+
+            var samplingBuilder = builder.WithBeamSearchSamplingStrategy();
+            if (_options.BeamSearchWidth > 0)
+                ((BeamSearchSamplingStrategyBuilder)samplingBuilder).WithBeamSize(_options.BeamSearchWidth);
+
+            builder = builder.WithProbabilities();
 
             using var processor = builder.Build();
 
             var transcript = new System.Text.StringBuilder();
             var segmentCount = 0;
             var totalProbability = 0.0;
-            var maxNoSpeechProbability = 0.0;
             using var audioStream = new MemoryStream(audioChunk);
 
             await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
@@ -378,8 +383,6 @@ public sealed class LocalWhisperAsrEngine(
                 transcript.Append(segment.Text);
                 segmentCount++;
                 totalProbability += segment.Probability;
-                if (segment.NoSpeechProbability > maxNoSpeechProbability)
-                    maxNoSpeechProbability = segment.NoSpeechProbability;
             }
 
             var text = ArabicNormalizer.Normalize(transcript.ToString().Trim());
@@ -390,16 +393,9 @@ public sealed class LocalWhisperAsrEngine(
                     "Whisper.net produced empty transcript.", tier, usedFallback);
             }
 
-            // If all segments are high no-speech-probability, treat as silent chunk.
-            if (segmentCount > 0 && maxNoSpeechProbability > 0.85)
-            {
-                _logger.LogDebug(
-                    "Whisper.net segment had high no-speech probability ({NoSpeechProb:0.00}), discarding.",
-                    maxNoSpeechProbability);
-                return RecitationTranscriptionResult.Failure(
-                    "Whisper.net detected silence/noise only.", tier, usedFallback);
-            }
-
+            // Silence is already filtered during decoding via WithNoSpeechThreshold.
+            // Do not post-filter on token probabilities: Without WithProbabilities() they
+            // are always 0, and even with it enabled Arabic token averages are often low.
             var confidence = segmentCount > 0
                 ? (float)(totalProbability / segmentCount)
                 : 0.5f;

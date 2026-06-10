@@ -169,6 +169,7 @@ public sealed class RecitationService : IRecitationService
             SurahNum = result.SurahNum,
             AyahNum = result.AyahNum,
             ArabicText = result.ArabicText,
+            TranscriptionText = result.TranscriptionText,
             Confidence = result.Confidence,
             ProcessedWordCount = result.ProcessedWordCount,
             MatchedWordCount = result.MatchedWordCount,

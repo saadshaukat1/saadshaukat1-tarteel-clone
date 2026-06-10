@@ -8,6 +8,7 @@ public class MatchResult
     public int    SurahNum   { get; set; }
     public int    AyahNum    { get; set; }
     public string ArabicText { get; set; } = string.Empty;
+    public string TranscriptionText { get; set; } = string.Empty;
     public double Confidence { get; set; }
     public int ProcessedWordCount { get; set; }
     public int MatchedWordCount { get; set; }

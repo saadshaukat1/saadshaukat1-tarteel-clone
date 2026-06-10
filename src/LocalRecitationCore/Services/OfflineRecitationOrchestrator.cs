@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using TarteelClone.LocalRecitationCore.Abstractions;
 using TarteelClone.LocalRecitationCore.Models;
@@ -133,8 +133,24 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         DiagnosticEmitted?.Invoke(this,
             $"🎯 match #{matchCount} | {match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount} mismatches={match.Mismatches.Count}");
 
-        await _progressStore.SaveAsync(match, cancellationToken);
-        MatchProduced?.Invoke(this, match);
+        var matchWithTranscript = new RecitationMatchResult
+        {
+            SurahNum = match.SurahNum,
+            AyahNum = match.AyahNum,
+            ArabicText = match.ArabicText,
+            TranscriptionText = aggregatedTranscript,
+            Confidence = match.Confidence,
+            ProcessedWordCount = match.ProcessedWordCount,
+            MatchedWordCount = match.MatchedWordCount,
+            JuzNum = match.JuzNum,
+            SurahNameEnglish = match.SurahNameEnglish,
+            SurahNameArabic = match.SurahNameArabic,
+            Mismatches = match.Mismatches,
+            TajweedViolations = match.TajweedViolations
+        };
+
+        await _progressStore.SaveAsync(matchWithTranscript, cancellationToken);
+        MatchProduced?.Invoke(this, matchWithTranscript);
     }
 
     private string MergeTranscript(string newTranscript)

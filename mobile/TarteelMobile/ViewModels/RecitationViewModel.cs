@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
@@ -9,12 +9,6 @@ using TarteelMobile.Services.Asr;
 
 namespace TarteelMobile.ViewModels;
 
-/// <summary>
-/// Drives the real-time recitation screen:
-/// - Starts/stops mic recording
-/// - Streams audio chunks through local in-process recitation pipeline
-/// - Shows the matched verse with highlighted mismatches
-/// </summary>
 public partial class RecitationViewModel : ObservableObject
 {
     private const double MatchConfidenceThreshold = 0.65;
@@ -35,6 +29,12 @@ public partial class RecitationViewModel : ObservableObject
 
     [ObservableProperty]
     private string _arabicText = string.Empty;
+
+    [ObservableProperty]
+    private string _transcriptionText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isTranscribing;
 
     [ObservableProperty]
     private string _statusMessage = "Tap the mic to start reciting";
@@ -69,7 +69,6 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAdvancedMode;
 
-    // ── Verse selector ────────────────────────────────────────────────────
     [ObservableProperty]
     private int _selectedSurah = 1;
 
@@ -81,7 +80,6 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private List<int> _ayahNumbers = RecitationPracticeSettings.BuildAyahNumbers(1);
 
-    // ── ASR debug log (last 8 lines, shown while recording) ──────────────
     [ObservableProperty]
     private string _asrDebugLog = string.Empty;
 
@@ -90,21 +88,20 @@ public partial class RecitationViewModel : ObservableObject
 
     private readonly Queue<string> _debugLines = new();
 
-    // ── Model download progress ───────────────────────────────────────────
     [ObservableProperty]
     private bool _isModelDownloading;
 
     [ObservableProperty]
-    private double _modelDownloadProgress;   // 0.0 – 1.0
+    private double _modelDownloadProgress;
 
     [ObservableProperty]
     private string _modelDownloadStatus = string.Empty;
 
     [ObservableProperty]
-    private bool _isModelDownloadIndeterminate;  // true when total size unknown
+    private bool _isModelDownloadIndeterminate;
 
     [ObservableProperty]
-    private bool _isModelMissing;  // true when model file not found — prompts user to browse or download
+    private bool _isModelMissing;
 
     public bool ShowModelMissingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelMissing);
     public bool ShowModelDownloadingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelDownloading);
@@ -131,15 +128,12 @@ public partial class RecitationViewModel : ObservableObject
 
         RebuildAyahNumbersForSurah(SelectedSurah);
 
-        // Always attempt initialization if engine isn't ready.
-        // The engine handles extraction from packaged assets or download internally.
         if (!_asrEngine.IsReady)
         {
             StartBackgroundInit();
         }
     }
 
-    /// <summary>Kicks off background model loading when the model file is already on disk.</summary>
     private void StartBackgroundInit()
     {
         IsModelDownloading = true;
@@ -178,7 +172,6 @@ public partial class RecitationViewModel : ObservableObject
         });
     }
 
-    /// <summary>Lets the user pick a model file (.bin/.gguf) from disk and imports it.</summary>
     [RelayCommand]
     private async Task BrowseForModelAsync()
     {
@@ -205,8 +198,6 @@ public partial class RecitationViewModel : ObservableObject
 
         try
         {
-            // Use OpenReadAsync() — on Windows MAUI the FilePicker holds a file lock
-            // that causes File.OpenRead(FullPath) to throw "used by another process".
             await using var stream = await picked.OpenReadAsync();
             await _asrEngine.ImportModelFromStreamAsync(stream, picked.FullPath is { Length: > 0 }
                 ? new FileInfo(picked.FullPath).Exists ? new FileInfo(picked.FullPath).Length : (long?)null
@@ -266,15 +257,17 @@ public partial class RecitationViewModel : ObservableObject
                 }
                 await _recitation.DisconnectAsync();
                 IsRecording    = false;
+                IsTranscribing = false;
                 StatusMessage  = "Recitation paused";
                 IsAsrDebugVisible = false;
                 _diagnostics.Info("Recitation recording paused.");
             }
             else
             {
-                // Start each recording session from a clean UI baseline.
                 Confidence = 0;
                 ArabicText = string.Empty;
+                TranscriptionText = string.Empty;
+                IsTranscribing = false;
                 Mismatches = [];
                 TajweedViolations = [];
                 HasTajweedViolations = false;
@@ -301,13 +294,12 @@ public partial class RecitationViewModel : ObservableObject
                     throw;
                 }
 
-                // Placeholder matcher targets 1:1 and ASR may produce no transcript for some time;
-                // show expected verse immediately so the screen is never blank during "Listening…".
                 await LoadPracticeVersePlaceholderAsync();
 
                 IsRecording   = true;
-                StatusMessage = "Listening… recite for 5 s then pause — Whisper will transcribe.";
-                ProcessingSummary = "Audio stream active. First result appears after ~5–10 s on CPU.";
+                IsTranscribing = true;
+                StatusMessage = "Listening… recite into the mic";
+                ProcessingSummary = "Audio stream active. Transcribing your recitation…";
                 _diagnostics.Info("Recitation recording started.");
             }
         }
@@ -329,14 +321,19 @@ public partial class RecitationViewModel : ObservableObject
             var chunkNumber = Interlocked.Increment(ref _chunkDispatchCount);
             if (chunkNumber <= 5 || chunkNumber % 10 == 0)
             {
-                var summary = $"Chunk #{chunkNumber} sent to Whisper — processing (5 s audio, ~5–10 s on CPU)…";
+                var summary = $"Chunk #{chunkNumber} sent to Whisper — transcribing…";
                 if (MainThread.IsMainThread)
                 {
                     ProcessingSummary = summary;
+                    IsTranscribing = true;
                 }
                 else
                 {
-                    MainThread.BeginInvokeOnMainThread(() => ProcessingSummary = summary);
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        ProcessingSummary = summary;
+                        IsTranscribing = true;
+                    });
                 }
             }
 
@@ -381,6 +378,7 @@ public partial class RecitationViewModel : ObservableObject
         }
 
         IsRecording = false;
+        IsTranscribing = false;
         StatusMessage = $"Mic error: {exception.Message}";
         _diagnostics.Error("Audio recording error received in view-model.", exception);
     }
@@ -392,6 +390,8 @@ public partial class RecitationViewModel : ObservableObject
             MainThread.BeginInvokeOnMainThread(() => OnMatchResultReceived(sender, result));
             return;
         }
+
+        IsTranscribing = false;
 
         var incomingPrefixLength = ComputeMatchedPrefixLength(result);
         if (!ShouldApplyMatchResult(result, incomingPrefixLength))
@@ -407,6 +407,7 @@ public partial class RecitationViewModel : ObservableObject
         _bestConfidence = result.Confidence;
 
         ArabicText = _bestSessionResult.ArabicText;
+        TranscriptionText = _bestSessionResult.TranscriptionText;
         Confidence = _bestSessionResult.Confidence;
         Mismatches = _bestSessionResult.Mismatches;
         TajweedViolations = _bestSessionResult.TajweedViolations;
@@ -424,7 +425,7 @@ public partial class RecitationViewModel : ObservableObject
 
         if (_bestSessionResult.Mismatches.Count == 0 && _bestSessionResult.Confidence >= PerfectConfidenceThreshold)
         {
-            StatusMessage = $"✓ Surah {_bestSessionResult.SurahNum}:{_bestSessionResult.AyahNum} — perfect!";
+            StatusMessage = $"✓ Surah {_bestSessionResult.SurahNum}:{_bestSessionResult.AyahNum} — perfect";
             return;
         }
 
@@ -451,7 +452,9 @@ public partial class RecitationViewModel : ObservableObject
         await _recitation.DisconnectAsync();
 
         IsRecording = false;
+        IsTranscribing = false;
         ArabicText = string.Empty;
+        TranscriptionText = string.Empty;
         Confidence = 0;
         Mismatches = [];
         TajweedViolations = [];
@@ -526,6 +529,7 @@ public partial class RecitationViewModel : ObservableObject
         }
 
         IsRecording = false;
+        IsTranscribing = false;
         StatusMessage = message;
     }
 
@@ -615,12 +619,12 @@ public partial class RecitationViewModel : ObservableObject
             var isMatched = !isPending && !isMismatch;
 
             var stateColor = isPending
-                ? Color.FromArgb("#6B7280") // pending
+                ? Color.FromArgb("#6B7280")
                 : isMismatch
                     ? shouldRenderRed
-                        ? Color.FromArgb("#E53935") // mismatch
-                        : Color.FromArgb("#6B7280") // low-confidence mismatch remains pending
-                    : Color.FromArgb("#1A6B3C"); // matched
+                        ? Color.FromArgb("#E53935")
+                        : Color.FromArgb("#6B7280")
+                    : Color.FromArgb("#1A6B3C");
 
             formatted.Spans.Add(new Span
             {
@@ -701,7 +705,6 @@ public partial class RecitationViewModel : ObservableObject
         return incoming.Mismatches.Count == 0 && incoming.Confidence >= PerfectConfidenceThreshold;
     }
 
-    // Preserve the longest correct prefix so early confirmed words stay green.
     private static int ComputeMatchedPrefixLength(MatchResult result)
     {
         if (string.IsNullOrWhiteSpace(result.ArabicText))
@@ -736,6 +739,7 @@ public partial class RecitationViewModel : ObservableObject
             SurahNum = source.SurahNum,
             AyahNum = source.AyahNum,
             ArabicText = source.ArabicText,
+            TranscriptionText = source.TranscriptionText,
             Confidence = source.Confidence,
             ProcessedWordCount = source.ProcessedWordCount,
             MatchedWordCount = source.MatchedWordCount,
