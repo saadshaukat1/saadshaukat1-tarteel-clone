@@ -38,6 +38,9 @@ public sealed class LocalWhisperAsrEngine(
     // as a prompt so Whisper maintains continuity across audio boundaries.
     private string _crossChunkContext = string.Empty;
 
+    // Surah name injected into Whisper prompt to bias decoding toward Quranic vocabulary.
+    private string? _surahPrompt;
+
     public bool IsReady => _isInitialized;
 
     public bool IsModelPresent
@@ -53,6 +56,16 @@ public sealed class LocalWhisperAsrEngine(
 
     public string ActiveTier { get; private set; } = string.Empty;
     public bool IsUsingMockMode => _isUsingMockMode;
+
+    public void SetSurahPrompt(string surahArabicName)
+    {
+        _surahPrompt = surahArabicName;
+    }
+
+    public void ClearSurahPrompt()
+    {
+        _surahPrompt = null;
+    }
 
     public event EventHandler<AsrDownloadProgress>? DownloadProgressChanged;
 
@@ -345,8 +358,9 @@ public sealed class LocalWhisperAsrEngine(
                 .CreateBuilder()
                 .WithLanguage(_options.Language);
 
-            if (!string.IsNullOrWhiteSpace(_crossChunkContext))
-                builder = builder.WithPrompt(_crossChunkContext);
+            var prompt = BuildPrompt();
+            if (!string.IsNullOrWhiteSpace(prompt))
+                builder = builder.WithPrompt(prompt);
             else
                 builder = builder.WithNoContext();
 
@@ -400,11 +414,13 @@ public sealed class LocalWhisperAsrEngine(
                 ? (float)(totalProbability / segmentCount)
                 : 0.5f;
 
-            // Capture last ~5 words as cross-chunk context for the next chunk
+            // Capture last ~8 words as cross-chunk context for the next chunk.
+            // Quranic recitation has extended madd (elongation) — 8 words provide
+            // stronger continuity across chunk boundaries.
             if (!string.IsNullOrWhiteSpace(text))
             {
                 var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var contextWords = words.Length > 5 ? words[^5..] : words;
+                var contextWords = words.Length > 8 ? words[^8..] : words;
                 _crossChunkContext = string.Join(' ', contextWords);
             }
 
@@ -429,6 +445,15 @@ public sealed class LocalWhisperAsrEngine(
         {
             _inferenceLock.Release();
         }
+    }
+
+    private string BuildPrompt()
+    {
+        if (!string.IsNullOrWhiteSpace(_crossChunkContext) && !string.IsNullOrWhiteSpace(_surahPrompt))
+            return $"{_crossChunkContext} {_surahPrompt}";
+        if (!string.IsNullOrWhiteSpace(_crossChunkContext))
+            return _crossChunkContext;
+        return _surahPrompt ?? string.Empty;
     }
 
     private async Task WarmupAsync(CancellationToken cancellationToken)

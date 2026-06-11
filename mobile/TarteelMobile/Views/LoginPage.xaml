@@ -2,23 +2,36 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="TarteelMobile.Views.LoginPage"
-             Title="Sign In">
+             Title="Tarteel">
 
     <StackLayout Padding="32" VerticalOptions="Center" Spacing="16">
 
-        <Label Text="🕌 Tarteel"
-               FontSize="32"
+        <Label Text="Tarteel"
+               FontSize="28"
                FontAttributes="Bold"
                HorizontalTextAlignment="Center"
                TextColor="{StaticResource Primary}" />
 
-        <Entry Placeholder="Email"
-               Text="{Binding Email}"
-               Keyboard="Email" />
+        <VerticalStackLayout Spacing="4">
+            <Label Text="Email"
+                   FontSize="13"
+                   TextColor="{StaticResource OnSurface}" />
+            <Entry Text="{Binding Email}"
+                   Keyboard="Email"
+                   ReturnType="Next"
+                   Placeholder="name@example.com" />
+        </VerticalStackLayout>
 
-        <Entry Placeholder="Password"
-               Text="{Binding Password}"
-               IsPassword="True" />
+        <VerticalStackLayout Spacing="4">
+            <Label Text="Password"
+                   FontSize="13"
+                   TextColor="{StaticResource OnSurface}" />
+            <Entry Text="{Binding Password}"
+                   IsPassword="True"
+                   ReturnType="Done"
+                   Placeholder="Your password"
+                   ReturnCommand="{Binding LoginCommand}" />
+        </VerticalStackLayout>
 
         <Label Text="{Binding Error}"
                TextColor="{StaticResource Error}"

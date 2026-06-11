@@ -14,7 +14,7 @@ public sealed class LocalWhisperOptions
     public int InferenceTimeoutSeconds { get; set; } = 30;
 
     // Whisper inference tuning
-    public int BeamSearchWidth { get; set; } = 8;
+    public int BeamSearchWidth { get; set; } = 12;
     public float Temperature { get; set; } = 0.0f;
     public int ThreadsOverride { get; set; } = 0;
     public float NoSpeechThreshold { get; set; } = 0.6f;

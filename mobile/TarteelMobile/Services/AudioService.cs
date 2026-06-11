@@ -25,7 +25,8 @@ public static class AudioCaptureDefaults
     // Shorter chunks (< 3 s) cause consistent timeouts on ggml-small running on CPU.
     public const int ChunkDurationMilliseconds = 5000;
     // Arabic recitation has elongated vowels (madd), so a wider overlap reduces
-    // word-boundary cuts. 1 s of overlap between 5 s chunks (~20%) is safe for CPU inference.
-    public const int ChunkOverlapMilliseconds = 1000;
+    // word-boundary cuts. 1.5 s of overlap between 5 s chunks (~30%) improves accuracy
+    // for madd-heavy recitations at modest CPU cost.
+    public const int ChunkOverlapMilliseconds = 1500;
     public const int CaptureBufferMilliseconds = 100;
 }

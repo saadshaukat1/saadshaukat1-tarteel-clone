@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using TarteelClone.LocalRecitationCore.Abstractions;
 using TarteelClone.LocalRecitationCore.Models;
@@ -34,6 +34,16 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
 
     public event EventHandler<RecitationMatchResult>? MatchProduced;
     public event EventHandler<string>? DiagnosticEmitted;
+
+    public void SetSurahContext(int surahNum)
+    {
+        _verseMatcher.SetSurahContext(surahNum);
+    }
+
+    public void ClearSurahContext()
+    {
+        _verseMatcher.ClearSurahContext();
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {

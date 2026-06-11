@@ -9,6 +9,8 @@ public interface IRecitationService
     event EventHandler<MatchResult>? MatchResultReceived;
     event EventHandler<string>? DiagnosticEmitted;
     bool RequiresAuthentication { get; }
+    void SetSurahContext(int surahNum, string surahArabicName);
+    void ClearSurahContext();
     Task ConnectAsync();
     Task FlushAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync();
@@ -18,6 +20,7 @@ public interface IRecitationService
 public sealed class RecitationService : IRecitationService
 {
     private readonly CoreAbstractions.IRecitationOrchestrator _orchestrator;
+    private readonly CoreAbstractions.IAsrEngine _asrEngine;
     private readonly ISessionService _session;
     private readonly IAppDiagnosticsService _diagnostics;
     private readonly object _sync = new();
@@ -27,19 +30,32 @@ public sealed class RecitationService : IRecitationService
 
     public event EventHandler<MatchResult>? MatchResultReceived;
     public event EventHandler<string>? DiagnosticEmitted;
-    // Offline desktop mode should not block recitation behind login.
     public bool RequiresAuthentication => false;
 
     public RecitationService(
         CoreAbstractions.IRecitationOrchestrator orchestrator,
+        CoreAbstractions.IAsrEngine asrEngine,
         ISessionService session,
         IAppDiagnosticsService diagnostics)
     {
         _orchestrator = orchestrator;
+        _asrEngine = asrEngine;
         _session = session;
         _diagnostics = diagnostics;
         _orchestrator.MatchProduced += OnCoreMatchProduced;
         _orchestrator.DiagnosticEmitted += OnCoreDiagnosticEmitted;
+    }
+
+    public void SetSurahContext(int surahNum, string surahArabicName)
+    {
+        _orchestrator.SetSurahContext(surahNum);
+        _asrEngine.SetSurahPrompt(surahArabicName);
+    }
+
+    public void ClearSurahContext()
+    {
+        _orchestrator.ClearSurahContext();
+        _asrEngine.ClearSurahPrompt();
     }
 
     public async Task ConnectAsync()
@@ -147,11 +163,14 @@ public sealed class RecitationService : IRecitationService
                 sessionToken = _sessionCancellation?.Token ?? CancellationToken.None;
             }
 
-            await _orchestrator.SubmitAudioChunkAsync(audioChunk, sessionToken);
+            if (AudioPreprocessor.IsSilence(audioChunk))
+                return;
+
+            var normalizedChunk = AudioPreprocessor.NormalizeRms(audioChunk);
+            await _orchestrator.SubmitAudioChunkAsync(normalizedChunk, sessionToken);
         }
         catch (OperationCanceledException) when (sessionToken.IsCancellationRequested)
         {
-            // Expected when user stops recitation and in-flight ASR is canceled.
         }
         finally
         {

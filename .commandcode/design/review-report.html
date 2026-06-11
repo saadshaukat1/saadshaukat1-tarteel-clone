@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Tarteel Desktop - Review Report</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<style>
+		body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+		.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+		.report-section { border: 1px solid #222226; background: #0a0a0b; position: relative; }
+		.corner-box { position: absolute; width: 20px; height: 20px; border: 1px solid #222226; background: #000; }
+	</style>
+</head>
+<body class="bg-black text-[#fafafa]">
+	<main class="mx-auto w-full max-w-6xl px-5 py-8 md:px-10 md:py-12">
+		<header class="report-section mb-8 p-6 md:p-8">
+			<div class="corner-box left-0 top-0 -translate-x-1/2 -translate-y-1/2"></div>
+			<div class="corner-box right-0 top-0 translate-x-1/2 -translate-y-1/2"></div>
+			<div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+				<div>
+					<div class="mono mb-2 text-xs tracking-widest text-[#666]">// REVIEW</div>
+					<h1 class="text-4xl font-bold tracking-tight md:text-6xl">Tarteel Desktop</h1>
+				</div>
+				<div class="mono text-left text-xs text-[#666] md:text-right">
+					<div>COMMANDCODE REPORT</div>
+					<div class="text-[#444]">2026-06-10</div>
+				</div>
+			</div>
+		</header>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="corner-box left-0 top-0 -translate-x-1/2 -translate-y-1/2"></div>
+			<div class="corner-box right-0 top-0 translate-x-1/2 -translate-y-1/2"></div>
+			<div class="grid gap-8 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+				<div>
+					<div class="mono mb-2 text-xs tracking-widest text-[#666]">// OVERALL</div>
+					<div class="text-6xl font-bold tracking-tight md:text-7xl">24</div>
+					<div class="mt-1 text-lg text-[#666]">/ 50</div>
+					<div class="mt-4 inline-flex border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-3 py-1 text-sm text-[#fbbf24]">Functional but anonymous</div>
+				</div>
+				<div>
+					<div class="mono mb-3 text-xs tracking-widest text-[#666]">// TL;DR</div>
+					<p class="text-sm leading-6 text-[#a0a0a0]">Tarteel has a coherent product shape (offline Quran recitation with live ASR matching) and a palette pointed in the right direction, but it reads as a prototype — system fonts everywhere, 30+ untokenized hex codes, dead palette color, no keyboard access, and type that actively works against Arabic readability. The worst sin: Segoe UI for Quranic Arabic text.</p>
+					<p class="mt-4 text-sm leading-6 text-[#fbbf24]">#1 priority: Replace Segoe UI Arabic with a proper Arabic typeface via `/design typeset`.</p>
+				</div>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// HEURISTIC SCORES</div>
+			<div class="overflow-x-auto">
+				<table class="w-full min-w-[720px] border-collapse text-sm">
+					<thead>
+						<tr class="border-b border-[#222226] text-left mono text-xs text-[#666]">
+							<th class="py-3 pr-4 font-normal">#</th>
+							<th class="py-3 pr-4 font-normal">HEURISTIC</th>
+							<th class="py-3 pr-4 font-normal">SCORE</th>
+							<th class="py-3 font-normal">KEY FINDING</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">1</td>
+							<td class="py-4 pr-4 text-[#fafafa]">First Impression</td>
+							<td class="py-4 pr-4 text-[#fbbf24]">5/10</td>
+							<td class="py-4 text-[#a0a0a0]">Competent utility direction but anonymous — emoji logo, no visual signature</td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">2</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Hierarchy</td>
+							<td class="py-4 pr-4 text-[#fbbf24]">6/10</td>
+							<td class="py-4 text-[#a0a0a0]">Mic button well-placed; 6 competing bordered panels in scroll area flatten priority</td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">3</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Color Voice</td>
+							<td class="py-4 pr-4 text-[#fbbf24]">5/10</td>
+							<td class="py-4 text-[#a0a0a0]">Dead gold token, cool/warm temperature clash, 30+ hardcoded hex values</td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">4</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Type Voice</td>
+							<td class="py-4 pr-4 text-[#ef4444]">3/10</td>
+							<td class="py-4 text-[#a0a0a0]">Segoe UI for Arabic is the wrong tool — no proper Arabic typeface, no measure control</td>
+						</tr>
+						<tr>
+							<td class="py-4 pr-4 text-[#555]">5</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Interaction Feel</td>
+							<td class="py-4 pr-4 text-[#fbbf24]">5/10</td>
+							<td class="py-4 text-[#a0a0a0]">Good empty states and model-download UX, but zero keyboard access, no focus rings</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// SIGNALS</div>
+			<div class="grid gap-6 md:grid-cols-2">
+				<div>
+					<div class="mb-3 text-xl font-semibold">Strengths</div>
+					<ul class="space-y-3 text-sm text-[#a0a0a0]">
+						<li><span class="mono mr-2 text-[#34d399]">PASS</span>Coherent warm palette direction (green/gold/cream)</li>
+						<li><span class="mono mr-2 text-[#34d399]">PASS</span>80x80 mic button exceeds touch minimum; persistent confidence bar</li>
+						<li><span class="mono mr-2 text-[#34d399]">PASS</span>Thoughtful model-download UX: determinate + indeterminate fallback</li>
+						<li><span class="mono mr-2 text-[#34d399]">PASS</span>Empty states exist on both Recitation and Progress pages</li>
+						<li><span class="mono mr-2 text-[#34d399]">PASS</span>Advanced mode toggle gates diagnostic panels cleanly</li>
+					</ul>
+				</div>
+				<div>
+					<div class="mb-3 text-xl font-semibold">Risks</div>
+					<ul class="space-y-3 text-sm text-[#a0a0a0]">
+						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>6 bordered panels in one scroll area — visual noise overload</li>
+						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>Reset button has no confirmation dialog; one-click session wipe</li>
+						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>No dark mode, not even AppThemeBinding scaffolding</li>
+						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>Verse selector row cramped at 8px column spacing</li>
+					</ul>
+				</div>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// SMELL REPORT</div>
+			<div class="overflow-x-auto">
+				<table class="w-full min-w-[640px] border-collapse text-sm">
+					<thead>
+						<tr class="border-b border-[#222226] text-left mono text-xs text-[#666]">
+							<th class="py-3 pr-4 font-normal">TELL</th>
+							<th class="py-3 pr-4 font-normal">WHERE</th>
+							<th class="py-3 font-normal">SEVERITY</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#fafafa]">Emoji logo as brand identity</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">Login page "🕌 Tarteel"</td>
+							<td class="py-4"><span class="border border-[#f43f5e]/30 bg-[#f43f5e]/10 px-2 py-0.5 text-xs text-[#f43f5e]">HIGH</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#fafafa]">Universal system font</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">Every page; Arabic text especially</td>
+							<td class="py-4"><span class="border border-[#f43f5e]/30 bg-[#f43f5e]/10 px-2 py-0.5 text-xs text-[#f43f5e]">CRITICAL</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#fafafa]">Predictable Islamic-app palette</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">Full palette: green, gold, cream</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#fafafa]">Cool/warm color temperature mismatch</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">Transcription panel cool grays vs. warm Surface</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#fafafa]">Hex code spam instead of tokens</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">~30 hardcoded hex values across XAML</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr>
+							<td class="py-4 pr-4 text-[#fafafa]">Dead palette color (Gold unused)</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">App.xaml token, never referenced</td>
+							<td class="py-4"><span class="border border-[#444]/30 bg-[#444]/10 px-2 py-0.5 text-xs text-[#888]">LOW</span></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// WHAT'S WORKING</div>
+			<div class="grid gap-4 md:grid-cols-3">
+				<article class="border border-[#1f1f24] p-4">
+					<h2 class="mb-2 text-sm font-semibold">Model Download UX</h2>
+					<p class="text-sm leading-6 text-[#a0a0a0]">Determinate progress bar + indeterminate spinner toggle is a thoughtful edge-case treatment. Status text gives real operation names, not generic "Loading..." filler.</p>
+				</article>
+				<article class="border border-[#1f1f24] p-4">
+					<h2 class="mb-2 text-sm font-semibold">Persistent Confidence Bar</h2>
+					<p class="text-sm leading-6 text-[#a0a0a0]">The confidence progress bar anchored outside the scroll area at Grid.Row="4" is always visible — a strong always-on feedback pattern for a recitation tool.</p>
+				</article>
+				<article class="border border-[#1f1f24] p-4">
+					<h2 class="mb-2 text-sm font-semibold">Live Arabic Highlighting</h2>
+					<p class="text-sm leading-6 text-[#a0a0a0]">Green/red word markup via FormattedString in the verse panel is the right interaction for real-time Quran matching feedback. The color legend at bottom explains the system.</p>
+				</article>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// PRIORITY ISSUES</div>
+			<div class="space-y-5">
+				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
+					<div class="mono mb-2 text-xs text-[#f43f5e]">P0</div>
+					<h2 class="mb-2 text-lg font-semibold">Arabic text rendered in Segoe UI</h2>
+					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">ArabicFontFamily = "Segoe UI" in App.xaml. Segoe UI is a Latin-first system font that cannot correctly join Arabic letters, position diacritics, or maintain Quranic textural quality. The entire verse panel (28px Arabic), transcription panel (20px Arabic), and progress list depend on this. The app's core value proposition is Arabic recitation feedback — broken Arabic rendering breaks the product.</p>
+					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: `/design typeset` — Bundle and apply a proper Arabic typeface (Noto Naskh Arabic, Amiri, or Scheherazade New). Set ArabicFontFamily as a distinct resource from UiFontFamily. Add measure control (~45-55ch) for the 28px verse text.</div>
+				</article>
+				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
+					<div class="mono mb-2 text-xs text-[#f43f5e]">P1</div>
+					<h2 class="mb-2 text-lg font-semibold">Zero keyboard interaction on a Windows-first desktop app</h2>
+					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">No keyboard shortcuts, no TabIndex ordering, no visible focus rings. A desktop app targeting Windows 10/11 where the user must use the mouse for everything — including toggling the mic, resetting the session, and navigating the verse selector. The login page has no Enter-to-submit. Picker controls disabled during recording show zero visual change.</p>
+					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: `/design interaction` — Add Spacebar to toggle mic, Escape to reset, Tab ordering through verse selector, visible focus rings, disabled-state opacity on pickers, Enter-to-submit on login.</div>
+				</article>
+				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
+					<div class="mono mb-2 text-xs text-[#f43f5e]">P1</div>
+					<h2 class="mb-2 text-lg font-semibold">6 bordered panels create flat visual plane</h2>
+					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">The Recitation page scroll area contains: transcription panel, verse panel, placeholder panel, tajweed violations panel, and ASR debug panel — all as Border elements with RoundRectangle corners and similar visual weight. Only the verse panel uses a 2px stroke; everything else is 1px. There's no z-ordering, no nesting hierarchy, no progressive disclosure. The eye can't distinguish primary content from secondary diagnostics.</p>
+					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: `/design relayout` — Consolidate secondary panels (tajweed, ASR debug) into a collapsible diagnostics section below the verse. Reduce the transcription panel's visual weight (lighter border, smaller heading). The verse panel + confidence bar should dominate.</div>
+				</article>
+				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
+					<div class="mono mb-2 text-xs text-[#f43f5e]">P2</div>
+					<h2 class="mb-2 text-lg font-semibold">30+ hardcoded hex values, cool/warm temperature clash</h2>
+					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">Only 6 colors are tokenized in App.xaml; ~30 more appear as inline hex. Transcription panel uses cool Tailwind grays (#F9FAFB, #D1D5DB, #374151) against a warm cream surface (#F9F6EF). The Gold (#C9A84C) token is declared but referenced zero times. No dark mode infrastructure exists. The app feels like two palettes stitched together.</p>
+					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: `/design recolor` — Tokenize all hex values as named Color resources. Shift cool grays to warm-tinted equivalents (e.g., #FAF8F4 instead of #F9FAFB). Actually use the Gold token for accent moments. Add AppThemeBinding scaffolding for dark mode.</div>
+				</article>
+				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
+					<div class="mono mb-2 text-xs text-[#f43f5e]">P2</div>
+					<h2 class="mb-2 text-lg font-semibold">Emoji logo reads as placeholder identity</h2>
+					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">The login page header is "🕌 Tarteel" in Segoe UI Bold at 32px. An emoji as a brand mark signals "TODO: add logo" — it's the universal placeholder gesture. There is no other brand surface — no splash, no about page, no app icon reference.</p>
+					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: `/design voice` — Decide register (utility vs companion), then either use clean typographic wordmark or a proper SVG/path logo. Commit to one personality.</div>
+				</article>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// NEXT MODES</div>
+			<div class="flex flex-wrap gap-2">
+				<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design typeset</span>
+				<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design recolor</span>
+				<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design relayout</span>
+				<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design interaction</span>
+				<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design voice</span>
+			</div>
+		</section>
+
+		<footer class="mono py-8 text-center text-xs tracking-widest text-[#444]">
+			Generated with CommandCode — 2026-06-10
+		</footer>
+	</main>
+</body>
+</html>

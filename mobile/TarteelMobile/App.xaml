@@ -10,8 +10,26 @@
             <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
             <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
 
+            <!-- Font families -->
             <x:String x:Key="UiFontFamily">Segoe UI</x:String>
-            <x:String x:Key="ArabicFontFamily">Segoe UI</x:String>
+            <x:String x:Key="ArabicFontFamily">NotoNaskhArabic</x:String>
+
+            <!-- Type scale (px) -->
+            <x:Double x:Key="FontSizeNano">10</x:Double>
+            <x:Double x:Key="FontSizeMicro">11</x:Double>
+            <x:Double x:Key="FontSizeCaption">12</x:Double>
+            <x:Double x:Key="FontSizeBody">13</x:Double>
+            <x:Double x:Key="FontSizeBodyLarge">14</x:Double>
+            <x:Double x:Key="FontSizeSubtitle">16</x:Double>
+            <x:Double x:Key="FontSizeTitle">20</x:Double>
+            <x:Double x:Key="FontSizeDisplay">24</x:Double>
+            <x:Double x:Key="FontSizeVerse">28</x:Double>
+
+            <!-- Line heights (multipliers) -->
+            <x:Double x:Key="LineHeightTight">1.1</x:Double>
+            <x:Double x:Key="LineHeightNormal">1.4</x:Double>
+            <x:Double x:Key="LineHeightRelaxed">1.6</x:Double>
+            <x:Double x:Key="LineHeightArabic">1.8</x:Double>
 
             <!-- Primary palette -->
             <Color x:Key="Primary">#1A6B3C</Color>
@@ -21,6 +39,29 @@
             <Color x:Key="OnSurface">#1C1C1E</Color>
             <Color x:Key="Error">#E53935</Color>
 
+            <!-- Surface panels -->
+            <Color x:Key="SurfacePanel">#F5F1E8</Color>
+            <Color x:Key="SurfaceErrorBg">#FDF0ED</Color>
+            <Color x:Key="SurfaceInfoBg">#EDF5ED</Color>
+            <Color x:Key="SurfaceWarningBg">#FFF8ED</Color>
+
+            <!-- Semantic text -->
+            <Color x:Key="TextSecondary">#6B7280</Color>
+            <Color x:Key="TextTertiary">#9CA3AF</Color>
+            <Color x:Key="ErrorText">#991B1B</Color>
+            <Color x:Key="WarningText">#92400E</Color>
+            <Color x:Key="WarningTextSecondary">#78350F</Color>
+
+            <!-- Borders -->
+            <Color x:Key="BorderSubtle">#D4CEC2</Color>
+            <Color x:Key="WarningBorder">#D4A03C</Color>
+            <Color x:Key="DebugBorder">#374151</Color>
+
+            <!-- Debug panel -->
+            <Color x:Key="DebugBg">#111827</Color>
+            <Color x:Key="DebugText">#D1FAE5</Color>
+
+            <!-- Global label style -->
             <Style TargetType="Label">
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
                 <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />

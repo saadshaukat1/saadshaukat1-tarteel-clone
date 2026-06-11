@@ -7,11 +7,22 @@ namespace TarteelClone.LocalRecitationCore.Services;
 public sealed class PlaceholderVerseMatcher : IVerseMatcher
 {
     private readonly IVerseRepository _verses;
+    private int? _surahContext;
     private sealed record WordToken(string Original, string Normalized);
 
     public PlaceholderVerseMatcher(IVerseRepository verses)
     {
         _verses = verses;
+    }
+
+    public void SetSurahContext(int surahNumber)
+    {
+        _surahContext = surahNumber >= 1 && surahNumber <= 114 ? surahNumber : null;
+    }
+
+    public void ClearSurahContext()
+    {
+        _surahContext = null;
     }
 
     public async Task<RecitationMatchResult> MatchAsync(
@@ -46,6 +57,16 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         else
         {
             candidates = await _verses.GetAllVersesAsync(cancellationToken);
+        }
+
+        // Constrain candidates to the active surah range when SetSurahContext was called.
+        if (_surahContext.HasValue)
+        {
+            var filtered = candidates.Where(v => v.SurahNum == _surahContext.Value).ToList();
+            if (filtered.Count > 0)
+            {
+                candidates = filtered;
+            }
         }
 
         if (candidates.Count == 0)
@@ -126,6 +147,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
     }
 
     private const double GapExtendPenalty = -0.5;
+    private const double GapOpenPenalty = -1.2;
 
     private static (int MatchedWords, int ProcessedWords, IReadOnlyList<RecitationWordMismatch> Mismatches) AlignTokens(
         IReadOnlyList<WordToken> expectedTokens,
@@ -140,8 +162,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         var score = new double[eLen + 1, sLen + 1];
         var trace = new byte[eLen + 1, sLen + 1];
 
-        for (var i = 0; i <= eLen; i++) { score[i, 0] = i * GapExtendPenalty; trace[i, 0] = 3; }
-        for (var j = 0; j <= sLen; j++) { score[0, j] = j * GapExtendPenalty; trace[0, j] = 2; }
+        for (var i = 0; i <= eLen; i++) { score[i, 0] = GapOpenPenalty + (i - 1) * GapExtendPenalty; trace[i, 0] = 3; }
+        for (var j = 0; j <= sLen; j++) { score[0, j] = GapOpenPenalty + (j - 1) * GapExtendPenalty; trace[0, j] = 2; }
 
         for (var i = 1; i <= eLen; i++)
         {
@@ -149,8 +171,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
             {
                 var similarity = WordSimilarity(expectedTokens[i - 1], spokenTokens[j - 1]);
                 var diagScore = score[i - 1, j - 1] + similarity;
-                var upScore = score[i - 1, j] + GapExtendPenalty;
-                var leftScore = score[i, j - 1] + GapExtendPenalty;
+                var upScore = (trace[i - 1, j] == 3 ? GapExtendPenalty : GapOpenPenalty) + score[i - 1, j];
+                var leftScore = (trace[i, j - 1] == 2 ? GapExtendPenalty : GapOpenPenalty) + score[i, j - 1];
 
                 if (diagScore >= upScore && diagScore >= leftScore)
                     { score[i, j] = diagScore; trace[i, j] = 1; }
@@ -227,7 +249,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         }
 
         var similarity = ComputeCharacterSimilarity(expectedCanonical, spokenCanonical);
-        var similarityThreshold = minLength <= 3 ? 0.78 : 0.64;
+        var similarityThreshold = minLength <= 2 ? 0.88 : minLength <= 3 ? 0.72 : 0.60;
         if (similarity >= similarityThreshold)
         {
             return true;
@@ -236,7 +258,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         if (minLength >= 3)
         {
             var lcsRatio = ComputeLongestCommonSubsequenceRatio(expectedCanonical, spokenCanonical);
-            if (lcsRatio >= 0.67)
+            var lcsThreshold = minLength <= 4 ? 0.75 : 0.62;
+            if (lcsRatio >= lcsThreshold)
             {
                 return true;
             }

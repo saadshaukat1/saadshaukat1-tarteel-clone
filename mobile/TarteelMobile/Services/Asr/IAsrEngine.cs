@@ -34,6 +34,8 @@ public interface IAsrEngine
     Task ImportModelFromStreamAsync(Stream sourceStream, long? totalBytes, CancellationToken cancellationToken = default);
 
     Task<RecitationTranscriptionResult> TranscribeAsync(byte[] audioChunk, CancellationToken cancellationToken = default);
+    void SetSurahPrompt(string surahArabicName);
+    void ClearSurahPrompt();
 }
 
 public sealed record AsrDownloadProgress(

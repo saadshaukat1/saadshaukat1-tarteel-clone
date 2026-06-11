@@ -9,7 +9,7 @@
 
         <Label Grid.Row="0"
                Text="Hifz Progress"
-               FontSize="22"
+               FontSize="20"
                FontAttributes="Bold"
                TextColor="{StaticResource Primary}"
                Margin="0,0,0,4" />
@@ -21,7 +21,7 @@
                 StrokeThickness="1"
                 StrokeShape="RoundRectangle 8"
                 Stroke="{StaticResource Primary}"
-                BackgroundColor="#F0FDF4">
+                BackgroundColor="{StaticResource SurfaceInfoBg}">
             <Label Text="{Binding OverallSummary}"
                    FontSize="13"
                    TextColor="{StaticResource Primary}" />
@@ -30,7 +30,7 @@
         <!-- Per-verse progress list -->
         <CollectionView Grid.Row="2"
                         ItemsSource="{Binding VerseProgress}"
-                        EmptyView="No verses practiced yet. Start reciting on the Recite tab!">
+                        EmptyView="No verses practiced yet. Start reciting on the Recite tab">
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:VerseProgress">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto"
@@ -70,7 +70,7 @@
                         <Label Grid.Column="3"
                                Text="{Binding UpdatedDisplay}"
                                FontSize="11"
-                               TextColor="#6B7280"
+                               TextColor="{StaticResource TextSecondary}"
                                VerticalOptions="Center" />
 
                     </Grid>

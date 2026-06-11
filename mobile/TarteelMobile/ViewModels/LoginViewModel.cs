@@ -21,7 +21,10 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         Error  = string.Empty;
         var ok = await _session.LoginAsync(Email, Password);
-        if (!ok) Error = "Invalid email or password.";
+        if (ok)
+            await Shell.Current.Navigation.PopModalAsync();
+        else
+            Error = "Email or password is incorrect.";
         IsBusy = false;
     }
 
@@ -31,7 +34,10 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         Error  = string.Empty;
         var ok = await _session.RegisterAsync(Email, Password);
-        if (!ok) Error = "Registration failed. Please try again.";
+        if (ok)
+            await Shell.Current.Navigation.PopModalAsync();
+        else
+            Error = "Could not create account. Check your email address and try again.";
         IsBusy = false;
     }
 }

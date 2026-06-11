@@ -19,10 +19,14 @@ public interface IAsrEngine
     Task<RecitationTranscriptionResult> TranscribeAsync(
         byte[] audioChunk,
         CancellationToken cancellationToken = default);
+    void SetSurahPrompt(string surahArabicName);
+    void ClearSurahPrompt();
 }
 
 public interface IVerseMatcher
 {
+    void SetSurahContext(int surahNumber);
+    void ClearSurahContext();
     Task<RecitationMatchResult> MatchAsync(
         string arabicText,
         CancellationToken cancellationToken = default);
@@ -45,6 +49,8 @@ public interface IRecitationOrchestrator
 {
     event EventHandler<RecitationMatchResult>? MatchProduced;
     event EventHandler<string>? DiagnosticEmitted;
+    void SetSurahContext(int surahNum);
+    void ClearSurahContext();
     Task StartAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SubmitAudioChunkAsync(byte[] audioChunk, CancellationToken cancellationToken = default);

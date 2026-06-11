@@ -30,6 +30,12 @@ public sealed class AsrEngineCoreAdapter : CoreAbstractions.IAsrEngine
     public Task InitializeAsync(CancellationToken cancellationToken = default) =>
         _inner.InitializeAsync(cancellationToken);
 
+    public void SetSurahPrompt(string surahArabicName) =>
+        _inner.SetSurahPrompt(surahArabicName);
+
+    public void ClearSurahPrompt() =>
+        _inner.ClearSurahPrompt();
+
     public async Task<CoreModels.RecitationTranscriptionResult> TranscribeAsync(
         byte[] audioChunk,
         CancellationToken cancellationToken = default)

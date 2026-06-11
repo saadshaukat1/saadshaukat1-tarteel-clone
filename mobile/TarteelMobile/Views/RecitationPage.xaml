@@ -3,18 +3,38 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              x:Class="TarteelMobile.Views.RecitationPage"
-             Title="Recite">
+             Title="Tarteel">
+
+    <ContentPage.Resources>
+        <Style TargetType="Picker">
+            <Style.Triggers>
+                <DataTrigger TargetType="Picker"
+                             Binding="{Binding IsRecording}"
+                             Value="True">
+                    <Setter Property="Opacity" Value="0.4" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
 
         <!-- Top bar -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
             <Label Grid.Column="0"
                    Text="Hifz Practice"
                    FontAttributes="Bold"
-                   FontSize="18"
+                   FontSize="20"
                    VerticalOptions="Center" />
             <Button Grid.Column="1"
+                    Text="{Binding AuthButtonText}"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource Primary}"
+                    FontSize="13"
+                    HeightRequest="34"
+                    VerticalOptions="Center"
+                    Command="{Binding ToggleAuthCommand}" />
+            <Button Grid.Column="2"
                     BackgroundColor="{StaticResource PrimaryDark}"
                     TextColor="White"
                     HeightRequest="34"
@@ -43,19 +63,19 @@
                     Margin="0,0,0,8"
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
-                    Stroke="#DC2626"
-                    BackgroundColor="#FEF2F2">
+                    Stroke="{StaticResource Error}"
+                    BackgroundColor="{StaticResource SurfaceErrorBg}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Whisper model not found"
                            FontAttributes="Bold"
                            FontSize="13"
-                           TextColor="#991B1B" />
+                           TextColor="{StaticResource ErrorText}" />
                     <Label Text="Pick the model file (.bin / .gguf) from disk."
                            FontSize="12"
-                           TextColor="#7F1D1D" />
+                           TextColor="{StaticResource ErrorText}" />
                     <Button Text="Browse from Disk"
                             Command="{Binding BrowseForModelCommand}"
-                            BackgroundColor="#2563EB"
+                            BackgroundColor="{StaticResource Primary}"
                             TextColor="White"
                             FontSize="13"
                             HeightRequest="40" />
@@ -67,25 +87,25 @@
                     Margin="0,0,0,8"
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
-                    Stroke="#2563EB"
-                    BackgroundColor="#EFF6FF">
+                    Stroke="{StaticResource Primary}"
+                    BackgroundColor="{StaticResource SurfaceInfoBg}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="{Binding ModelDownloadStatus, StringFormat='{0}'}"
                            FontAttributes="Bold"
                            FontSize="13"
-                           TextColor="#1D4ED8" />
+                           TextColor="{StaticResource Primary}" />
                     <ProgressBar Progress="{Binding ModelDownloadProgress}"
-                                 ProgressColor="#2563EB"
+                                 ProgressColor="{StaticResource Primary}"
                                  IsVisible="{Binding IsModelDownloadIndeterminate,
                                      Converter={StaticResource InvertedBoolConverter}}"
                                  HeightRequest="6" />
                     <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
                                        IsVisible="{Binding IsModelDownloadIndeterminate}"
-                                       Color="#2563EB"
+                                       Color="{StaticResource Primary}"
                                        HeightRequest="24" />
                     <Label Text="The mic is disabled until the operation finishes."
                            FontSize="11"
-                           TextColor="#3B82F6"
+                           TextColor="{StaticResource Primary}"
                            FontAttributes="Italic" />
                 </VerticalStackLayout>
             </Border>
@@ -93,13 +113,14 @@
         </VerticalStackLayout>
 
         <!-- Verse selector -->
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,12">
-            <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="12" Margin="0,0,0,12">
+            <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource TextSecondary}" />
             <Picker Grid.Column="1"
-                    ItemsSource="{Binding SurahNumbers}"
-                    SelectedItem="{Binding SelectedSurah}"
+                    ItemsSource="{Binding Surahs}"
+                    ItemDisplayBinding="{Binding NameEnglish}"
+                    SelectedItem="{Binding SelectedSurahInfo}"
                     IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" />
-            <Label Grid.Column="2" Text="Ayah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource OnSurface}" />
+            <Label Grid.Column="2" Text="Ayah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource TextSecondary}" />
             <Picker Grid.Column="3"
                     ItemsSource="{Binding AyahNumbers}"
                     SelectedItem="{Binding SelectedAyah}"
@@ -119,28 +140,25 @@
         <ScrollView Grid.Row="3">
             <VerticalStackLayout Spacing="12">
 
-                <!-- Transcription panel — what Whisper heard -->
-                <Border Padding="16"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 10"
-                        IsVisible="{Binding IsRecording}"
-                        Stroke="#D1D5DB"
-                        BackgroundColor="#F9FAFB">
+                <!-- Transcription panel -->
+                <Border IsVisible="{Binding IsRecording}"
+                        Padding="12"
+                        StrokeShape="RoundRectangle 8"
+                        Stroke="{StaticResource BorderSubtle}"
+                        BackgroundColor="{StaticResource SurfacePanel}">
                     <VerticalStackLayout Spacing="8">
 
-                        <!-- Transcription header with status -->
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Label Grid.Column="0"
                                    Text="What you recited"
                                    FontSize="13"
                                    FontAttributes="Bold"
-                                   TextColor="#6B7280"
+                                   TextColor="{StaticResource TextSecondary}"
                                    VerticalOptions="Center" />
-                            <!-- Pulsing activity indicator when transcribing -->
                             <ActivityIndicator Grid.Column="2"
                                                IsRunning="{Binding IsTranscribing}"
                                                IsVisible="{Binding IsTranscribing}"
-                                               Color="#3B82F6"
+                                               Color="{StaticResource Primary}"
                                                HeightRequest="14"
                                                WidthRequest="14"
                                                VerticalOptions="Center" />
@@ -148,18 +166,17 @@
                                    Text=""
                                    IsVisible="{Binding IsTranscribing, Converter={StaticResource InvertedBoolConverter}}"
                                    FontSize="12"
-                                   TextColor="#059669"
+                                   TextColor="{StaticResource Primary}"
                                    FontAttributes="Italic"
                                    VerticalOptions="Center" />
                         </Grid>
 
-                        <!-- Transcription text -->
                         <Label Text="{Binding TranscriptionText}"
                                FontFamily="{StaticResource ArabicFontFamily}"
                                FontSize="20"
                                HorizontalTextAlignment="End"
                                LineBreakMode="WordWrap"
-                               TextColor="#374151"
+                               TextColor="{StaticResource OnSurface}"
                                FontAttributes="Italic">
                             <Label.Triggers>
                                 <DataTrigger TargetType="Label"
@@ -170,12 +187,11 @@
                             </Label.Triggers>
                         </Label>
 
-                        <!-- Empty state: waiting for first transcription -->
                         <Label IsVisible="{Binding IsTranscribing}"
                                Text="Transcribing your recitation…"
                                FontSize="14"
                                FontAttributes="Italic"
-                               TextColor="#9CA3AF"
+                               TextColor="{StaticResource TextTertiary}"
                                HorizontalTextAlignment="Center" />
 
                     </VerticalStackLayout>
@@ -198,7 +214,8 @@
                            FontSize="28"
                            HorizontalTextAlignment="End"
                            LineBreakMode="WordWrap"
-                           TextColor="{StaticResource OnSurface}" />
+                           TextColor="{StaticResource OnSurface}"
+                           MaximumWidthRequest="720" />
                 </Border>
 
                 <!-- Placeholder when verse is hidden -->
@@ -206,13 +223,13 @@
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 10"
                         IsVisible="{Binding IsVerseVisible, Converter={StaticResource InvertedBoolConverter}}"
-                        Stroke="#CCCCCC"
-                        BackgroundColor="#F0F0F0">
+                        Stroke="{StaticResource BorderSubtle}"
+                        BackgroundColor="{StaticResource SurfacePanel}">
                     <Label Text="Verse hidden — recite from memory"
                            HorizontalTextAlignment="Center"
                            FontSize="15"
                            FontAttributes="Italic"
-                           TextColor="#6B7280" />
+                           TextColor="{StaticResource TextSecondary}" />
                 </Border>
 
                 <!-- Tajweed violations panel -->
@@ -220,13 +237,13 @@
                         Padding="12"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 8"
-                        Stroke="#F59E0B"
-                        BackgroundColor="#FFFBEB">
+                        Stroke="{StaticResource WarningBorder}"
+                        BackgroundColor="{StaticResource SurfaceWarningBg}">
                     <VerticalStackLayout Spacing="4">
                         <Label Text="Tajweed Corrections"
                                FontAttributes="Bold"
                                FontSize="13"
-                               TextColor="#92400E" />
+                               TextColor="{StaticResource WarningText}" />
                         <CollectionView ItemsSource="{Binding TajweedViolations}">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
@@ -234,10 +251,10 @@
                                         <Label Text="{Binding RuleDisplayName}"
                                                FontSize="13"
                                                FontAttributes="Bold"
-                                               TextColor="#B45309" />
+                                               TextColor="{StaticResource WarningText}" />
                                         <Label Text="{Binding Hint}"
                                                FontSize="12"
-                                               TextColor="#78350F" />
+                                               TextColor="{StaticResource WarningTextSecondary}" />
                                     </VerticalStackLayout>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
@@ -250,17 +267,17 @@
                         Padding="12"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 8"
-                        Stroke="#374151"
-                        BackgroundColor="#111827">
+                        Stroke="{StaticResource DebugBorder}"
+                        BackgroundColor="{StaticResource DebugBg}">
                     <VerticalStackLayout Spacing="4">
                         <Label Text="Whisper Debug Log"
                                FontAttributes="Bold"
                                FontSize="12"
-                               TextColor="#9CA3AF" />
+                               TextColor="{StaticResource TextTertiary}" />
                         <Label Text="{Binding AsrDebugLog}"
                                FontSize="11"
                                FontFamily="Courier New"
-                               TextColor="#D1FAE5"
+                               TextColor="{StaticResource DebugText}"
                                LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
@@ -285,17 +302,16 @@
             <Label Text="{Binding ProcessingSummary}"
                    HorizontalTextAlignment="Center"
                    FontSize="12"
-                   TextColor="#6B7280" />
+                   TextColor="{StaticResource TextSecondary}" />
             <Label Text="Green = matched  •  Red = needs correction  •  Gray = not yet processed"
                    HorizontalTextAlignment="Center"
                    FontSize="11"
-                   TextColor="#9CA3AF" />
+                   TextColor="{StaticResource TextTertiary}" />
         </VerticalStackLayout>
 
         <!-- Buttons -->
         <HorizontalStackLayout Grid.Row="6" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
 
-            <!-- Mic button -->
             <Button Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
                     BackgroundColor="{Binding IsRecording,
                         Converter={StaticResource BoolToColorConverter},
@@ -306,7 +322,6 @@
                     WidthRequest="80"
                     Command="{Binding ToggleRecordingCommand}" />
 
-            <!-- Show / Hide verse toggle -->
             <Button BackgroundColor="{StaticResource PrimaryDark}"
                     TextColor="White"
                     HeightRequest="44"
@@ -327,7 +342,6 @@
                 </Button.Triggers>
             </Button>
 
-            <!-- Reset session -->
             <Button Text="Reset"
                     BackgroundColor="{StaticResource PrimaryDark}"
                     TextColor="White"

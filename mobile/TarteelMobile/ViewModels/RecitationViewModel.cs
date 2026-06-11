@@ -20,6 +20,7 @@ public partial class RecitationViewModel : ObservableObject
     private readonly ISessionService _session;
     private readonly IAppDiagnosticsService _diagnostics;
     private readonly IAsrEngine _asrEngine;
+    private readonly IServiceProvider _serviceProvider;
     private long _chunkDispatchCount;
     private MatchResult? _bestSessionResult;
     private int _bestPrefixLength;
@@ -37,7 +38,7 @@ public partial class RecitationViewModel : ObservableObject
     private bool _isTranscribing;
 
     [ObservableProperty]
-    private string _statusMessage = "Tap the mic to start reciting";
+    private string _statusMessage = "Select a surah and tap the mic to begin";
 
     [ObservableProperty]
     private bool _isRecording;
@@ -75,7 +76,10 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedAyah = 1;
 
-    public List<int> SurahNumbers { get; } = Enumerable.Range(1, 114).ToList();
+    public List<SurahInfo> Surahs { get; } = [];
+
+    [ObservableProperty]
+    private SurahInfo? _selectedSurahInfo;
 
     [ObservableProperty]
     private List<int> _ayahNumbers = RecitationPracticeSettings.BuildAyahNumbers(1);
@@ -103,6 +107,15 @@ public partial class RecitationViewModel : ObservableObject
     [ObservableProperty]
     private bool _isModelMissing;
 
+    [ObservableProperty]
+    private bool _isAuthenticated;
+
+    [ObservableProperty]
+    private string _userEmail = string.Empty;
+
+    [ObservableProperty]
+    private string _authButtonText = "Log In";
+
     public bool ShowModelMissingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelMissing);
     public bool ShowModelDownloadingPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsModelDownloading);
     public bool ShowAsrDebugPanel => RecitationPracticeSettings.ShouldShowAdvancedPanel(IsAdvancedMode, IsAsrDebugVisible);
@@ -112,7 +125,8 @@ public partial class RecitationViewModel : ObservableObject
         IVerseRepository verseRepository,
         ISessionService session,
         IAppDiagnosticsService diagnostics,
-        IAsrEngine asrEngine)
+        IAsrEngine asrEngine,
+        IServiceProvider serviceProvider)
     {
         _audio      = audio;
         _recitation = recitation;
@@ -120,6 +134,7 @@ public partial class RecitationViewModel : ObservableObject
         _session = session;
         _diagnostics = diagnostics;
         _asrEngine = asrEngine;
+        _serviceProvider = serviceProvider;
 
         _audio.AudioChunkReady        += OnAudioChunkReady;
         _audio.RecordingError         += OnAudioRecordingError;
@@ -127,11 +142,14 @@ public partial class RecitationViewModel : ObservableObject
         _recitation.DiagnosticEmitted += OnDiagnosticEmitted;
 
         RebuildAyahNumbersForSurah(SelectedSurah);
+        _ = LoadSurahsAsync();
 
         if (!_asrEngine.IsReady)
         {
             StartBackgroundInit();
         }
+
+        RefreshAuthState();
     }
 
     private void StartBackgroundInit()
@@ -229,13 +247,13 @@ public partial class RecitationViewModel : ObservableObject
     {
         if (_recitation.RequiresAuthentication && !_session.IsAuthenticated)
         {
-            StatusMessage = "Please log in first";
+            StatusMessage = "Sign in before recording";
             return;
         }
 
         if (IsModelDownloading)
         {
-            StatusMessage = "Please wait — Whisper model is still downloading…";
+            StatusMessage = "Wait — Whisper model is downloading";
             return;
         }
 
@@ -256,6 +274,7 @@ public partial class RecitationViewModel : ObservableObject
                     }
                 }
                 await _recitation.DisconnectAsync();
+                _recitation.ClearSurahContext();
                 IsRecording    = false;
                 IsTranscribing = false;
                 StatusMessage  = "Recitation paused";
@@ -284,6 +303,7 @@ public partial class RecitationViewModel : ObservableObject
                 _bestConfidence = 0;
                 ProcessingSummary = "Connecting recitation pipeline…";
                 await _recitation.ConnectAsync();
+                _recitation.SetSurahContext(SelectedSurah, SelectedSurahInfo?.NameArabic ?? string.Empty);
                 try
                 {
                     await _audio.StartRecordingAsync();
@@ -437,6 +457,16 @@ public partial class RecitationViewModel : ObservableObject
     [RelayCommand]
     private async Task StopSessionAsync()
     {
+        if (IsRecording)
+        {
+            var confirmed = await Shell.Current.DisplayAlertAsync(
+                "Reset session",
+                "Stop recording and clear the current recitation? Your progress for this session will be lost.",
+                "Reset", "Cancel");
+            if (!confirmed)
+                return;
+        }
+
         await _audio.StopRecordingAsync();
         using (var flushTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
         {
@@ -471,7 +501,7 @@ public partial class RecitationViewModel : ObservableObject
         _bestProcessedWordCount = 0;
         _bestConfidence = 0;
         ProcessingSummary = "Session stopped.";
-        StatusMessage = "Session reset. Tap Start to recite again.";
+        StatusMessage = "Session reset. Select a surah and tap the mic to begin.";
         _diagnostics.Info("Local recitation session reset from recitation screen.");
     }
 
@@ -487,9 +517,11 @@ public partial class RecitationViewModel : ObservableObject
         IsAdvancedMode = !IsAdvancedMode;
     }
 
-    partial void OnSelectedSurahChanged(int value)
+    partial void OnSelectedSurahInfoChanged(SurahInfo? value)
     {
-        RebuildAyahNumbersForSurah(value);
+        if (value is null) return;
+        SelectedSurah = value.SurahNum;
+        RebuildAyahNumbersForSurah(value.SurahNum);
     }
 
     partial void OnIsAdvancedModeChanged(bool value)
@@ -512,6 +544,23 @@ public partial class RecitationViewModel : ObservableObject
     partial void OnIsAsrDebugVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowAsrDebugPanel));
+    }
+
+    private async Task LoadSurahsAsync()
+    {
+        try
+        {
+            await _verseRepository.EnsureInitializedAsync();
+            var surahs = await _verseRepository.GetAllSurahsAsync();
+            Surahs.Clear();
+            Surahs.AddRange(surahs);
+            OnPropertyChanged(nameof(Surahs));
+            SelectedSurahInfo = Surahs.FirstOrDefault(s => s.SurahNum == 1);
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Failed to load surah list: {ex.Message}");
+        }
     }
 
     private void RebuildAyahNumbersForSurah(int surah)
@@ -747,5 +796,30 @@ public partial class RecitationViewModel : ObservableObject
                 .Select(m => new WordMismatch(m.Position, m.Spoken, m.Expected))
                 .ToList()
         };
+    }
+
+    [RelayCommand]
+    private async Task ToggleAuthAsync()
+    {
+        if (IsAuthenticated)
+        {
+            await _session.LogoutAsync();
+            IsAuthenticated = false;
+            UserEmail = string.Empty;
+            AuthButtonText = "Log In";
+            StatusMessage = "Signed out. Log in to save your progress.";
+        }
+        else
+        {
+            var loginPage = _serviceProvider.GetRequiredService<Views.LoginPage>();
+            await Shell.Current.Navigation.PushModalAsync(loginPage);
+        }
+    }
+
+    public void RefreshAuthState()
+    {
+        IsAuthenticated = _session.IsAuthenticated;
+        UserEmail = _session.CurrentUserEmail ?? string.Empty;
+        AuthButtonText = IsAuthenticated ? "Log Out" : "Log In";
     }
 }
