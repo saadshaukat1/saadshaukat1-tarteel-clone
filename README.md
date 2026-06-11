@@ -55,14 +55,24 @@ Microphone ──► AudioService ──► LocalWhisperAsrEngine ──► Plac
               1s overlap          real segment prob         confidence score
                                   Arabic normalization      token similarity
                                   cross-chunk prompt        tajweed checks
-                                      │                        │
-                                      └────────┬───────────────┘
+                                  surah prompt                   │
+                                      │                          │
+                                      └────────┬─────────────────┘
                                                │
                                         RecitationViewModel
                                                │
                                     confidence-based dedup
                                     green/red word markup
 ```
+
+### Surah Context
+
+When the user selects a surah before recording, the app passes that surah's identity through the pipeline for tighter accuracy:
+
+- **Whisper Prompt** — The surah's Arabic name (e.g. `الفاتحة`) is sent as a `WithPrompt` hint to the Whisper engine, biasing transcription toward expected vocabulary.
+- **Verse Matching** — `PlaceholderVerseMatcher` constrains its candidate search to the selected surah's verse range and applies tightened Needleman-Wunsch thresholds: higher minimum token similarity (0.60→0.72 for short words, 0.50→0.60 otherwise), stronger gap penalties (−0.5→−1.2), and raised LCS ratios (0.62→0.75 for tokens ≤4). This eliminates false cross-surah matches when reciting from a known surah.
+
+**Flow:** `ViewModel.SelectedSurah` → `RecitationService.SetSurahContext(surahNum, arabicName)` → `LocalWhisperAsrEngine.SetSurahPrompt(name)` + `OfflineRecitationOrchestrator.SetSurahContext(num)` → `PlaceholderVerseMatcher.SetSurahContext(verseStart, verseEnd)`. Cleared on recording stop.
 
 ### Key Design Decisions
 
