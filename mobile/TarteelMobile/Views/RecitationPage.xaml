@@ -5,277 +5,294 @@
              x:Class="TarteelMobile.Views.RecitationPage"
              Title="Tarteel">
 
-    <ContentPage.Resources>
-        <Style TargetType="Picker">
-            <Style.Triggers>
-                <DataTrigger TargetType="Picker"
-                             Binding="{Binding IsRecording}"
-                             Value="True">
-                    <Setter Property="Opacity" Value="0.4" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto,*,Auto" BackgroundColor="{StaticResource Surface}">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Padding="24" BackgroundColor="{StaticResource Surface}">
+        <!-- ═══════════════ TOP: Compact toolbar ═══════════════ -->
+        <VerticalStackLayout Grid.Row="0" Padding="20,12,20,0" Spacing="8">
 
-        <!-- Top bar -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
-            <Label Grid.Column="0"
-                   Text="Hifz Practice"
-                   FontAttributes="Bold"
-                   FontSize="20"
-                   VerticalOptions="Center" />
-            <Button Grid.Column="1"
-                    Text="{Binding AuthButtonText}"
-                    BackgroundColor="Transparent"
-                    TextColor="{StaticResource Primary}"
-                    FontSize="13"
-                    HeightRequest="34"
-                    VerticalOptions="Center"
-                    Command="{Binding ToggleAuthCommand}" />
-            <Button Grid.Column="2"
-                    BackgroundColor="{StaticResource PrimaryDark}"
-                    TextColor="White"
-                    HeightRequest="34"
-                    WidthRequest="120"
-                    Command="{Binding ToggleAdvancedModeCommand}">
-                <Button.Triggers>
-                    <DataTrigger TargetType="Button"
-                                 Binding="{Binding IsAdvancedMode}"
-                                 Value="True">
-                        <Setter Property="Text" Value="Advanced On" />
-                    </DataTrigger>
-                    <DataTrigger TargetType="Button"
-                                 Binding="{Binding IsAdvancedMode}"
-                                 Value="False">
-                        <Setter Property="Text" Value="Advanced Off" />
-                    </DataTrigger>
-                </Button.Triggers>
-            </Button>
-        </Grid>
+            <!-- Header — single slim row -->
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <Label Grid.Column="0"
+                       Text="Hifz Practice"
+                       FontAttributes="Bold"
+                       FontSize="{StaticResource FontSizeTitle}"
+                       VerticalOptions="Center" />
+                <Button Grid.Column="1"
+                        Text="{Binding AuthButtonText}"
+                        BackgroundColor="Transparent"
+                        TextColor="{StaticResource Primary}"
+                        FontSize="{StaticResource FontSizeCaption}"
+                        HeightRequest="30"
+                        Padding="6,0"
+                        VerticalOptions="Center"
+                        Command="{Binding ToggleAuthCommand}" />
+                <Button Grid.Column="2"
+                        BackgroundColor="{StaticResource PrimaryDark}"
+                        TextColor="White"
+                        HeightRequest="30"
+                        WidthRequest="100"
+                        FontSize="{StaticResource FontSizeCaption}"
+                        VerticalOptions="Center"
+                        Command="{Binding ToggleAdvancedModeCommand}">
+                    <Button.Triggers>
+                        <DataTrigger TargetType="Button"
+                                     Binding="{Binding IsAdvancedMode}"
+                                     Value="True">
+                            <Setter Property="Text" Value="Advanced On" />
+                        </DataTrigger>
+                        <DataTrigger TargetType="Button"
+                                     Binding="{Binding IsAdvancedMode}"
+                                     Value="False">
+                            <Setter Property="Text" Value="Advanced Off" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+            </Grid>
 
-        <!-- Model setup overlays -->
-        <VerticalStackLayout Grid.Row="1" Spacing="0">
-
+            <!-- Model alerts (compact, inline) -->
             <Border IsVisible="{Binding ShowModelMissingPanel}"
-                    Padding="16,12"
-                    Margin="0,0,0,8"
-                    StrokeThickness="1"
+                    Padding="12,8"
+                    StrokeThickness="0"
                     StrokeShape="RoundRectangle 8"
-                    Stroke="{StaticResource Error}"
                     BackgroundColor="{StaticResource SurfaceErrorBg}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Whisper model not found"
-                           FontAttributes="Bold"
-                           FontSize="13"
-                           TextColor="{StaticResource ErrorText}" />
-                    <Label Text="Pick the model file (.bin / .gguf) from disk."
-                           FontSize="12"
-                           TextColor="{StaticResource ErrorText}" />
-                    <Button Text="Browse from Disk"
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Grid.Column="0" Spacing="1">
+                        <Label Text="Whisper model not found"
+                               FontAttributes="Bold"
+                               FontSize="{StaticResource FontSizeCaption}"
+                               TextColor="{StaticResource ErrorText}" />
+                        <Label Text="Pick the .bin / .gguf file from disk."
+                               FontSize="{StaticResource FontSizeNano}"
+                               TextColor="{StaticResource ErrorText}" />
+                    </VerticalStackLayout>
+                    <Button Grid.Column="1"
+                            Text="Browse"
                             Command="{Binding BrowseForModelCommand}"
-                            BackgroundColor="{StaticResource Primary}"
+                            BackgroundColor="{StaticResource Error}"
                             TextColor="White"
-                            FontSize="13"
-                            HeightRequest="40" />
-                </VerticalStackLayout>
+                            FontSize="{StaticResource FontSizeCaption}"
+                            HeightRequest="30"
+                            VerticalOptions="Center" />
+                </Grid>
             </Border>
 
             <Border IsVisible="{Binding ShowModelDownloadingPanel}"
-                    Padding="16,12"
-                    Margin="0,0,0,8"
-                    StrokeThickness="1"
+                    Padding="12,8"
+                    StrokeThickness="0"
                     StrokeShape="RoundRectangle 8"
-                    Stroke="{StaticResource Primary}"
                     BackgroundColor="{StaticResource SurfaceInfoBg}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="{Binding ModelDownloadStatus, StringFormat='{0}'}"
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding ModelDownloadStatus}"
                            FontAttributes="Bold"
-                           FontSize="13"
+                           FontSize="{StaticResource FontSizeCaption}"
                            TextColor="{StaticResource Primary}" />
                     <ProgressBar Progress="{Binding ModelDownloadProgress}"
                                  ProgressColor="{StaticResource Primary}"
                                  IsVisible="{Binding IsModelDownloadIndeterminate,
                                      Converter={StaticResource InvertedBoolConverter}}"
-                                 HeightRequest="6" />
+                                 HeightRequest="3" />
                     <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}"
                                        IsVisible="{Binding IsModelDownloadIndeterminate}"
                                        Color="{StaticResource Primary}"
-                                       HeightRequest="24" />
-                    <Label Text="The mic is disabled until the operation finishes."
-                           FontSize="11"
-                           TextColor="{StaticResource Primary}"
-                           FontAttributes="Italic" />
+                                       HeightRequest="16" />
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Surah/Ayah selector — compact inline row -->
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="6"
+                  IsVisible="{Binding IsFreeReciteMode, Converter={StaticResource InvertedBoolConverter}}">
+                <CheckBox Grid.Column="0"
+                          IsChecked="{Binding IsFreeReciteMode}"
+                          VerticalOptions="Center"
+                          Scale="0.85" />
+                <Label Grid.Column="1"
+                       Text="Free"
+                       FontSize="{StaticResource FontSizeNano}"
+                       TextColor="{StaticResource TextTertiary}"
+                       VerticalOptions="Center" />
+                <Picker Grid.Column="2"
+                        ItemsSource="{Binding Surahs}"
+                        ItemDisplayBinding="{Binding NameEnglish}"
+                        SelectedItem="{Binding SelectedSurahInfo}"
+                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                        FontSize="{StaticResource FontSizeCaption}"
+                        HeightRequest="32" />
+                <Picker Grid.Column="3"
+                        ItemsSource="{Binding AyahNumbers}"
+                        SelectedItem="{Binding SelectedAyah}"
+                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                        FontSize="{StaticResource FontSizeCaption}"
+                        HeightRequest="32"
+                        WidthRequest="64" />
+                <Button Grid.Column="4"
+                        Text="Go"
+                        BackgroundColor="{StaticResource Primary}"
+                        TextColor="White"
+                        HeightRequest="32"
+                        WidthRequest="48"
+                        FontSize="{StaticResource FontSizeCaption}"
+                        VerticalOptions="Center"
+                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                        Command="{Binding LoadSelectedVerseCommand}" />
+            </Grid>
+
+            <!-- Free-recite toggle (shown when free mode is ON) -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6"
+                  IsVisible="{Binding IsFreeReciteMode}">
+                <CheckBox Grid.Column="0"
+                          IsChecked="{Binding IsFreeReciteMode}"
+                          VerticalOptions="Center"
+                          Scale="0.85" />
+                <Label Grid.Column="1"
+                       Text="Recite freely — I'll identify the verse"
+                       FontSize="{StaticResource FontSizeCaption}"
+                       TextColor="{StaticResource TextSecondary}"
+                       VerticalOptions="Center" />
+            </Grid>
+
         </VerticalStackLayout>
 
-        <!-- Verse selector -->
-        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,*,Auto" ColumnSpacing="12" Margin="0,0,0,12">
-            <Label Grid.Column="0" Text="Surah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource TextSecondary}" />
-            <Picker Grid.Column="1"
-                    ItemsSource="{Binding Surahs}"
-                    ItemDisplayBinding="{Binding NameEnglish}"
-                    SelectedItem="{Binding SelectedSurahInfo}"
-                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" />
-            <Label Grid.Column="2" Text="Ayah" VerticalOptions="Center" FontSize="13" TextColor="{StaticResource TextSecondary}" />
-            <Picker Grid.Column="3"
-                    ItemsSource="{Binding AyahNumbers}"
-                    SelectedItem="{Binding SelectedAyah}"
-                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" />
-            <Button Grid.Column="4"
-                    Text="Load"
-                    BackgroundColor="{StaticResource Primary}"
-                    TextColor="White"
-                    HeightRequest="38"
-                    WidthRequest="60"
-                    FontSize="13"
-                    IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
-                    Command="{Binding LoadSelectedVerseCommand}" />
-        </Grid>
+        <!-- ═══════════════ MIDDLE: Verse — the HERO ═══════════════ -->
+        <ScrollView Grid.Row="1" Padding="16,10,16,0">
+            <VerticalStackLayout Spacing="14">
 
-        <!-- Main content area -->
-        <ScrollView Grid.Row="3">
-            <VerticalStackLayout Spacing="12">
+                <!-- Verse panel — large, centered, dominant -->
+                <Border Padding="24,28"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 16"
+                        IsVisible="{Binding IsVerseVisible}"
+                        Stroke="{Binding IsVerseCorrect,
+                                    Converter={StaticResource BoolToColorConverter},
+                                    ConverterParameter='#2D8C4F|#C04040'}"
+                        BackgroundColor="{Binding IsVerseCorrect,
+                                    Converter={StaticResource BoolToColorConverter},
+                                    ConverterParameter='#EBF5EE|#FDF0ED'}">
+                    <VerticalStackLayout Spacing="16">
 
-                <!-- Transcription panel -->
-                <Border IsVisible="{Binding IsRecording}"
-                        Padding="12"
-                        StrokeShape="RoundRectangle 8"
-                        Stroke="{StaticResource BorderSubtle}"
-                        BackgroundColor="{StaticResource SurfacePanel}">
-                    <VerticalStackLayout Spacing="8">
+                        <!-- Detected surah/ayah — inside verse card -->
+                        <Label Text="{Binding DetectedVerseInfo}"
+                               FontSize="{StaticResource FontSizeBodyLarge}"
+                               FontAttributes="Bold"
+                               TextColor="{StaticResource Primary}"
+                               HorizontalTextAlignment="Center"
+                               IsVisible="{Binding DetectedVerseInfo, Converter={StaticResource StringToBoolConverter}}" />
 
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Label Grid.Column="0"
-                                   Text="What you recited"
-                                   FontSize="13"
-                                   FontAttributes="Bold"
-                                   TextColor="{StaticResource TextSecondary}"
-                                   VerticalOptions="Center" />
-                            <ActivityIndicator Grid.Column="2"
-                                               IsRunning="{Binding IsTranscribing}"
-                                               IsVisible="{Binding IsTranscribing}"
-                                               Color="{StaticResource Primary}"
-                                               HeightRequest="14"
-                                               WidthRequest="14"
-                                               VerticalOptions="Center" />
-                            <Label Grid.Column="2"
-                                   Text=""
-                                   IsVisible="{Binding IsTranscribing, Converter={StaticResource InvertedBoolConverter}}"
-                                   FontSize="12"
-                                   TextColor="{StaticResource Primary}"
-                                   FontAttributes="Italic"
-                                   VerticalOptions="Center" />
-                        </Grid>
-
-                        <Label Text="{Binding TranscriptionText}"
+                        <!-- Arabic verse — the focal point -->
+                        <Label x:Name="ArabicLabel"
+                               FormattedText="{Binding HighlightedArabicText}"
                                FontFamily="{StaticResource ArabicFontFamily}"
-                               FontSize="20"
-                               HorizontalTextAlignment="End"
+                               FontSize="{StaticResource FontSizeVerse}"
+                               HorizontalTextAlignment="Center"
                                LineBreakMode="WordWrap"
                                TextColor="{StaticResource OnSurface}"
-                               FontAttributes="Italic">
-                            <Label.Triggers>
-                                <DataTrigger TargetType="Label"
-                                             Binding="{Binding TranscriptionText}"
-                                             Value="">
-                                    <Setter Property="IsVisible" Value="False" />
-                                </DataTrigger>
-                            </Label.Triggers>
-                        </Label>
+                               MaximumWidthRequest="{StaticResource ArabicVerseMaxWidth}" />
 
-                        <Label IsVisible="{Binding IsTranscribing}"
-                               Text="Transcribing your recitation…"
-                               FontSize="14"
-                               FontAttributes="Italic"
-                               TextColor="{StaticResource TextTertiary}"
-                               HorizontalTextAlignment="Center" />
+                        <!-- Transcription (inline, secondary) -->
+                        <VerticalStackLayout Spacing="6"
+                                              IsVisible="{Binding IsRecording}">
+                            <BoxView HeightRequest="1"
+                                     Color="{StaticResource BorderSubtle}"
+                                     HorizontalOptions="FillAndExpand" />
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Label Grid.Column="0"
+                                       Text="You recited"
+                                       FontSize="{StaticResource FontSizeCaption}"
+                                       FontAttributes="Bold"
+                                       TextColor="{StaticResource TextTertiary}"
+                                       VerticalOptions="Center" />
+                                <ActivityIndicator Grid.Column="2"
+                                                   IsRunning="{Binding IsTranscribing}"
+                                                   IsVisible="{Binding IsTranscribing}"
+                                                   Color="{StaticResource Primary}"
+                                                   HeightRequest="12"
+                                                   WidthRequest="12" />
+                            </Grid>
+                            <Label Text="{Binding TranscriptionText}"
+                                   FontFamily="{StaticResource ArabicFontFamily}"
+                                   FontSize="18"
+                                   HorizontalTextAlignment="End"
+                                   LineBreakMode="WordWrap"
+                                   TextColor="{StaticResource TextSecondary}"
+                                   FontAttributes="Italic">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding TranscriptionText}"
+                                                 Value="">
+                                        <Setter Property="IsVisible" Value="False" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                            <Label IsVisible="{Binding IsTranscribing}"
+                                   Text="Transcribing…"
+                                   FontSize="{StaticResource FontSizeBody}"
+                                   FontAttributes="Italic"
+                                   TextColor="{StaticResource TextTertiary}"
+                                   HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
 
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Verse panel -->
-                <Border Padding="16"
-                        StrokeThickness="2"
-                        StrokeShape="RoundRectangle 10"
-                        IsVisible="{Binding IsVerseVisible}"
-                        Stroke="{Binding IsVerseCorrect,
-                                    Converter={StaticResource BoolToColorConverter},
-                                    ConverterParameter='#1A6B3C|#E53935'}"
-                        BackgroundColor="{Binding IsVerseCorrect,
-                                    Converter={StaticResource BoolToColorConverter},
-                                    ConverterParameter='#E8F5E9|#FFF8F8'}">
-                    <Label x:Name="ArabicLabel"
-                           FormattedText="{Binding HighlightedArabicText}"
-                           FontFamily="{StaticResource ArabicFontFamily}"
-                           FontSize="28"
-                           HorizontalTextAlignment="End"
-                           LineBreakMode="WordWrap"
-                           TextColor="{StaticResource OnSurface}"
-                           MaximumWidthRequest="720" />
-                </Border>
-
                 <!-- Placeholder when verse is hidden -->
-                <Border Padding="16"
+                <Border Padding="24,40"
                         StrokeThickness="1"
-                        StrokeShape="RoundRectangle 10"
+                        StrokeShape="RoundRectangle 16"
                         IsVisible="{Binding IsVerseVisible, Converter={StaticResource InvertedBoolConverter}}"
                         Stroke="{StaticResource BorderSubtle}"
                         BackgroundColor="{StaticResource SurfacePanel}">
                     <Label Text="Verse hidden — recite from memory"
                            HorizontalTextAlignment="Center"
-                           FontSize="15"
+                           FontSize="{StaticResource FontSizeSubtitle}"
                            FontAttributes="Italic"
                            TextColor="{StaticResource TextSecondary}" />
                 </Border>
 
-                <!-- Tajweed violations panel -->
+                <!-- Tajweed violations (compact, secondary) -->
                 <Border IsVisible="{Binding HasTajweedViolations}"
-                        Padding="12"
-                        StrokeThickness="1"
+                        Padding="14,10"
+                        StrokeThickness="0"
                         StrokeShape="RoundRectangle 8"
-                        Stroke="{StaticResource WarningBorder}"
                         BackgroundColor="{StaticResource SurfaceWarningBg}">
                     <VerticalStackLayout Spacing="4">
                         <Label Text="Tajweed Corrections"
                                FontAttributes="Bold"
-                               FontSize="13"
+                               FontSize="{StaticResource FontSizeBody}"
                                TextColor="{StaticResource WarningText}" />
                         <CollectionView ItemsSource="{Binding TajweedViolations}">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate>
-                                    <VerticalStackLayout Padding="0,4" Spacing="2">
-                                        <Label Text="{Binding RuleDisplayName}"
-                                               FontSize="13"
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Padding="0,3">
+                                        <Label Grid.Column="0"
+                                               Text="{Binding RuleDisplayName}"
+                                               FontSize="{StaticResource FontSizeBody}"
                                                FontAttributes="Bold"
-                                               TextColor="{StaticResource WarningText}" />
-                                        <Label Text="{Binding Hint}"
-                                               FontSize="12"
-                                               TextColor="{StaticResource WarningTextSecondary}" />
-                                    </VerticalStackLayout>
+                                               TextColor="{StaticResource WarningText}"
+                                               VerticalOptions="Center" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding Hint}"
+                                               FontSize="{StaticResource FontSizeCaption}"
+                                               TextColor="{StaticResource WarningTextSecondary}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
                                 </DataTemplate>
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- ASR debug panel -->
+                <!-- ASR debug (minimal weight) -->
                 <Border IsVisible="{Binding ShowAsrDebugPanel}"
-                        Padding="12"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8"
-                        Stroke="{StaticResource DebugBorder}"
+                        Padding="12,8"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 6"
                         BackgroundColor="{StaticResource DebugBg}">
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="Whisper Debug Log"
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Whisper Debug"
                                FontAttributes="Bold"
-                               FontSize="12"
+                               FontSize="{StaticResource FontSizeNano}"
                                TextColor="{StaticResource TextTertiary}" />
                         <Label Text="{Binding AsrDebugLog}"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeMicro}"
                                FontFamily="Courier New"
                                TextColor="{StaticResource DebugText}"
                                LineBreakMode="WordWrap" />
@@ -285,71 +302,78 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- Confidence bar -->
-        <ProgressBar Grid.Row="4"
-                     Progress="{Binding Confidence}"
-                     ProgressColor="{Binding IsVerseCorrect,
-                                Converter={StaticResource BoolToColorConverter},
-                                ConverterParameter='#1A6B3C|#E53935'}"
-                     Margin="0,8" />
+        <!-- ═══════════════ BOTTOM: Confidence + Actions ═══════════════ -->
+        <VerticalStackLayout Grid.Row="2" Padding="20,10,20,16" Spacing="10">
 
-        <!-- Status -->
-        <VerticalStackLayout Grid.Row="5" Spacing="4" Margin="0,4">
-            <Label Text="{Binding StatusMessage}"
+            <!-- Confidence bar with inline status -->
+            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                <ProgressBar Grid.Row="0"
+                             Progress="{Binding Confidence}"
+                             ProgressColor="{Binding IsVerseCorrect,
+                                        Converter={StaticResource BoolToColorConverter},
+                                        ConverterParameter='#2D8C4F|#C04040'}"
+                             HeightRequest="6" />
+                <Label Grid.Row="1"
+                       Text="{Binding StatusMessage}"
+                       HorizontalTextAlignment="Center"
+                       FontSize="{StaticResource FontSizeBodyLarge}"
+                       TextColor="{StaticResource Primary}" />
+                <Label Grid.Row="2"
+                       Text="{Binding ProcessingSummary}"
+                       HorizontalTextAlignment="Center"
+                       FontSize="{StaticResource FontSizeCaption}"
+                       TextColor="{StaticResource TextSecondary}" />
+            </Grid>
+
+            <!-- Action buttons -->
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10"
+                  HorizontalOptions="Center">
+                <Button Grid.Column="0"
+                        Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
+                        BackgroundColor="{Binding IsRecording,
+                            Converter={StaticResource BoolToColorConverter},
+                            ConverterParameter='#C04040|#1A6B3C'}"
+                        TextColor="White"
+                        CornerRadius="40"
+                        HeightRequest="80"
+                        WidthRequest="80"
+                        Command="{Binding ToggleRecordingCommand}" />
+                <Button Grid.Column="1"
+                        BackgroundColor="{StaticResource PrimaryDark}"
+                        TextColor="White"
+                        HeightRequest="44"
+                        WidthRequest="100"
+                        VerticalOptions="Center"
+                        Command="{Binding ToggleVerseVisibilityCommand}">
+                    <Button.Triggers>
+                        <DataTrigger TargetType="Button"
+                                     Binding="{Binding IsVerseVisible}"
+                                     Value="True">
+                            <Setter Property="Text" Value="Hide Verse" />
+                        </DataTrigger>
+                        <DataTrigger TargetType="Button"
+                                     Binding="{Binding IsVerseVisible}"
+                                     Value="False">
+                            <Setter Property="Text" Value="Show Verse" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+                <Button Grid.Column="2"
+                        Text="Reset"
+                        BackgroundColor="Transparent"
+                        TextColor="{StaticResource TextSecondary}"
+                        HeightRequest="44"
+                        VerticalOptions="Center"
+                        Command="{Binding StopSessionCommand}" />
+            </Grid>
+
+            <!-- Legend -->
+            <Label Text="Green = matched  ·  Red = needs correction"
                    HorizontalTextAlignment="Center"
-                   FontSize="14"
-                   TextColor="{StaticResource Primary}" />
-            <Label Text="{Binding ProcessingSummary}"
-                   HorizontalTextAlignment="Center"
-                   FontSize="12"
-                   TextColor="{StaticResource TextSecondary}" />
-            <Label Text="Green = matched  •  Red = needs correction  •  Gray = not yet processed"
-                   HorizontalTextAlignment="Center"
-                   FontSize="11"
+                   FontSize="{StaticResource FontSizeNano}"
                    TextColor="{StaticResource TextTertiary}" />
+
         </VerticalStackLayout>
-
-        <!-- Buttons -->
-        <HorizontalStackLayout Grid.Row="6" HorizontalOptions="Center" Spacing="12" Margin="0,16,0,0">
-
-            <Button Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
-                    BackgroundColor="{Binding IsRecording,
-                        Converter={StaticResource BoolToColorConverter},
-                        ConverterParameter='#E53935|#1A6B3C'}"
-                    TextColor="White"
-                    CornerRadius="40"
-                    HeightRequest="80"
-                    WidthRequest="80"
-                    Command="{Binding ToggleRecordingCommand}" />
-
-            <Button BackgroundColor="{StaticResource PrimaryDark}"
-                    TextColor="White"
-                    HeightRequest="44"
-                    WidthRequest="110"
-                    VerticalOptions="Center"
-                    Command="{Binding ToggleVerseVisibilityCommand}">
-                <Button.Triggers>
-                    <DataTrigger TargetType="Button"
-                                 Binding="{Binding IsVerseVisible}"
-                                 Value="True">
-                        <Setter Property="Text" Value="Hide Verse" />
-                    </DataTrigger>
-                    <DataTrigger TargetType="Button"
-                                 Binding="{Binding IsVerseVisible}"
-                                 Value="False">
-                        <Setter Property="Text" Value="Show Verse" />
-                    </DataTrigger>
-                </Button.Triggers>
-            </Button>
-
-            <Button Text="Reset"
-                    BackgroundColor="{StaticResource PrimaryDark}"
-                    TextColor="White"
-                    HeightRequest="44"
-                    VerticalOptions="Center"
-                    Command="{Binding StopSessionCommand}" />
-
-        </HorizontalStackLayout>
 
     </Grid>
 </ContentPage>

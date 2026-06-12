@@ -5,32 +5,29 @@
              x:Class="TarteelMobile.Views.ProgressPage"
              Title="My Progress">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="16" BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="16" BackgroundColor="{StaticResource Surface}">
 
         <Label Grid.Row="0"
                Text="Hifz Progress"
-               FontSize="20"
+               FontSize="{StaticResource FontSizeTitle}"
                FontAttributes="Bold"
-               TextColor="{StaticResource Primary}"
                Margin="0,0,0,4" />
 
-        <!-- Overall summary bar -->
-        <Border Grid.Row="1"
-                Padding="12"
-                Margin="0,0,0,12"
-                StrokeThickness="1"
-                StrokeShape="RoundRectangle 8"
-                Stroke="{StaticResource Primary}"
-                BackgroundColor="{StaticResource SurfaceInfoBg}">
-            <Label Text="{Binding OverallSummary}"
-                   FontSize="13"
-                   TextColor="{StaticResource Primary}" />
-        </Border>
-
         <!-- Per-verse progress list -->
-        <CollectionView Grid.Row="2"
+        <CollectionView Grid.Row="1"
                         ItemsSource="{Binding VerseProgress}"
                         EmptyView="No verses practiced yet. Start reciting on the Recite tab">
+            <CollectionView.Header>
+                <Border Padding="12"
+                        Margin="0,0,0,12"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="{StaticResource SurfaceInfoBg}">
+                    <Label Text="{Binding OverallSummary}"
+                           FontSize="{StaticResource FontSizeBody}"
+                           TextColor="{StaticResource Primary}" />
+                </Border>
+            </CollectionView.Header>
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:VerseProgress">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto"
@@ -44,7 +41,7 @@
                                 StrokeShape="RoundRectangle 6"
                                 Padding="6,2">
                             <Label Text="{Binding Label}"
-                                   FontSize="12"
+                                   FontSize="{StaticResource FontSizeCaption}"
                                    FontAttributes="Bold"
                                    TextColor="White" />
                         </Border>
@@ -62,14 +59,14 @@
                         <Label Grid.Column="2"
                                Text="{Binding MasteryDisplay}"
                                FontAttributes="Bold"
-                               FontSize="14"
+                               FontSize="{StaticResource FontSizeBodyLarge}"
                                TextColor="{Binding MasteryColor}"
                                VerticalOptions="Center" />
 
                         <!-- Last practiced date -->
                         <Label Grid.Column="3"
                                Text="{Binding UpdatedDisplay}"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeMicro}"
                                TextColor="{StaticResource TextSecondary}"
                                VerticalOptions="Center" />
 
@@ -79,7 +76,7 @@
         </CollectionView>
 
         <!-- Refresh button -->
-        <Button Grid.Row="3"
+        <Button Grid.Row="2"
                 Text="Refresh"
                 BackgroundColor="{StaticResource Primary}"
                 TextColor="White"
@@ -88,4 +85,3 @@
 
     </Grid>
 </ContentPage>
-

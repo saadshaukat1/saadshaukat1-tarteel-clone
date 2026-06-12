@@ -11,6 +11,7 @@ public interface IRecitationService
     bool RequiresAuthentication { get; }
     void SetSurahContext(int surahNum, string surahArabicName);
     void ClearSurahContext();
+    void ClearLastMatchedPosition();
     Task ConnectAsync();
     Task FlushAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync();
@@ -56,6 +57,11 @@ public sealed class RecitationService : IRecitationService
     {
         _orchestrator.ClearSurahContext();
         _asrEngine.ClearSurahPrompt();
+    }
+
+    public void ClearLastMatchedPosition()
+    {
+        _orchestrator.ClearLastMatchedPosition();
     }
 
     public async Task ConnectAsync()

@@ -71,6 +71,12 @@ public partial class RecitationViewModel : ObservableObject
     private bool _isAdvancedMode;
 
     [ObservableProperty]
+    private bool _isFreeReciteMode;
+
+    [ObservableProperty]
+    private string _detectedVerseInfo = string.Empty;
+
+    [ObservableProperty]
     private int _selectedSurah = 1;
 
     [ObservableProperty]
@@ -275,6 +281,7 @@ public partial class RecitationViewModel : ObservableObject
                 }
                 await _recitation.DisconnectAsync();
                 _recitation.ClearSurahContext();
+                _recitation.ClearLastMatchedPosition();
                 IsRecording    = false;
                 IsTranscribing = false;
                 StatusMessage  = "Recitation paused";
@@ -303,7 +310,12 @@ public partial class RecitationViewModel : ObservableObject
                 _bestConfidence = 0;
                 ProcessingSummary = "Connecting recitation pipeline…";
                 await _recitation.ConnectAsync();
-                _recitation.SetSurahContext(SelectedSurah, SelectedSurahInfo?.NameArabic ?? string.Empty);
+
+                if (!IsFreeReciteMode)
+                {
+                    _recitation.SetSurahContext(SelectedSurah, SelectedSurahInfo?.NameArabic ?? string.Empty);
+                }
+
                 try
                 {
                     await _audio.StartRecordingAsync();
@@ -314,11 +326,17 @@ public partial class RecitationViewModel : ObservableObject
                     throw;
                 }
 
-                await LoadPracticeVersePlaceholderAsync();
+                if (!IsFreeReciteMode)
+                {
+                    await LoadPracticeVersePlaceholderAsync();
+                }
 
                 IsRecording   = true;
                 IsTranscribing = true;
-                StatusMessage = "Listening… recite into the mic";
+                DetectedVerseInfo = string.Empty;
+                StatusMessage = IsFreeReciteMode
+                    ? "Listening… recite any verse"
+                    : "Listening… recite into the mic";
                 ProcessingSummary = "Audio stream active. Transcribing your recitation…";
                 _diagnostics.Info("Recitation recording started.");
             }
@@ -443,15 +461,29 @@ public partial class RecitationViewModel : ObservableObject
             return;
         }
 
+        var surahNum = _bestSessionResult.SurahNum;
+        var ayahNum  = _bestSessionResult.AyahNum;
+
+        if (IsFreeReciteMode && surahNum > 0)
+        {
+            var surahName = _bestSessionResult.SurahNameEnglish ?? $"Surah {surahNum}";
+            DetectedVerseInfo = $"{surahName} — {surahNum}:{ayahNum}";
+            if (string.IsNullOrEmpty(ArabicText) || ArabicText != _bestSessionResult.ArabicText)
+            {
+                ArabicText = _bestSessionResult.ArabicText;
+                HighlightedArabicText = BuildHighlightedArabicText(_bestSessionResult);
+            }
+        }
+
         if (_bestSessionResult.Mismatches.Count == 0 && _bestSessionResult.Confidence >= PerfectConfidenceThreshold)
         {
-            StatusMessage = $"✓ Surah {_bestSessionResult.SurahNum}:{_bestSessionResult.AyahNum} — perfect";
+            StatusMessage = $"✓ Surah {surahNum}:{ayahNum} — perfect";
             return;
         }
 
         StatusMessage = _bestSessionResult.Mismatches.Count == 0
-            ? $"Surah {_bestSessionResult.SurahNum}:{_bestSessionResult.AyahNum} — match improving ({_bestSessionResult.Confidence:P0})"
-            : $"Surah {_bestSessionResult.SurahNum}:{_bestSessionResult.AyahNum} — {_bestSessionResult.Mismatches.Count} correction(s)";
+            ? $"Surah {surahNum}:{ayahNum} — match improving ({_bestSessionResult.Confidence:P0})"
+            : $"Surah {surahNum}:{ayahNum} — {_bestSessionResult.Mismatches.Count} correction(s)";
     }
 
     [RelayCommand]
@@ -479,6 +511,8 @@ public partial class RecitationViewModel : ObservableObject
                 _diagnostics.Warn("Timed out waiting for final ASR chunk while resetting recitation.");
             }
         }
+        _recitation.ClearLastMatchedPosition();
+        _recitation.ClearSurahContext();
         await _recitation.DisconnectAsync();
 
         IsRecording = false;
@@ -501,7 +535,10 @@ public partial class RecitationViewModel : ObservableObject
         _bestProcessedWordCount = 0;
         _bestConfidence = 0;
         ProcessingSummary = "Session stopped.";
-        StatusMessage = "Session reset. Select a surah and tap the mic to begin.";
+        StatusMessage = IsFreeReciteMode
+            ? "Session reset. Tap the mic to recite any verse."
+            : "Session reset. Select a surah and tap the mic to begin.";
+        DetectedVerseInfo = string.Empty;
         _diagnostics.Info("Local recitation session reset from recitation screen.");
     }
 
@@ -607,6 +644,7 @@ public partial class RecitationViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadSelectedVerseAsync()
     {
+        _recitation.ClearLastMatchedPosition();
         await LoadVerseAsync(SelectedSurah, SelectedAyah);
     }
 

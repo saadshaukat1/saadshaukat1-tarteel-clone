@@ -45,6 +45,11 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         _verseMatcher.ClearSurahContext();
     }
 
+    public void ClearLastMatchedPosition()
+    {
+        _verseMatcher.ClearLastMatchedPosition();
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         lock (_transcriptSync)
@@ -71,7 +76,7 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         lock (_sync)
         {
@@ -81,8 +86,9 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         {
             _sessionTranscriptTokens.Clear();
         }
+        _verseMatcher.ClearLastMatchedPosition();
 
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 
     public async Task SubmitAudioChunkAsync(
@@ -160,6 +166,12 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         };
 
         await _progressStore.SaveAsync(matchWithTranscript, cancellationToken);
+
+        if (match.Confidence >= 0.65)
+        {
+            _verseMatcher.SetLastMatchedPosition(match.SurahNum, match.AyahNum);
+        }
+
         MatchProduced?.Invoke(this, matchWithTranscript);
     }
 

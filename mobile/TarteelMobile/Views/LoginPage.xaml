@@ -2,55 +2,98 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="TarteelMobile.Views.LoginPage"
-             Title="Tarteel">
+             Title="Tarteel"
+             Shell.NavBarIsVisible="False">
 
-    <StackLayout Padding="32" VerticalOptions="Center" Spacing="16">
+    <Grid RowDefinitions="*,Auto">
+        <!-- ═══════════════ HERO SECTION ═══════════════ -->
+        <Grid Grid.Row="0" BackgroundColor="{StaticResource PrimaryDark}">
+            <VerticalStackLayout VerticalOptions="Center"
+                                  HorizontalOptions="Center"
+                                  Spacing="8">
+                <!-- Bismillah accent line -->
+                <BoxView HeightRequest="2"
+                         WidthRequest="48"
+                         HorizontalOptions="Center"
+                         Color="{StaticResource Accent}" />
+                <Label Text="Tarteel"
+                       FontSize="36"
+                       FontAttributes="Bold"
+                       HorizontalTextAlignment="Center"
+                       TextColor="White" />
+                <Label Text="Perfect your recitation"
+                       FontSize="{StaticResource FontSizeSubtitle}"
+                       HorizontalTextAlignment="Center"
+                       TextColor="{StaticResource AccentMuted}" />
+                <BoxView HeightRequest="2"
+                         WidthRequest="48"
+                         HorizontalOptions="Center"
+                         Color="{StaticResource Accent}"
+                         Margin="0,4,0,0" />
+            </VerticalStackLayout>
+        </Grid>
 
-        <Label Text="Tarteel"
-               FontSize="28"
-               FontAttributes="Bold"
-               HorizontalTextAlignment="Center"
-               TextColor="{StaticResource Primary}" />
+        <!-- ═══════════════ FORM SECTION ═══════════════ -->
+        <VerticalStackLayout Grid.Row="1"
+                              Padding="32,28,32,36"
+                              Spacing="16"
+                              BackgroundColor="{StaticResource Surface}">
 
-        <VerticalStackLayout Spacing="4">
-            <Label Text="Email"
-                   FontSize="13"
-                   TextColor="{StaticResource OnSurface}" />
-            <Entry Text="{Binding Email}"
-                   Keyboard="Email"
-                   ReturnType="Next"
-                   Placeholder="name@example.com" />
+            <!-- Email field -->
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Email"
+                       FontSize="{StaticResource FontSizeCaption}"
+                       TextColor="{StaticResource TextSecondary}" />
+                <Entry Text="{Binding Email}"
+                       Keyboard="Email"
+                       ReturnType="Next"
+                       Placeholder="name@example.com"
+                       FontSize="{StaticResource FontSizeBodyLarge}" />
+            </VerticalStackLayout>
+
+            <!-- Password field -->
+            <VerticalStackLayout Spacing="4">
+                <Label Text="Password"
+                       FontSize="{StaticResource FontSizeCaption}"
+                       TextColor="{StaticResource TextSecondary}" />
+                <Entry Text="{Binding Password}"
+                       IsPassword="True"
+                       ReturnType="Done"
+                       Placeholder="Your password"
+                       FontSize="{StaticResource FontSizeBodyLarge}"
+                       ReturnCommand="{Binding LoginCommand}" />
+            </VerticalStackLayout>
+
+            <!-- Error message -->
+            <Label Text="{Binding Error}"
+                   TextColor="{StaticResource Error}"
+                   FontSize="{StaticResource FontSizeBody}"
+                   IsVisible="{Binding Error, Converter={StaticResource StringToBoolConverter}}" />
+
+            <!-- Primary action -->
+            <Button Text="Log In"
+                    Command="{Binding LoginCommand}"
+                    BackgroundColor="{StaticResource Primary}"
+                    TextColor="White"
+                    FontSize="{StaticResource FontSizeBodyLarge}"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    Margin="0,4,0,0"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+            <!-- Secondary action -->
+            <Button Text="Create Account"
+                    Command="{Binding RegisterCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource Primary}"
+                    FontSize="{StaticResource FontSizeBody}"
+                    HeightRequest="44"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+            <!-- Loading indicator -->
+            <ActivityIndicator IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               Color="{StaticResource Primary}" />
         </VerticalStackLayout>
-
-        <VerticalStackLayout Spacing="4">
-            <Label Text="Password"
-                   FontSize="13"
-                   TextColor="{StaticResource OnSurface}" />
-            <Entry Text="{Binding Password}"
-                   IsPassword="True"
-                   ReturnType="Done"
-                   Placeholder="Your password"
-                   ReturnCommand="{Binding LoginCommand}" />
-        </VerticalStackLayout>
-
-        <Label Text="{Binding Error}"
-               TextColor="{StaticResource Error}"
-               IsVisible="{Binding Error, Converter={StaticResource StringToBoolConverter}}" />
-
-        <Button Text="Log In"
-                Command="{Binding LoginCommand}"
-                BackgroundColor="{StaticResource Primary}"
-                TextColor="White"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
-
-        <Button Text="Create Account"
-                Command="{Binding RegisterCommand}"
-                BackgroundColor="Transparent"
-                TextColor="{StaticResource Primary}"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
-
-        <ActivityIndicator IsRunning="{Binding IsBusy}"
-                           IsVisible="{Binding IsBusy}"
-                           Color="{StaticResource Primary}" />
-    </StackLayout>
+    </Grid>
 </ContentPage>

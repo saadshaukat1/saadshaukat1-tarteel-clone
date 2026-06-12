@@ -14,12 +14,14 @@ namespace TarteelMobile.Services.Asr;
 /// </summary>
 public sealed class LocalWhisperAsrEngine(
     IOptions<LocalWhisperOptions> options,
-    ILogger<LocalWhisperAsrEngine> logger) : IAsrEngine, IAsyncDisposable
+    ILogger<LocalWhisperAsrEngine> logger,
+    IAppDiagnosticsService diagnostics) : IAsrEngine, IAsyncDisposable
 {
     private static readonly HttpClient SharedHttpClient = new();
 
     private readonly LocalWhisperOptions _options = options.Value;
     private readonly ILogger<LocalWhisperAsrEngine> _logger = logger;
+    private readonly IAppDiagnosticsService _diagnostics = diagnostics;
     private readonly SemaphoreSlim _inferenceLock = new(1, 1);
 
     // Prevent concurrent download attempts (e.g. InitializeAsync + TranscribeAsync race).
@@ -139,6 +141,8 @@ public sealed class LocalWhisperAsrEngine(
 
         _isInitialized = true;
         _logger.LogInformation("Whisper.net initialized with tier '{Tier}' from '{Path}'.", ActiveTier, modelPath);
+        _diagnostics.Info(
+            $"Whisper config: language={_options.Language} noSpeechThresh={_options.NoSpeechThreshold} entropyThresh={_options.EntropyThreshold} beamSize={_options.BeamSearchWidth} temp={_options.Temperature} threads={_options.ThreadsOverride} noTimestamps={_options.NoTimestamps}");
 
         if (_options.WarmupOnStartup && !_warmupDone)
         {
@@ -361,29 +365,14 @@ public sealed class LocalWhisperAsrEngine(
             var prompt = BuildPrompt();
             if (!string.IsNullOrWhiteSpace(prompt))
                 builder = builder.WithPrompt(prompt);
-            else
-                builder = builder.WithNoContext();
 
-            if (_options.Temperature > 0.0f)
-                builder = builder.WithTemperature(_options.Temperature);
+            builder = builder.WithNoSpeechThreshold(1.0f);
 
             if (_options.ThreadsOverride > 0)
                 builder = builder.WithThreads(_options.ThreadsOverride);
 
-            if (_options.NoSpeechThreshold > 0.0f)
-                builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
-
-            if (_options.EntropyThreshold > 0.0f)
-                builder = builder.WithEntropyThreshold(_options.EntropyThreshold);
-
             if (_options.NoTimestamps)
                 builder = builder.WithPrintTimestamps(false);
-
-            var samplingBuilder = builder.WithBeamSearchSamplingStrategy();
-            if (_options.BeamSearchWidth > 0)
-                ((BeamSearchSamplingStrategyBuilder)samplingBuilder).WithBeamSize(_options.BeamSearchWidth);
-
-            builder = builder.WithProbabilities();
 
             using var processor = builder.Build();
 
@@ -392,12 +381,33 @@ public sealed class LocalWhisperAsrEngine(
             var totalProbability = 0.0;
             using var audioStream = new MemoryStream(audioChunk);
 
-            await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
+            _diagnostics.Info(
+                $"Whisper inference starting: tier={tier} audioLen={audioChunk.Length} modelPath={_activeFactoryModelPath} lang={_options.Language}");
+
+            try
             {
-                transcript.Append(segment.Text);
-                segmentCount++;
-                totalProbability += segment.Probability;
+                await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
+                {
+                    transcript.Append(segment.Text);
+                    segmentCount++;
+                    totalProbability += segment.Probability;
+                }
             }
+            catch (Whisper.net.Wave.CorruptedWaveException waveEx)
+            {
+                _diagnostics.Error($"Whisper.net CORRUPTED WAVE error: {waveEx.Message}", waveEx);
+                return RecitationTranscriptionResult.Failure(
+                    $"Corrupted wave: {waveEx.Message}", tier, usedFallback);
+            }
+            catch (Whisper.net.Wave.NotSupportedWaveException waveEx)
+            {
+                _diagnostics.Error($"Whisper.net UNSUPPORTED WAVE error: {waveEx.Message}", waveEx);
+                return RecitationTranscriptionResult.Failure(
+                    $"Unsupported wave: {waveEx.Message}", tier, usedFallback);
+            }
+
+            _diagnostics.Info(
+                $"Whisper inference complete: tier={tier} segments={segmentCount} rawTextLen={transcript.Length}");
 
             var text = ArabicNormalizer.Normalize(transcript.ToString().Trim());
 

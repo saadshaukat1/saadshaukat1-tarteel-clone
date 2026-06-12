@@ -24,6 +24,10 @@
             <x:Double x:Key="FontSizeTitle">20</x:Double>
             <x:Double x:Key="FontSizeDisplay">24</x:Double>
             <x:Double x:Key="FontSizeVerse">28</x:Double>
+            <x:Double x:Key="FontSizeHeroVerse">36</x:Double>
+
+            <!-- Arabic verse measure control (~50ch at FontSizeVerse) -->
+            <x:Double x:Key="ArabicVerseMaxWidth">750</x:Double>
 
             <!-- Line heights (multipliers) -->
             <x:Double x:Key="LineHeightTight">1.1</x:Double>
@@ -31,40 +35,97 @@
             <x:Double x:Key="LineHeightRelaxed">1.6</x:Double>
             <x:Double x:Key="LineHeightArabic">1.8</x:Double>
 
-            <!-- Primary palette -->
+            <!-- ── Primary palette ── -->
             <Color x:Key="Primary">#1A6B3C</Color>
+            <Color x:Key="PrimaryHover">#24814D</Color>
+            <Color x:Key="PrimaryPressed">#145A32</Color>
             <Color x:Key="PrimaryDark">#0F3D22</Color>
-            <Color x:Key="Gold">#C9A84C</Color>
+            <Color x:Key="Accent">#C9A84C</Color>
+            <Color x:Key="AccentMuted">#D4BC74</Color>
+
+            <!-- ── Surfaces ── -->
             <Color x:Key="Surface">#F9F6EF</Color>
-            <Color x:Key="OnSurface">#1C1C1E</Color>
-            <Color x:Key="Error">#E53935</Color>
-
-            <!-- Surface panels -->
+            <Color x:Key="SurfaceDark">#F5F1E8</Color>
             <Color x:Key="SurfacePanel">#F5F1E8</Color>
-            <Color x:Key="SurfaceErrorBg">#FDF0ED</Color>
-            <Color x:Key="SurfaceInfoBg">#EDF5ED</Color>
-            <Color x:Key="SurfaceWarningBg">#FFF8ED</Color>
-
-            <!-- Semantic text -->
-            <Color x:Key="TextSecondary">#6B7280</Color>
-            <Color x:Key="TextTertiary">#9CA3AF</Color>
-            <Color x:Key="ErrorText">#991B1B</Color>
-            <Color x:Key="WarningText">#92400E</Color>
-            <Color x:Key="WarningTextSecondary">#78350F</Color>
-
-            <!-- Borders -->
+            <Color x:Key="SurfacePanelDark">#EFEAD8</Color>
+            <Color x:Key="SurfaceElevated">#FFFCF4</Color>
+            <Color x:Key="SurfaceOverlay">#F0EBDD</Color>
+            <Color x:Key="DisabledSurface">#E8E3D8</Color>
+            <Color x:Key="DisabledText">#B8B2A6</Color>
             <Color x:Key="BorderSubtle">#D4CEC2</Color>
-            <Color x:Key="WarningBorder">#D4A03C</Color>
-            <Color x:Key="DebugBorder">#374151</Color>
+            <Color x:Key="BorderStrong">#C5BDA8</Color>
+            <Color x:Key="SurfaceHover">#F0EBDD</Color>
 
-            <!-- Debug panel -->
-            <Color x:Key="DebugBg">#111827</Color>
-            <Color x:Key="DebugText">#D1FAE5</Color>
+            <!-- ── Text ── -->
+            <Color x:Key="OnSurface">#1C1C1E</Color>
+            <Color x:Key="TextSecondary">#636059</Color>
+            <Color x:Key="TextTertiary">#8A857B</Color>
+            <Color x:Key="TextPlaceholder">#A09A8F</Color>
+            <Color x:Key="TextOnPrimary">#FFFFFF</Color>
+
+            <!-- ── State: Success ── -->
+            <Color x:Key="Success">#2D8C4F</Color>
+            <Color x:Key="SuccessLight">#3FA864</Color>
+            <Color x:Key="SuccessBg">#EBF5EE</Color>
+            <Color x:Key="SuccessBorder">#A3D4B3</Color>
+            <Color x:Key="SuccessText">#1F6339</Color>
+
+            <!-- ── State: Error ── -->
+            <Color x:Key="Error">#C04040</Color>
+            <Color x:Key="ErrorLight">#E55A5A</Color>
+            <Color x:Key="ErrorBg">#FDF0ED</Color>
+            <Color x:Key="SurfaceErrorBg">#FDF0ED</Color>
+            <Color x:Key="ErrorBorder">#E6A8A0</Color>
+            <Color x:Key="ErrorText">#8C2B2B</Color>
+
+            <!-- ── State: Warning ── -->
+            <Color x:Key="Warning">#C89030</Color>
+            <Color x:Key="WarningLight">#E0A840</Color>
+            <Color x:Key="WarningBg">#FFF8ED</Color>
+            <Color x:Key="SurfaceWarningBg">#FFF8ED</Color>
+            <Color x:Key="WarningBorder">#D4A03C</Color>
+            <Color x:Key="WarningText">#8B6420</Color>
+            <Color x:Key="WarningTextSecondary">#6B4E18</Color>
+
+            <!-- ── State: Info ── -->
+            <Color x:Key="Info">#2D8C4F</Color>
+            <Color x:Key="InfoBg">#EBF5EE</Color>
+            <Color x:Key="SurfaceInfoBg">#EBF5EE</Color>
+            <Color x:Key="InfoBorder">#A3D4B3</Color>
+            <Color x:Key="InfoText">#1F6339</Color>
+
+            <!-- ── Focus ── -->
+            <Color x:Key="Focus">#C9A84C</Color>
+            <Color x:Key="FocusRing">#C9A84C</Color>
+
+            <!-- ── Selection ── -->
+            <Color x:Key="Selection">#EBF5EE</Color>
+
+            <!-- ── Debug panel ── -->
+            <Color x:Key="DebugBg">#1A1D21</Color>
+            <Color x:Key="DebugText">#C8E6C9</Color>
+            <Color x:Key="DebugBorder">#3A3D42</Color>
 
             <!-- Global label style -->
             <Style TargetType="Label">
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
                 <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />
+            </Style>
+
+            <!-- Global button style -->
+            <Style TargetType="Button">
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+
+            <!-- Global entry style -->
+            <Style TargetType="Entry">
+                <Setter Property="PlaceholderColor" Value="{StaticResource TextPlaceholder}" />
+            </Style>
+
+            <!-- Global picker style — BackgroundColor required on WinUI to avoid black box -->
+            <Style TargetType="Picker">
+                <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="BackgroundColor" Value="{StaticResource Surface}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

@@ -8,6 +8,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
 {
     private readonly IVerseRepository _verses;
     private int? _surahContext;
+    private int? _lastSurahNum;
+    private int? _lastAyahNum;
     private sealed record WordToken(string Original, string Normalized);
 
     public PlaceholderVerseMatcher(IVerseRepository verses)
@@ -23,6 +25,18 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
     public void ClearSurahContext()
     {
         _surahContext = null;
+    }
+
+    public void SetLastMatchedPosition(int surahNum, int ayahNum)
+    {
+        _lastSurahNum = surahNum >= 1 && surahNum <= 114 ? surahNum : null;
+        _lastAyahNum = ayahNum >= 1 ? ayahNum : null;
+    }
+
+    public void ClearLastMatchedPosition()
+    {
+        _lastSurahNum = null;
+        _lastAyahNum = null;
     }
 
     public async Task<RecitationMatchResult> MatchAsync(
@@ -75,6 +89,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         }
 
         RecitationMatchResult? bestResult = null;
+        var bestAdjustedConfidence = double.MinValue;
+        var bestRawConfidence = 0.0;
 
         foreach (var candidate in candidates)
         {
@@ -85,10 +101,14 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
             }
 
             var (matchedWords, processedWords, mismatches) = AlignTokens(expectedTokens, spokenTokens);
-            var confidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
+            var rawConfidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
+            var positionMultiplier = ComputePositionMultiplier(candidate.SurahNum, candidate.AyahNum);
+            var adjustedConfidence = Math.Clamp(rawConfidence * positionMultiplier, 0, 1);
 
-            if (bestResult is null || confidence > bestResult.Confidence)
+            if (adjustedConfidence > bestAdjustedConfidence)
             {
+                bestAdjustedConfidence = adjustedConfidence;
+                bestRawConfidence = rawConfidence;
                 var expectedWords = expectedTokens.Select(t => t.Original).ToList();
                 var spokenWords   = spokenTokens.Select(t => t.Original).ToList();
                 var tajweedViolations = TajweedRuleEngine.Analyze(expectedWords, spokenWords, mismatches);
@@ -98,7 +118,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                     SurahNum = candidate.SurahNum,
                     AyahNum = candidate.AyahNum,
                     ArabicText = candidate.ArabicText,
-                    Confidence = confidence,
+                    Confidence = adjustedConfidence,
                     ProcessedWordCount = processedWords,
                     MatchedWordCount = matchedWords,
                     Mismatches = mismatches,
@@ -121,6 +141,42 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         }
 
         return bestResult;
+    }
+
+    private double ComputePositionMultiplier(int candidateSurah, int candidateAyah)
+    {
+        if (!_lastSurahNum.HasValue || !_lastAyahNum.HasValue)
+        {
+            return 1.0;
+        }
+
+        if (candidateSurah != _lastSurahNum.Value)
+        {
+            return 0.88;
+        }
+
+        var delta = candidateAyah - _lastAyahNum.Value;
+        if (delta < 0)
+        {
+            return 0.92;
+        }
+
+        if (delta == 0)
+        {
+            return 1.0;
+        }
+
+        if (delta == 1)
+        {
+            return 1.03;
+        }
+
+        if (delta <= 3)
+        {
+            return 0.98;
+        }
+
+        return 0.95;
     }
 
     private static IReadOnlyList<WordToken> Tokenize(string text)

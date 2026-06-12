@@ -27,6 +27,8 @@ public interface IVerseMatcher
 {
     void SetSurahContext(int surahNumber);
     void ClearSurahContext();
+    void SetLastMatchedPosition(int surahNum, int ayahNum);
+    void ClearLastMatchedPosition();
     Task<RecitationMatchResult> MatchAsync(
         string arabicText,
         CancellationToken cancellationToken = default);
@@ -51,6 +53,7 @@ public interface IRecitationOrchestrator
     event EventHandler<string>? DiagnosticEmitted;
     void SetSurahContext(int surahNum);
     void ClearSurahContext();
+    void ClearLastMatchedPosition();
     Task StartAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SubmitAudioChunkAsync(byte[] audioChunk, CancellationToken cancellationToken = default);
