@@ -182,6 +182,7 @@
                                FormattedText="{Binding HighlightedArabicText}"
                                FontFamily="{StaticResource ArabicFontFamily}"
                                FontSize="{StaticResource FontSizeVerse}"
+                               LineHeight="{StaticResource LineHeightArabic}"
                                HorizontalTextAlignment="Center"
                                LineBreakMode="WordWrap"
                                TextColor="{StaticResource OnSurface}"
@@ -209,7 +210,8 @@
                             </Grid>
                             <Label Text="{Binding TranscriptionText}"
                                    FontFamily="{StaticResource ArabicFontFamily}"
-                                   FontSize="18"
+                                   FontSize="{StaticResource FontSizeVerseTranscription}"
+                                   LineHeight="{StaticResource LineHeightArabic}"
                                    HorizontalTextAlignment="End"
                                    LineBreakMode="WordWrap"
                                    TextColor="{StaticResource TextSecondary}"

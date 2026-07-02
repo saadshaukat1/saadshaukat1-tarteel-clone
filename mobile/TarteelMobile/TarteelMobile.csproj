@@ -1,12 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFrameworks>net9.0-windows10.0.19041.0;net9.0-android</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>TarteelMobile</RootNamespace>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
     <WindowsPackageType>None</WindowsPackageType>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">31.0</SupportedOSPlatformVersion>
+    <!-- Use Mono runtime on Android to avoid CoreCLR MSI install issues -->
+    <UseNativeAot Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</UseNativeAot>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -33,23 +36,27 @@
     <MauiAsset Include="Resources/Raw/**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineModelDir)')">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineModelDir)')">
     <MauiAsset Include="$(OfflineModelDir)\**\*" LogicalName="offline/models/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineDataDir)')">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineDataDir)')">
     <MauiAsset Include="$(OfflineDataDir)\**\*" LogicalName="offline/data/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and Exists('$(OfflineExtrasDir)')">
+  <ItemGroup Condition="$(TargetFramework.Contains('android')) and Exists('$(OfflineDataDir)')">
+    <MauiAsset Include="$(OfflineDataDir)\**\*" LogicalName="offline/data/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineExtrasDir)')">
     <MauiAsset Include="$(OfflineExtrasDir)\**\*" LogicalName="offline/extras/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />
+    <PackageReference Include="NAudio" Version="2.2.1" Condition="$(TargetFramework.Contains('-windows'))" />
     <PackageReference Include="Whisper.net" Version="1.7.3" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.7.3" />
   </ItemGroup>
@@ -58,7 +65,7 @@
        requires System.Security.Permissions v8.0.0.0 to be resolvable by the MSBuild host.
        This reference makes the assembly available so the WinAppSdkGenerateAppxManifest task
        does not throw a FileNotFoundException during the Windows build. -->
-  <ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0-windows'))">
+  <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
     <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
   </ItemGroup>
 

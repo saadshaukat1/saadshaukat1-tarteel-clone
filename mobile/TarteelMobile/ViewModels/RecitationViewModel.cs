@@ -318,6 +318,18 @@ public partial class RecitationViewModel : ObservableObject
 
                 try
                 {
+#if ANDROID
+                    var micStatus = await Permissions.CheckStatusAsync<Permissions.Microphone>();
+                    if (micStatus != PermissionStatus.Granted)
+                    {
+                        micStatus = await Permissions.RequestAsync<Permissions.Microphone>();
+                        if (micStatus != PermissionStatus.Granted)
+                        {
+                            StatusMessage = "Microphone permission required to record recitation.";
+                            return;
+                        }
+                    }
+#endif
                     await _audio.StartRecordingAsync();
                 }
                 catch

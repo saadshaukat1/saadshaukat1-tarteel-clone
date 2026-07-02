@@ -1,5 +1,3 @@
-using NAudio.Wave;
-
 namespace TarteelMobile.Services;
 
 /// <summary>
@@ -7,15 +5,10 @@ namespace TarteelMobile.Services;
 /// Handles both raw PCM and WAV-formatted input. Applied before Whisper
 /// inference to reduce hallucination and normalize levels.
 /// </summary>
-public static class AudioPreprocessor
+public static partial class AudioPreprocessor
 {
     private const double SilenceRmsThreshold = 120.0;
     private const double TargetRms = 1800.0;
-
-    private static readonly WaveFormat DefaultFormat = new(
-        AudioCaptureDefaults.SampleRateHz,
-        AudioCaptureDefaults.BitsPerSample,
-        AudioCaptureDefaults.Channels);
 
     public static bool IsSilence(byte[] audioData)
     {
@@ -93,14 +86,10 @@ public static class AudioPreprocessor
         if (!isWav)
             return normalizedPcm;
 
-        using var output = new MemoryStream();
-        using (var writer = new WaveFileWriter(output, DefaultFormat))
-        {
-            writer.Write(normalizedPcm, 0, normalizedPcm.Length);
-            writer.Flush();
-        }
-
-        return output.ToArray();
+        return WriteWavFile(normalizedPcm,
+            AudioCaptureDefaults.SampleRateHz,
+            AudioCaptureDefaults.BitsPerSample,
+            AudioCaptureDefaults.Channels);
     }
 
     private static byte[] ExtractPcm(byte[] audioData)

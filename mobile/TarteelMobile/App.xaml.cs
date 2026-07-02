@@ -25,6 +25,15 @@ public partial class App : Application
         Microsoft.UI.Xaml.Application.Current.UnhandledException += OnWinUIUnhandledException;
 #endif
 
+#if ANDROID
+        Android.Runtime.AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
+        {
+            _diagnostics.Error("Android UnhandledException", args.Exception);
+            CrashLog(args.Exception, "Android UnhandledException");
+            args.Handled = true;
+        };
+#endif
+
         try
         {
             InitializeComponent();

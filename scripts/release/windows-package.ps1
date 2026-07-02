@@ -2,7 +2,7 @@
 param(
     [string]$ProjectPath = "mobile/TarteelMobile/TarteelMobile.csproj",
     [string]$Configuration = "Release",
-    [string]$TargetFramework = "net10.0-windows10.0.19041.0",
+    [string]$TargetFramework = "net9.0-windows10.0.19041.0",
     [string]$RuntimeIdentifier = "win-x64",
     [string]$OutputRoot = "artifacts/windows-packaging",
     [string]$ModelDir = "",
