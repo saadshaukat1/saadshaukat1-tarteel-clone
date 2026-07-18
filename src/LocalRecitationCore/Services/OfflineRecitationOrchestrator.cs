@@ -197,9 +197,12 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
                 _sessionTranscriptTokens.Add(incomingTokens[index]);
             }
 
-            if (_sessionTranscriptTokens.Count > 48)
+            // Cap the rolling window at 32 tokens so the matcher's Needleman–Wunsch
+            // alignment (O(n·m)) stays cheap on weak hardware. 32 tokens covers ~1–2
+            // ayahs of recitation, which is enough context for accurate matching.
+            if (_sessionTranscriptTokens.Count > 32)
             {
-                _sessionTranscriptTokens.RemoveRange(0, _sessionTranscriptTokens.Count - 48);
+                _sessionTranscriptTokens.RemoveRange(0, _sessionTranscriptTokens.Count - 32);
             }
 
             return string.Join(' ', _sessionTranscriptTokens);

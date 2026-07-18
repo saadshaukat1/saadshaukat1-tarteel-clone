@@ -101,54 +101,70 @@ public sealed class LocalWhisperAsrEngine(
             return;
         }
 
-        // ✅ Resolve to persistent writable storage — survives app restarts.
+        // Resolve the primary tier's model to persistent writable storage.
         var modelPath = ResolvePersistentModelPath(tierDef.ModelPath);
 
-                    if (!File.Exists(modelPath))
+        var resolvedTier = tier;
+        var resolvedPath = modelPath;
+
+        // If the primary model is not on disk, try to obtain it (extract from
+        // packaged assets, then download). Emit progress so the UI can show it.
+        if (!File.Exists(modelPath))
+        {
+            _logger.LogInformation(
+                "Model not found at '{Path}' for tier '{Tier}' — trying to extract from packaged assets.", modelPath, tier);
+
+            var extract = await TryExtractModelFromAssetsAsync(tier, modelPath, tierDef, cancellationToken);
+            if (!extract.IsSuccess)
             {
                 _logger.LogInformation(
-                    "Model not found at '{Path}' for tier '{Tier}' — trying to extract from packaged assets.", modelPath, tier);
+                    "Model extraction from assets failed for tier '{Tier}': {Error} — falling back to download.",
+                    tier, extract.ErrorMessage);
 
-                // Try to extract from packaged MauiAssets first
-                var extract = await TryExtractModelFromAssetsAsync(tier, modelPath, tierDef, cancellationToken);
-                if (!extract.IsSuccess)
+                var download = await TryDownloadModelAsync(tier, modelPath, tierDef, cancellationToken);
+                if (!download.IsSuccess)
                 {
-                    _logger.LogInformation(
-                        "Model extraction from assets failed for tier '{Tier}': {Error} — falling back to download.",
-                        tier, extract.ErrorMessage);
+                    _logger.LogWarning("Model unavailable for tier '{Tier}': {Error}", tier, download.ErrorMessage);
 
-                    var download = await TryDownloadModelAsync(tier, modelPath, tierDef, cancellationToken);
-                    if (!download.IsSuccess)
+                    // Fall back to a tier whose model file already exists on disk
+                    // (e.g. primary 'tiny' missing but 'base' is present) instead of
+                    // dropping straight into silent mock mode.
+                    var fallback = ResolveUsableFallbackTier(tier);
+                    if (fallback is not null)
                     {
-                        _logger.LogWarning("Model download failed for tier '{Tier}': {Error}", tier, download.ErrorMessage);
+                        resolvedTier = fallback.Value.Tier;
+                        resolvedPath = fallback.Value.Path;
+                        _logger.LogInformation(
+                            "Falling back to present tier '{Tier}' at '{Path}'.", resolvedTier, resolvedPath);
+                    }
+                    else
+                    {
                         FallbackToMockOrFail();
                         return;
                     }
                 }
             }
+        }
         else
         {
             _logger.LogInformation(
                 "Model already present at '{Path}' for tier '{Tier}' — skipping download.", modelPath, tier);
         }
 
-        if (!TryBuildFactory(modelPath, out var factoryError))
+        if (!TryBuildFactory(resolvedPath, out var factoryError))
         {
             _logger.LogWarning("Whisper.net factory init failed: {Error}", factoryError);
             FallbackToMockOrFail();
             return;
         }
 
+        ActiveTier = resolvedTier;
+        _logger.LogInformation("Whisper.net initialized with tier '{Tier}' from '{Path}'.", ActiveTier, resolvedPath);
+
         _isInitialized = true;
         _logger.LogInformation("Whisper.net initialized with tier '{Tier}' from '{Path}'.", ActiveTier, modelPath);
         _diagnostics.Info(
             $"Whisper config: language={_options.Language} noSpeechThresh={_options.NoSpeechThreshold} entropyThresh={_options.EntropyThreshold} beamSize={_options.BeamSearchWidth} temp={_options.Temperature} threads={_options.ThreadsOverride} noTimestamps={_options.NoTimestamps}");
-
-        if (_options.WarmupOnStartup && !_warmupDone)
-        {
-            _warmupDone = true;
-            await WarmupAsync(cancellationToken);
-        }
         }
         finally
         {
@@ -353,6 +369,14 @@ public sealed class LocalWhisperAsrEngine(
 
         try
         {
+            // Lazy one-shot warmup on the first real transcription so the app launches
+            // instantly. Warms the model/interpreter without blocking startup.
+            if (!_warmupDone)
+            {
+                _warmupDone = true;
+                await WarmupAsync(cancellationToken);
+            }
+
             using var timeoutCts = new CancellationTokenSource(
                 TimeSpan.FromSeconds(_options.InferenceTimeoutSeconds));
             using var linkedCts = CancellationTokenSource
@@ -366,7 +390,7 @@ public sealed class LocalWhisperAsrEngine(
             if (!string.IsNullOrWhiteSpace(prompt))
                 builder = builder.WithPrompt(prompt);
 
-            builder = builder.WithNoSpeechThreshold(1.0f);
+            builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
 
             if (_options.ThreadsOverride > 0)
                 builder = builder.WithThreads(_options.ThreadsOverride);
@@ -374,7 +398,21 @@ public sealed class LocalWhisperAsrEngine(
             if (_options.NoTimestamps)
                 builder = builder.WithPrintTimestamps(false);
 
-            using var processor = builder.Build();
+            // Greedy decoding (BeamSearchWidth <= 1) is dramatically faster than beam
+            // search and is sufficient for clean single-speaker Arabic recitation.
+            // Beam search is only used for larger tiers where accuracy matters more.
+            // The sampling-strategy builder returns to the processor builder via
+            // ParentBuilder before Build().
+            using var processor = _options.BeamSearchWidth > 1
+                ? ((BeamSearchSamplingStrategyBuilder)builder
+                    .WithBeamSearchSamplingStrategy())
+                    .WithBeamSize(_options.BeamSearchWidth)
+                    .ParentBuilder
+                    .Build()
+                : builder
+                    .WithGreedySamplingStrategy()
+                    .ParentBuilder
+                    .Build();
 
             var transcript = new System.Text.StringBuilder();
             var segmentCount = 0;
@@ -424,13 +462,14 @@ public sealed class LocalWhisperAsrEngine(
                 ? (float)(totalProbability / segmentCount)
                 : 0.5f;
 
-            // Capture last ~8 words as cross-chunk context for the next chunk.
-            // Quranic recitation has extended madd (elongation) — 8 words provide
-            // stronger continuity across chunk boundaries.
+            // Capture last ~4 words as cross-chunk context for the next chunk.
+            // A short prompt keeps decoding fast while still bridging madd (elongation)
+            // across chunk boundaries. The surah-name bias is omitted to keep the prompt
+            // minimal — the matcher already constrains candidates to the active surah.
             if (!string.IsNullOrWhiteSpace(text))
             {
                 var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var contextWords = words.Length > 8 ? words[^8..] : words;
+                var contextWords = words.Length > 4 ? words[^4..] : words;
                 _crossChunkContext = string.Join(' ', contextWords);
             }
 
@@ -459,11 +498,10 @@ public sealed class LocalWhisperAsrEngine(
 
     private string BuildPrompt()
     {
-        if (!string.IsNullOrWhiteSpace(_crossChunkContext) && !string.IsNullOrWhiteSpace(_surahPrompt))
-            return $"{_crossChunkContext} {_surahPrompt}";
-        if (!string.IsNullOrWhiteSpace(_crossChunkContext))
-            return _crossChunkContext;
-        return _surahPrompt ?? string.Empty;
+        // Only the rolling cross-chunk context is used as a prompt. The surah name is
+        // intentionally excluded so decode stays fast; candidate matching handles surah
+        // context downstream.
+        return _crossChunkContext ?? string.Empty;
     }
 
     private async Task WarmupAsync(CancellationToken cancellationToken)
@@ -676,6 +714,42 @@ public sealed class LocalWhisperAsrEngine(
         // ✅ AppDataDirectory is writable and persistent on Windows, Android, iOS, macOS.
         var dataDir = FileSystem.Current.AppDataDirectory;
         return Path.GetFullPath(Path.Combine(dataDir, configuredPath));
+    }
+
+    private (string Tier, string Path)? ResolveUsableFallbackTier(string primaryTier)
+    {
+        // Prefer the explicitly configured fallback tier if its model is on disk.
+        var fallbackName = _options.FallbackTier?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(fallbackName)
+            && !string.Equals(fallbackName, primaryTier, StringComparison.Ordinal)
+            && _options.TryGetTierDefinition(fallbackName, out var fbDef) && fbDef is not null)
+        {
+            var fbPath = ResolvePersistentModelPath(fbDef.ModelPath);
+            if (File.Exists(fbPath))
+            {
+                return (fallbackName, fbPath);
+            }
+        }
+
+        // Otherwise use any tier whose model file is already present on disk.
+        foreach (var candidate in new[] { "base", "small", "medium", "tiny" })
+        {
+            if (string.Equals(candidate, primaryTier, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (_options.TryGetTierDefinition(candidate, out var def) && def is not null)
+            {
+                var path = ResolvePersistentModelPath(def.ModelPath);
+                if (File.Exists(path))
+                {
+                    return (candidate, path);
+                }
+            }
+        }
+
+        return null;
     }
 
     private static byte[] BuildSilenceWav(int durationMs)

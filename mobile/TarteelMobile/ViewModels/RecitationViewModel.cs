@@ -146,6 +146,7 @@ public partial class RecitationViewModel : ObservableObject
         _audio.RecordingError         += OnAudioRecordingError;
         _recitation.MatchResultReceived += OnMatchResultReceived;
         _recitation.DiagnosticEmitted += OnDiagnosticEmitted;
+        _asrEngine.DownloadProgressChanged += OnAsrDownloadProgress;
 
         RebuildAyahNumbersForSurah(SelectedSurah);
         _ = LoadSurahsAsync();
@@ -503,7 +504,7 @@ public partial class RecitationViewModel : ObservableObject
     {
         if (IsRecording)
         {
-            var confirmed = await Shell.Current.DisplayAlertAsync(
+            var confirmed = await Shell.Current.DisplayAlert(
                 "Reset session",
                 "Stop recording and clear the current recitation? Your progress for this session will be lost.",
                 "Reset", "Cancel");
@@ -558,6 +559,27 @@ public partial class RecitationViewModel : ObservableObject
     private void ToggleVerseVisibility()
     {
         IsVerseVisible = !IsVerseVisible;
+    }
+
+    [RelayCommand]
+    private async Task OpenInMushafAsync()
+    {
+        // Prefer the last matched verse; otherwise the currently selected verse.
+        var surahNum = _bestSessionResult?.SurahNum > 0 ? _bestSessionResult.SurahNum : SelectedSurah;
+        var ayahNum = _bestSessionResult?.AyahNum > 0 ? _bestSessionResult.AyahNum : SelectedAyah;
+
+        try
+        {
+            await Shell.Current.GoToAsync("//MushafPageView");
+            if (_serviceProvider.GetService(typeof(MushafPageViewModel)) is MushafPageViewModel mushafVm)
+            {
+                await mushafVm.ShowVerseAsync(surahNum, ayahNum);
+            }
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Could not open Mushaf view: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -646,6 +668,22 @@ public partial class RecitationViewModel : ObservableObject
         }
 
         AsrDebugLog = string.Join(Environment.NewLine, _debugLines);
+    }
+
+    private void OnAsrDownloadProgress(object? sender, AsrDownloadProgress progress)
+    {
+        // Surface Whisper model download/extraction progress in the UI.
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            IsModelDownloading = true;
+            ModelDownloadProgress = progress.Fraction is > 0 and <= 1
+                ? progress.Fraction
+                : ModelDownloadProgress;
+            if (!string.IsNullOrWhiteSpace(progress.StatusMessage))
+            {
+                ModelDownloadStatus = progress.StatusMessage;
+            }
+        });
     }
 
     private async Task LoadPracticeVersePlaceholderAsync()

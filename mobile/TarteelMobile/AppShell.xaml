@@ -9,6 +9,9 @@
         <ShellContent Title="Recite"
                       ContentTemplate="{DataTemplate views:RecitationPage}"
                       Route="RecitationPage" />
+        <ShellContent Title="Mushaf"
+                      ContentTemplate="{DataTemplate views:MushafPageView}"
+                      Route="MushafPageView" />
         <ShellContent Title="Progress"
                       ContentTemplate="{DataTemplate views:ProgressPage}"
                       Route="ProgressPage" />

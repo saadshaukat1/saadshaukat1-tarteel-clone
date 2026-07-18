@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
+             xmlns:models="clr-namespace:TarteelMobile.Models"
+             x:Class="TarteelMobile.Views.MushafPageView"
+             Title="Mushaf">
+
+    <Grid RowDefinitions="Auto,*,Auto" BackgroundColor="{StaticResource Surface}">
+
+        <!-- Top bar: page navigation -->
+        <Grid Grid.Row="0" Padding="16,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Button Grid.Column="0"
+                    Text="‹ Prev"
+                    Command="{Binding GoToPreviousPageCommand}"
+                    BackgroundColor="{StaticResource PrimaryDark}"
+                    TextColor="White"
+                    HeightRequest="40"
+                    FontSize="{StaticResource FontSizeCaption}" />
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" HorizontalOptions="Center" Spacing="2">
+                <Label Text="{Binding PageLabel}"
+                       FontAttributes="Bold"
+                       FontSize="{StaticResource FontSizeBodyLarge}"
+                       TextColor="{StaticResource Primary}"
+                       HorizontalTextAlignment="Center" />
+                <Label Text="{Binding VerseRangeLabel}"
+                       FontSize="{StaticResource FontSizeNano}"
+                       TextColor="{StaticResource TextTertiary}"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+            <Button Grid.Column="2"
+                    Text="Next ›"
+                    Command="{Binding GoToNextPageCommand}"
+                    BackgroundColor="{StaticResource PrimaryDark}"
+                    TextColor="White"
+                    HeightRequest="40"
+                    FontSize="{StaticResource FontSizeCaption}" />
+        </Grid>
+
+        <!-- Middle: 16-line Mushaf page, scrolls continuously between pages -->
+        <ScrollView Grid.Row="1" x:Name="PageScroll" Padding="12,8" Scrolled="OnPageScrolled">
+            <Border StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{StaticResource BorderSubtle}"
+                    BackgroundColor="{StaticResource SurfacePanel}"
+                    HorizontalOptions="Center"
+                    MaximumWidthRequest="720">
+                <Grid x:Name="LinesGrid"
+                      RowSpacing="0"
+                      ColumnSpacing="0"
+                      HorizontalOptions="Center">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                </Grid>
+            </Border>
+        </ScrollView>
+
+        <!-- Bottom: hint for continuous reading -->
+        <Label Grid.Row="2"
+               Text="Scroll to the bottom of the page to continue to the next page."
+               FontSize="{StaticResource FontSizeNano}"
+               TextColor="{StaticResource TextTertiary}"
+               HorizontalTextAlignment="Center"
+               Padding="0,6,0,10" />
+
+    </Grid>
+</ContentPage>

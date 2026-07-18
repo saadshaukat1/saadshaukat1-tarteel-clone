@@ -23,6 +23,9 @@ public interface IVerseRepository
     Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int juzNum, CancellationToken cancellationToken = default);
+    Task<MushafPage?> GetPageAsync(int pageNum, CancellationToken cancellationToken = default);
+    Task<int> GetPageCountAsync(CancellationToken cancellationToken = default);
+    Task<int> GetPageForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task RecordRecitationAsync(
         string? userKey,
         int surahNum,
@@ -153,6 +156,17 @@ public partial class LocalVerseRepository : IVerseRepository
         );
 
         CREATE INDEX IF NOT EXISTS idx_word_index_word ON word_index(word);
+
+        CREATE TABLE IF NOT EXISTS mushaf_pages (
+            page_num    INTEGER PRIMARY KEY,
+            start_surah INTEGER NOT NULL,
+            start_ayah  INTEGER NOT NULL,
+            end_surah   INTEGER NOT NULL,
+            end_ayah    INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mushaf_pages_range
+            ON mushaf_pages (start_surah, start_ayah, end_surah, end_ayah);
         """;
 
     private readonly LocalQuranDataOptions _options;
@@ -226,6 +240,7 @@ public partial class LocalVerseRepository : IVerseRepository
 
             await SeedReferenceDataAsync(connection, cancellationToken);
             await BuildWordIndexIfEmptyAsync(connection, cancellationToken);
+            await SeedMushafPagesAsync(connection, cancellationToken);
 
             _isInitialized = true;
         }
@@ -879,6 +894,77 @@ public partial class LocalVerseRepository : IVerseRepository
         IReadOnlyList<ImportTranslation> Translations);
 
 
+    private async Task SeedMushafPagesAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var pageCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM mushaf_pages;", cancellationToken);
+        if (pageCount > 0)
+        {
+            return;
+        }
+
+        // Prefer the full 604-page map asset; fall back to the built-in seed so the
+        // Mushaf view still works if the asset is missing.
+        var pages = await LoadMushafPageMapAsync(cancellationToken);
+        if (pages.Count == 0)
+        {
+            pages = BuiltInMushafPages
+                .Select(p => new MushafPageSeed(p.PageNum, p.StartSurah, p.StartAyah, p.EndSurah, p.EndAyah))
+                .ToList();
+        }
+
+        var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        foreach (var page in pages)
+        {
+            await using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "INSERT OR IGNORE INTO mushaf_pages (page_num, start_surah, start_ayah, end_surah, end_ayah) VALUES (@pn, @ss, @sa, @es, @ea);";
+            cmd.Parameters.AddWithValue("@pn", page.PageNum);
+            cmd.Parameters.AddWithValue("@ss", page.StartSurah);
+            cmd.Parameters.AddWithValue("@sa", page.StartAyah);
+            cmd.Parameters.AddWithValue("@es", page.EndSurah);
+            cmd.Parameters.AddWithValue("@ea", page.EndAyah);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        _diagnostics.Info($"Seeded {pages.Count} mushaf page(s) into local store.");
+    }
+
+    private async Task<IReadOnlyList<MushafPageSeed>> LoadMushafPageMapAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = await FileSystem.OpenAppPackageFileAsync("quran/mushaf/page_map.json");
+            using var document = await System.Text.Json.JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (!document.RootElement.TryGetProperty("pages", out var pagesElement) ||
+                pagesElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var pages = new List<MushafPageSeed>();
+            foreach (var element in pagesElement.EnumerateArray())
+            {
+                if (element.TryGetProperty("page", out var page) &&
+                    element.TryGetProperty("start_surah", out var ss) &&
+                    element.TryGetProperty("start_ayah", out var sa) &&
+                    element.TryGetProperty("end_surah", out var es) &&
+                    element.TryGetProperty("end_ayah", out var ea))
+                {
+                    pages.Add(new MushafPageSeed(
+                        page.GetInt32(), ss.GetInt32(), sa.GetInt32(), es.GetInt32(), ea.GetInt32()));
+                }
+            }
+
+            return pages;
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Could not load mushaf page map asset: {ex.Message}");
+            return [];
+        }
+    }
+
     private async Task SeedReferenceDataAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         var juzCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM juz;", cancellationToken);
@@ -1179,6 +1265,56 @@ public partial class LocalVerseRepository : IVerseRepository
         }
 
         return list;
+    }
+
+    public async Task<int> GetPageCountAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        return await ExecuteScalarIntAsync(connection, "SELECT COALESCE(MAX(page_num), 0) FROM mushaf_pages;", cancellationToken);
+    }
+
+    public async Task<MushafPage?> GetPageAsync(int pageNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        if (pageNum < 1)
+        {
+            return null;
+        }
+
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT page_num, start_surah, start_ayah, end_surah, end_ayah
+            FROM mushaf_pages WHERE page_num = @page LIMIT 1;";
+        command.Parameters.AddWithValue("@page", pageNum);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new MushafPage(
+            reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2),
+            reader.GetInt32(3), reader.GetInt32(4));
+    }
+
+    public async Task<int> GetPageForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT page_num FROM mushaf_pages
+            WHERE (start_surah < @surah OR (start_surah = @surah AND start_ayah <= @ayah))
+              AND (end_surah   > @surah OR (end_surah   = @surah AND end_ayah   >= @ayah))
+            ORDER BY page_num LIMIT 1;";
+        command.Parameters.AddWithValue("@surah", surahNum);
+        command.Parameters.AddWithValue("@ayah", ayahNum);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is null ? 1 : Convert.ToInt32(result);
     }
 
     public async Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int juzNum, CancellationToken cancellationToken = default)

@@ -1,11 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <WindowsPackageType>None</WindowsPackageType>
+    <!-- Referencing the MAUI app project drags its app-icon/splash assets into
+         this test project's resizetizer pass, causing duplicate-file errors.
+         The test project has no app assets, so strip the inherited MAUI
+         asset items before resizetizer collects them. -->
+    <EnableDefaultMauiItems>false</EnableDefaultMauiItems>
+    <EnableAssetsManifestResourceGeneration>false</EnableAssetsManifestResourceGeneration>
   </PropertyGroup>
+
+  <Target Name="_StripInheritedMauiAssets" AfterTargets="ResizetizeCollectItems">
+    <ItemGroup>
+      <MauiImage Remove="@(MauiImage)" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

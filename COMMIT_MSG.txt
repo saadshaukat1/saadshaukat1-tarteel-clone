@@ -1,0 +1,8 @@
+feat: Add Mushaf 16-liner display, tune Whisper ASR, disable Android build
+
+Add Mushaf page view with 16-line Indo-Pak layout and page map generation,
+retarget LocalRecitationCore to .NET 9, tune Whisper ASR engine and options for
+improved recitation accuracy, and remove net9.0-android from the active build
+targets (Android implementation files are kept for a future task).
+
+Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

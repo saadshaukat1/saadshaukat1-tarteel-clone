@@ -5,4 +5,61 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:maui="using:Microsoft.Maui"
     xmlns:local="using:TarteelMobile.WinUI">
+
+    <maui:MauiWinUIApplication.Resources>
+        <ResourceDictionary>
+
+            <!-- MAUI Picker renders as WinUI ComboBox on Windows. Under a dark
+                 system theme the dropdown flyout inherits OS colors, making
+                 items invisible. Override the ComboBoxItem resources to use the
+                 app's light palette so the dropdown is always readable. -->
+            <SolidColorBrush x:Key="ComboBoxItemBackground"
+                             Color="#F9F6EF" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver"
+                             Color="#F0EBDD" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed"
+                             Color="#E8E3D8" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected"
+                             Color="#EBF5EE" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedUnfocused"
+                             Color="#EBF5EE" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver"
+                             Color="#D1FAE5" />
+
+            <SolidColorBrush x:Key="ComboBoxItemForeground"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundPressed"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelected"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedUnfocused"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver"
+                             Color="#1C1C1E" />
+            <SolidColorBrush x:Key="ComboBoxItemForegroundDisabled"
+                             Color="#B8B2A6" />
+
+            <!-- Dropdown flyout background -->
+            <SolidColorBrush x:Key="ComboBoxDropdownBackground"
+                             Color="#F9F6EF" />
+            <SolidColorBrush x:Key="ComboBoxDropdownBackgroundPointerOver"
+                             Color="#F9F6EF" />
+            <SolidColorBrush x:Key="ComboBoxDropdownBackgroundPressed"
+                             Color="#F9F6EF" />
+
+            <!-- Border -->
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderFill"
+                             Color="#D4CEC2" />
+            <SolidColorBrush x:Key="ComboBoxItemBorderFill"
+                             Color="Transparent" />
+            <SolidColorBrush x:Key="ComboBoxItemBorderFillPointerOver"
+                             Color="Transparent" />
+            <SolidColorBrush x:Key="ComboBoxItemBorderFillPressed"
+                             Color="Transparent" />
+
+        </ResourceDictionary>
+    </maui:MauiWinUIApplication.Resources>
+
 </maui:MauiWinUIApplication>

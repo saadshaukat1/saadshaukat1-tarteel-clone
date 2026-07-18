@@ -156,4 +156,14 @@ public partial class LocalVerseRepository
 
     private sealed record JuzSeed(int JuzNum, int StartSurah, int StartAyah, int EndSurah, int EndAyah);
     private sealed record SurahSeed(int SurahNum, string NameArabic, string NameEnglish, string NameTransliteration, string RevelationType, int AyahCount);
+    private sealed record MushafPageSeed(int PageNum, int StartSurah, int StartAyah, int EndSurah, int EndAyah);
+
+    private static readonly IReadOnlyList<MushafPageSeed> BuiltInMushafPages =
+    [
+        new(1, 1, 1, 1, 7),
+        new(2, 2, 1, 2, 5),
+        new(3, 2, 6, 2, 16),
+        new(4, 2, 17, 2, 25),
+        new(5, 2, 26, 2, 33),
+    ];
 }

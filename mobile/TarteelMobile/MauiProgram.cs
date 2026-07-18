@@ -22,12 +22,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
 
         builder
-            .UseMauiApp<App>()
-            .ConfigureFonts(fonts =>
-            {
-                // Keep default system fonts until packaged font assets are added.
-                // This avoids broken font aliases when Resources/Fonts is empty.
-            });
+            .UseMauiApp<App>();
 
         ConfigureAppConfiguration(builder);
 
@@ -61,11 +56,13 @@ public static class MauiProgram
         builder.Services.AddTransient<RecitationViewModel>();
         builder.Services.AddTransient<ProgressViewModel>();
         builder.Services.AddTransient<LoginViewModel>();
+        builder.Services.AddTransient<MushafPageViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────────────
         builder.Services.AddTransient<RecitationPage>();
         builder.Services.AddTransient<ProgressPage>();
         builder.Services.AddTransient<LoginPage>();
+        builder.Services.AddTransient<MushafPageView>();
 
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 

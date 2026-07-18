@@ -70,6 +70,9 @@ public sealed class ProgressViewModelTests
         public Task<IReadOnlyList<JuzInfo>> GetAllJuzAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<JuzInfo>>([]);
         public Task<IReadOnlyList<SurahInfo>> GetAllSurahsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
         public Task<IReadOnlyList<SurahInfo>> GetSurahsByJuzAsync(int j, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<SurahInfo>>([]);
+        public Task<int> GetPageCountAsync(CancellationToken ct = default) => Task.FromResult(0);
+        public Task<MushafPage?> GetPageAsync(int pageNum, CancellationToken ct = default) => Task.FromResult<MushafPage?>(null);
+        public Task<int> GetPageForVerseAsync(int s, int a, CancellationToken ct = default) => Task.FromResult(1);
     }
 
     private sealed class FakeSessionService : ISessionService

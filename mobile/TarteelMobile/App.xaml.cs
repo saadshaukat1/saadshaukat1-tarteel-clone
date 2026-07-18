@@ -97,7 +97,7 @@ public partial class App : Application
                 {
                     if (window.Page is Page page)
                     {
-                        await page.DisplayAlertAsync(
+                        await page.DisplayAlert(
                             "Offline setup incomplete",
                             report.Summary,
                             "OK");

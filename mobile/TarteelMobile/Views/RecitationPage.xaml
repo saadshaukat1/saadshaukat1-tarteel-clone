@@ -99,7 +99,7 @@
             </Border>
 
             <!-- Surah/Ayah selector — compact inline row -->
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="6"
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6"
                   IsVisible="{Binding IsFreeReciteMode, Converter={StaticResource InvertedBoolConverter}}">
                 <CheckBox Grid.Column="0"
                           IsChecked="{Binding IsFreeReciteMode}"
@@ -110,30 +110,32 @@
                        FontSize="{StaticResource FontSizeNano}"
                        TextColor="{StaticResource TextTertiary}"
                        VerticalOptions="Center" />
-                <Picker Grid.Column="2"
-                        ItemsSource="{Binding Surahs}"
-                        ItemDisplayBinding="{Binding NameEnglish}"
-                        SelectedItem="{Binding SelectedSurahInfo}"
-                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
-                        FontSize="{StaticResource FontSizeCaption}"
-                        HeightRequest="32" />
-                <Picker Grid.Column="3"
-                        ItemsSource="{Binding AyahNumbers}"
-                        SelectedItem="{Binding SelectedAyah}"
-                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
-                        FontSize="{StaticResource FontSizeCaption}"
-                        HeightRequest="32"
-                        WidthRequest="64" />
-                <Button Grid.Column="4"
-                        Text="Go"
-                        BackgroundColor="{StaticResource Primary}"
-                        TextColor="White"
-                        HeightRequest="32"
-                        WidthRequest="48"
-                        FontSize="{StaticResource FontSizeCaption}"
-                        VerticalOptions="Center"
-                        IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
-                        Command="{Binding LoadSelectedVerseCommand}" />
+                <Grid Grid.Column="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                    <Picker Grid.Column="0"
+                            Title="Surah"
+                            ItemsSource="{Binding Surahs}"
+                            ItemDisplayBinding="{Binding NameEnglish}"
+                            SelectedItem="{Binding SelectedSurahInfo}"
+                            IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                            FontSize="{StaticResource FontSizeCaption}" />
+                    <Picker Grid.Column="1"
+                            Title="Āyah"
+                            ItemsSource="{Binding AyahNumbers}"
+                            SelectedItem="{Binding SelectedAyah}"
+                            IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                            FontSize="{StaticResource FontSizeCaption}"
+                            WidthRequest="64" />
+                    <Button Grid.Column="2"
+                            Text="Go"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            HeightRequest="32"
+                            WidthRequest="48"
+                            FontSize="{StaticResource FontSizeCaption}"
+                            VerticalOptions="Center"
+                            IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}"
+                            Command="{Binding LoadSelectedVerseCommand}" />
+                </Grid>
             </Grid>
 
             <!-- Free-recite toggle (shown when free mode is ON) -->
@@ -328,7 +330,7 @@
             </Grid>
 
             <!-- Action buttons -->
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10"
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10"
                   HorizontalOptions="Center">
                 <Button Grid.Column="0"
                         Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
@@ -361,6 +363,14 @@
                     </Button.Triggers>
                 </Button>
                 <Button Grid.Column="2"
+                        BackgroundColor="{StaticResource SurfacePanel}"
+                        TextColor="{StaticResource Primary}"
+                        HeightRequest="44"
+                        WidthRequest="110"
+                        VerticalOptions="Center"
+                        Text="Open Mushaf"
+                        Command="{Binding OpenInMushafCommand}" />
+                <Button Grid.Column="3"
                         Text="Reset"
                         BackgroundColor="Transparent"
                         TextColor="{StaticResource TextSecondary}"

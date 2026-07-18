@@ -48,7 +48,7 @@
                        Keyboard="Email"
                        ReturnType="Next"
                        Placeholder="name@example.com"
-                       FontSize="{StaticResource FontSizeBodyLarge}" />
+                       FontSize="{StaticResource FontSizeSubtitle}" />
             </VerticalStackLayout>
 
             <!-- Password field -->

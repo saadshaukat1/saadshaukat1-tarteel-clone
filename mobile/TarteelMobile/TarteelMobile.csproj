@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net9.0-windows10.0.19041.0;net9.0-android</TargetFrameworks>
+    <TargetFrameworks>net9.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>TarteelMobile</RootNamespace>
     <UseMaui>true</UseMaui>
@@ -41,10 +41,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineDataDir)')">
-    <MauiAsset Include="$(OfflineDataDir)\**\*" LogicalName="offline/data/%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <ItemGroup Condition="$(TargetFramework.Contains('android')) and Exists('$(OfflineDataDir)')">
     <MauiAsset Include="$(OfflineDataDir)\**\*" LogicalName="offline/data/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
