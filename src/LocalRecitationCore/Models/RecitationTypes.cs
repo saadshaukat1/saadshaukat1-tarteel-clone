@@ -61,6 +61,12 @@ public sealed class RecitationVerse
     public string Translation { get; init; } = string.Empty;
 }
 
+public sealed record RecitationWordTimestamp(
+    int Index,
+    string Word,
+    TimeSpan Start,
+    TimeSpan End);
+
 public sealed record RecitationTranscriptionResult(
     bool IsSuccess,
     string Text,
@@ -69,6 +75,8 @@ public sealed record RecitationTranscriptionResult(
     bool UsedFallback,
     string? DiagnosticMessage = null)
 {
+    public IReadOnlyList<RecitationWordTimestamp> WordTimestamps { get; init; } = [];
+
     public static RecitationTranscriptionResult Failure(
         string message,
         string tierUsed,

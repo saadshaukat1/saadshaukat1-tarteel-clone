@@ -146,8 +146,20 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
 
         var match = await _verseMatcher.MatchAsync(aggregatedTranscript, cancellationToken);
         var matchCount = Interlocked.Increment(ref _matchCount);
+
+        var phonemeViolations = TajweedPhonemeAnalyzer.Analyze(
+            audioChunk,
+            match.ArabicText
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList(),
+            transcription.WordTimestamps);
+
+        var combinedViolations = new List<TajweedViolation>(match.TajweedViolations.Count + phonemeViolations.Count);
+        combinedViolations.AddRange(match.TajweedViolations);
+        combinedViolations.AddRange(phonemeViolations);
+
         DiagnosticEmitted?.Invoke(this,
-            $"🎯 match #{matchCount} | {match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount} mismatches={match.Mismatches.Count}");
+            $"🎯 match #{matchCount} | {match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount} mismatches={match.Mismatches.Count} tajweed={combinedViolations.Count}");
 
         var matchWithTranscript = new RecitationMatchResult
         {
@@ -162,7 +174,7 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
             SurahNameEnglish = match.SurahNameEnglish,
             SurahNameArabic = match.SurahNameArabic,
             Mismatches = match.Mismatches,
-            TajweedViolations = match.TajweedViolations
+            TajweedViolations = combinedViolations
         };
 
         await _progressStore.SaveAsync(matchWithTranscript, cancellationToken);

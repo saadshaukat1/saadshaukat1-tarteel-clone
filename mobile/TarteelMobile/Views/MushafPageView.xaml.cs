@@ -1,10 +1,16 @@
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
+using TarteelMobile.Models;
 using TarteelMobile.ViewModels;
 
 namespace TarteelMobile.Views;
 
 public partial class MushafPageView : ContentPage
 {
+    private const int RowsPerPage = 16;
+    private const int ApproxCharsPerLine = 34;
+    private const double RowHeight = 48;
+
     private readonly MushafPageViewModel _viewModel;
     private bool _autoAdvanceArmed = true;
 
@@ -38,35 +44,38 @@ public partial class MushafPageView : ContentPage
     private void RenderLines()
     {
         LinesGrid.Children.Clear();
-        LinesGrid.RowDefinitions.Clear();
 
         var verses = _viewModel.PageVerses;
-        for (var i = 0; i < verses.Count; i++)
-        {
-            LinesGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        }
+        if (verses.Count == 0)
+            return;
 
-        for (var index = 0; index < verses.Count; index++)
+        var lines = Build16Lines(verses);
+
+        for (var lineIdx = 0; lineIdx < RowsPerPage; lineIdx++)
         {
-            var verse = verses[index];
-            var key = $"{verse.SurahNum}:{verse.AyahNum}";
-            var isHighlighted = string.Equals(key, _viewModel.HighlightedVerseKey, StringComparison.Ordinal);
+            var lineText = lineIdx < lines.Count ? lines[lineIdx].Text : string.Empty;
+            var lineKey = lineIdx < lines.Count ? lines[lineIdx].VerseKey : string.Empty;
+            var isHighlighted = !string.IsNullOrEmpty(lineKey)
+                && string.Equals(lineKey, _viewModel.HighlightedVerseKey, StringComparison.Ordinal);
 
             var label = new Label
             {
-                Text = verse.ArabicText,
+                Text = lineText,
                 FontFamily = (string)Application.Current!.Resources["ArabicFontFamily"],
                 FontSize = (double)Application.Current.Resources["FontSizeVerse"],
                 LineHeight = (double)Application.Current.Resources["LineHeightArabic"],
                 HorizontalTextAlignment = TextAlignment.Center,
                 VerticalTextAlignment = TextAlignment.Center,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center,
-                LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalOptions = LayoutOptions.FillAndExpand,
+                VerticalOptions = LayoutOptions.FillAndExpand,
+                LineBreakMode = LineBreakMode.NoWrap,
                 MaximumWidthRequest = 680,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Thickness(6, 2),
-                AutomationId = $"mushaf-verse-{key}"
+                Padding = new Thickness(6, 0),
+                HeightRequest = RowHeight,
+                AutomationId = string.IsNullOrEmpty(lineKey)
+                    ? $"mushaf-line-{lineIdx}"
+                    : $"mushaf-verse-{lineKey}-line-{lineIdx}"
             };
 
             var cell = new Border
@@ -75,14 +84,84 @@ public partial class MushafPageView : ContentPage
                 BackgroundColor = isHighlighted
                     ? Color.FromArgb("#EBF5EE")
                     : Colors.Transparent,
-                Content = label
+                Content = label,
+                HeightRequest = RowHeight
             };
 
-            // Each verse occupies its own line, laid out sequentially top-to-bottom.
-            // A standard Madani page fits ~15–16 lines; longer pages simply scroll.
-            Grid.SetRow(cell, index);
+            Grid.SetRow(cell, lineIdx);
             LinesGrid.Children.Add(cell);
         }
+    }
+
+    private static List<(string Text, string VerseKey)> Build16Lines(IReadOnlyList<Verse> verses)
+    {
+        var allWords = new List<(string Word, string Key)>();
+
+        for (var vi = 0; vi < verses.Count; vi++)
+        {
+            var verse = verses[vi];
+            var key = $"{verse.SurahNum}:{verse.AyahNum}";
+            var words = verse.ArabicText.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            for (var wi = 0; wi < words.Length; wi++)
+            {
+                allWords.Add((words[wi], key));
+            }
+
+            if (vi < verses.Count - 1)
+            {
+                allWords.Add(("۞", key));
+            }
+        }
+
+        if (allWords.Count == 0)
+            return [];
+
+        var lines = new List<(string Text, string VerseKey)>();
+        var currentLine = new System.Text.StringBuilder();
+        var currentKey = allWords[0].Key;
+
+        for (var i = 0; i < allWords.Count; i++)
+        {
+            var (word, key) = allWords[i];
+            var tentative = currentLine.Length == 0
+                ? word
+                : currentLine.ToString() + " " + word;
+
+            if (tentative.Length <= ApproxCharsPerLine)
+            {
+                if (currentLine.Length > 0)
+                    currentLine.Append(' ');
+                currentLine.Append(word);
+                if (key != currentKey)
+                    currentKey = key;
+                continue;
+            }
+
+            lines.Add((currentLine.ToString(), currentKey));
+
+            currentLine.Clear();
+            currentLine.Append(word);
+            currentKey = key;
+        }
+
+        if (currentLine.Length > 0)
+            lines.Add((currentLine.ToString(), currentKey));
+
+        var result = new List<(string Text, string VerseKey)>();
+        for (var i = 0; i < RowsPerPage; i++)
+        {
+            if (i < lines.Count)
+            {
+                result.Add(lines[i]);
+            }
+            else
+            {
+                result.Add((" ", string.Empty));
+            }
+        }
+
+        return result;
     }
 
     private void OnPageScrolled(object? sender, ScrolledEventArgs e)
@@ -99,7 +178,6 @@ public partial class MushafPageView : ContentPage
             return;
         }
 
-        // Auto-advance to the next page once the user scrolls near the bottom.
         var threshold = contentHeight - viewportHeight - 40;
         if (e.ScrollY >= threshold && _autoAdvanceArmed && _viewModel.CurrentPage < _viewModel.PageCount)
         {

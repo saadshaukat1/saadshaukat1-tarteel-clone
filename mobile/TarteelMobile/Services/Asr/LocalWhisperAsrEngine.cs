@@ -254,6 +254,12 @@ public sealed class LocalWhisperAsrEngine(
         await _modelLifecycleLock.WaitAsync(cancellationToken);
         try
         {
+            // Hold the inference lock so we cannot swap/dispose the factory while a
+            // transcription is in flight — Whisper.net throws "Cannot dispose while
+            // processing" if the factory (or its processors) is disposed mid-decode.
+            await _inferenceLock.WaitAsync(cancellationToken);
+            try
+            {
             var tier = _options.PrimaryTier.Trim().ToLowerInvariant();
         if (!_options.TryGetTierDefinition(tier, out var tierDef) || tierDef is null)
             throw new InvalidOperationException($"Unknown model tier '{tier}'.");
@@ -338,6 +344,11 @@ public sealed class LocalWhisperAsrEngine(
             _isInitialized = true;
             ActiveTier = tier;
             _logger.LogInformation("Whisper.net ready from imported model for tier '{Tier}'.", tier);
+            }
+            finally
+            {
+                _inferenceLock.Release();
+            }
         }
         finally
         {
@@ -398,6 +409,9 @@ public sealed class LocalWhisperAsrEngine(
             if (_options.NoTimestamps)
                 builder = builder.WithPrintTimestamps(false);
 
+            // Word-level timestamps feed the phoneme-level tajweed analyzer.
+            builder = builder.WithTokenTimestamps();
+
             // Greedy decoding (BeamSearchWidth <= 1) is dramatically faster than beam
             // search and is sufficient for clean single-speaker Arabic recitation.
             // Beam search is only used for larger tiers where accuracy matters more.
@@ -415,6 +429,7 @@ public sealed class LocalWhisperAsrEngine(
                     .Build();
 
             var transcript = new System.Text.StringBuilder();
+            var segmentTimings = new List<(string Text, TimeSpan Start, TimeSpan End)>();
             var segmentCount = 0;
             var totalProbability = 0.0;
             using var audioStream = new MemoryStream(audioChunk);
@@ -427,6 +442,7 @@ public sealed class LocalWhisperAsrEngine(
                 await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
                 {
                     transcript.Append(segment.Text);
+                    segmentTimings.Add((segment.Text, segment.Start, segment.End));
                     segmentCount++;
                     totalProbability += segment.Probability;
                 }
@@ -473,7 +489,12 @@ public sealed class LocalWhisperAsrEngine(
                 _crossChunkContext = string.Join(' ', contextWords);
             }
 
-            return new RecitationTranscriptionResult(true, text, confidence, tier, usedFallback);
+            var wordTimestamps = BuildWordTimestamps(text, segmentTimings);
+
+            return new RecitationTranscriptionResult(true, text, confidence, tier, usedFallback)
+            {
+                WordTimestamps = wordTimestamps
+            };
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -498,10 +519,69 @@ public sealed class LocalWhisperAsrEngine(
 
     private string BuildPrompt()
     {
-        // Only the rolling cross-chunk context is used as a prompt. The surah name is
-        // intentionally excluded so decode stays fast; candidate matching handles surah
-        // context downstream.
-        return _crossChunkContext ?? string.Empty;
+        // The surah name biases Whisper's decoding toward Quranic vocabulary, which is
+        // essential for weak tiers (tiny/base) on short surahs like Ikhlas. The matcher
+        // still constrains candidates to the active surah downstream; the prompt here
+        // just steers the recognizer away from phonetically-similar garbage.
+        if (string.IsNullOrWhiteSpace(_crossChunkContext))
+        {
+            return _surahPrompt ?? string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(_surahPrompt)
+            ? _crossChunkContext
+            : $"{_surahPrompt} {_crossChunkContext}";
+    }
+
+    private static IReadOnlyList<RecitationWordTimestamp> BuildWordTimestamps(
+        string text,
+        IReadOnlyList<(string Text, TimeSpan Start, TimeSpan End)> segments)
+    {
+        if (string.IsNullOrWhiteSpace(text) || segments.Count == 0)
+            return [];
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0)
+            return [];
+
+        var allSegmentText = new System.Text.StringBuilder();
+        foreach (var seg in segments)
+            allSegmentText.Append(seg.Text);
+
+        var raw = ArabicNormalizer.Normalize(allSegmentText.ToString().Trim());
+        if (string.IsNullOrWhiteSpace(raw))
+            return [];
+
+        var rawWords = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var totalRawChars = rawWords.Sum(w => w.Length);
+        if (totalRawChars == 0)
+            return [];
+
+        var timestamps = new List<RecitationWordTimestamp>();
+        var charPositions = new List<(int WordIdx, int CharStart)>();
+        var charOffset = 0;
+        for (var wi = 0; wi < rawWords.Length; wi++)
+        {
+            charPositions.Add((wi, charOffset));
+            charOffset += rawWords[wi].Length;
+        }
+
+        var totalDuration = segments[^1].End - segments[0].Start;
+        var charsPerTick = totalDuration.TotalMilliseconds / Math.Max(totalRawChars, 1);
+
+        foreach (var (wi, charStart) in charPositions)
+        {
+            var startMs = segments[0].Start.TotalMilliseconds + (charStart * charsPerTick);
+            var endMs = startMs + (rawWords[wi].Length * charsPerTick);
+
+            timestamps.Add(new RecitationWordTimestamp(
+                wi,
+                words.Length > wi ? words[wi] : rawWords[wi],
+                TimeSpan.FromMilliseconds(startMs),
+                TimeSpan.FromMilliseconds(endMs)));
+        }
+
+        return timestamps;
     }
 
     private async Task WarmupAsync(CancellationToken cancellationToken)
@@ -783,6 +863,17 @@ public sealed class LocalWhisperAsrEngine(
 
     public async ValueTask DisposeAsync()
     {
+        // Wait for any in-flight transcription to finish before disposing the factory,
+        // otherwise Whisper.net throws "Cannot dispose while processing".
+        try
+        {
+            await _inferenceLock.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out waiting; proceed with disposal best-effort.
+        }
+
         _activeFactory?.Dispose();
         _activeFactory = null;
         _inferenceLock.Dispose();
