@@ -4,140 +4,149 @@ using TarteelClone.LocalRecitationCore.Models;
 
 namespace TarteelClone.LocalRecitationCore.Services;
 
-/// <summary>
-/// Detects tajweed rule violations at the word level.
-/// Rules implemented: Madd, Ghunna, Qalqalah, Idgham, Ikhfa, Iqlab, Izhar.
-/// Operates on Arabic Unicode text; no external library required.
-/// </summary>
 public static class TajweedRuleEngine
 {
-    // ?? Qalqalah letters: ? ? ? ? ? ?????????????????????????????????????
-    private static readonly HashSet<char> QalqalahLetters = new() { '?', '?', '?', '?', '?' };
-
-    // ?? Ghunna source letters: ? (n?n) and ? (m?m) ???????????????????????
-    private static readonly HashSet<char> GhunnaLetters = new() { '?', '?' };
-
-    // ?? Idgham letters (n?n s?kin / tanw?n merges into these) ????????????
-    private static readonly HashSet<char> IdghamLetters = new() { '?', '?', '?', '?', '?', '?' };
-
-    // ?? Ikhfa letters (15 letters after n?n s?kin) ???????????????????????
+    private static readonly HashSet<char> QalqalahLetters = new() { '\u0642', '\u0637', '\u0628', '\u062C', '\u062F' };
+    private static readonly HashSet<char> GhunnaLetters = new() { '\u0646', '\u0645' };
+    private static readonly HashSet<char> IdghamLetters = new() { '\u064A', '\u0631', '\u0645', '\u0644', '\u0648', '\u0646' };
     private static readonly HashSet<char> IkhfaLetters = new()
     {
-        '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'
+        '\u062A', '\u062B', '\u062C', '\u062F', '\u0630', '\u0632', '\u0633', '\u0634',
+        '\u0635', '\u0636', '\u0637', '\u0638', '\u0641', '\u0642', '\u0643'
     };
+    private static readonly HashSet<char> IzharLetters = new() { '\u0621', '\u0647', '\u0639', '\u062D', '\u063A', '\u062E' };
+    private static readonly Regex MaddPattern = new(@"[\u0627\u0648\u064A][\u064B-\u0652]?$", RegexOptions.Compiled);
 
-    // ?? Izhar (throat) letters ????????????????????????????????????????????
-    private static readonly HashSet<char> IzharLetters = new() { '?', '?', '?', '?', '?', '?' };
-
-    // ?? Madd letters ?????????????????????????????????????????????????????
-    private static readonly Regex MaddPattern = new(
-        @"[???][\u064B-\u0652]?$",
-        RegexOptions.Compiled);
-
-    /// <summary>
-    /// Analyses a list of expected words versus spoken words, identifies
-    /// tajweed rule violations in the mismatch positions, and returns violations.
-    /// </summary>
     public static IReadOnlyList<TajweedViolation> Analyze(
         IReadOnlyList<string> expectedWords,
         IReadOnlyList<string> spokenWords,
         IReadOnlyList<RecitationWordMismatch> mismatches)
     {
-        if (expectedWords.Count == 0 || mismatches.Count == 0)
+        if (expectedWords.Count == 0)
         {
             return [];
         }
 
+        var violationSet = new HashSet<(int Position, TajweedRuleType Rule)>();
+
         var violations = new List<TajweedViolation>();
 
+        void AddUnique(TajweedViolation violation)
+        {
+            if (violationSet.Add((violation.WordPosition, violation.Rule)))
+                violations.Add(violation);
+        }
+
+        // Process mismatches with the full priority chain (unchanged logic).
         foreach (var mismatch in mismatches)
         {
-            var pos = mismatch.Position;
-            if (pos < 0 || pos >= expectedWords.Count)
+            var position = mismatch.Position;
+            if (position < 0 || position >= expectedWords.Count)
+                continue;
+
+            var expected = expectedWords[position];
+            var spoken = mismatch.Spoken;
+            if (HasMadd(expected) && !HasMadd(spoken))
             {
+                AddUnique(new TajweedViolation(
+                    position, TajweedRuleType.Madd, expected, spoken,
+                    $"{expected} requires elongation. Extend the vowel for 2â€“6 counts."));
                 continue;
             }
 
-            var expected = expectedWords[pos];
-            var spoken = mismatch.Spoken;
-
-            // ?? 1. Madd check ?????????????????????????????????????????????
-            if (HasMadd(expected) && !HasMadd(spoken))
+            if (position + 1 < expectedWords.Count)
             {
-                violations.Add(new TajweedViolation(
-                    pos, TajweedRuleType.Madd, expected, spoken,
-                    $"The letter in «{expected}» requires elongation (madd). Extend the vowel for 2–6 beats."));
-                continue; // one rule per mismatch is sufficient
-            }
-
-            // ?? 2. N?n / M?m rules (Ghunna, Idgham, Ikhfa, Iqlab, Izhar) ?
-            if (pos + 1 < expectedWords.Count)
-            {
-                var nextWord = expectedWords[pos + 1];
-                var nunMimRule = ClassifyNunMimRule(expected, nextWord);
-                if (nunMimRule.HasValue)
+                var rule = ClassifyNunMimRule(expected, expectedWords[position + 1]);
+                if (rule.HasValue)
                 {
-                    var hint = BuildNunMimHint(nunMimRule.Value, expected, nextWord);
-                    violations.Add(new TajweedViolation(pos, nunMimRule.Value, expected, spoken, hint));
+                    AddUnique(new TajweedViolation(
+                        position,
+                        rule.Value,
+                        expected,
+                        spoken,
+                        BuildNunMimHint(rule.Value, expected, expectedWords[position + 1])));
                     continue;
                 }
             }
 
-            // ?? 3. Qalqalah check ????????????????????????????????????????
             if (HasQalqalahAtEnd(expected))
             {
-                violations.Add(new TajweedViolation(
-                    pos, TajweedRuleType.Qalqalah, expected, spoken,
-                    $"«{expected}» ends on a Qalqalah letter. Apply a short echo/bounce when stopping."));
+                AddUnique(new TajweedViolation(
+                    position, TajweedRuleType.Qalqalah, expected, spoken,
+                    $"{expected} ends on a Qalqalah letter. Add a short echo when stopping."));
                 continue;
             }
 
-            // ?? 4. Ghunna on isolated n?n or m?m ?????????????????????????
             if (HasStandAloneGhunna(expected))
             {
+                AddUnique(new TajweedViolation(
+                    position, TajweedRuleType.Ghunna, expected, spoken,
+                    $"{expected} contains a shaddah on nÅ«n or mÄ«m. Apply 2 counts of nasalization."));
+            }
+        }
+
+        // Check all words for letter-presence tajweed traits regardless of match state.
+        // This catches correctly-transcribed words that still have tajweed features.
+        for (var pos = 0; pos < expectedWords.Count; pos++)
+        {
+            var expected = expectedWords[pos];
+            if (HasMadd(expected) && violationSet.Add((pos, TajweedRuleType.Madd)))
+            {
                 violations.Add(new TajweedViolation(
-                    pos, TajweedRuleType.Ghunna, expected, spoken,
-                    $"«{expected}» contains a shaddah on n?n or m?m. Apply 2-beat nasalization."));
+                    pos, TajweedRuleType.Madd, expected, expected,
+                    $"Madd letter in '{expected}' â€” extend 2â€“6 counts."));
+            }
+
+            if (HasStandAloneGhunna(expected) && violationSet.Add((pos, TajweedRuleType.Ghunna)))
+            {
+                violations.Add(new TajweedViolation(
+                    pos, TajweedRuleType.Ghunna, expected, expected,
+                    $"Shaddah on nÅ«n/mÄ«m in '{expected}' â€” apply 2 counts of nasalization."));
+            }
+
+            if (pos + 1 < expectedWords.Count)
+            {
+                var rule = ClassifyNunMimRule(expected, expectedWords[pos + 1]);
+                if (rule.HasValue && violationSet.Add((pos, rule.Value)))
+                {
+                    violations.Add(new TajweedViolation(
+                        pos,
+                        rule.Value,
+                        expected,
+                        expected,
+                        BuildNunMimHint(rule.Value, expected, expectedWords[pos + 1])));
+                }
             }
         }
 
         return violations;
     }
 
-    // ?? Private helpers ???????????????????????????????????????????????????
-
-    private static bool HasMadd(string word)
-    {
-        if (string.IsNullOrWhiteSpace(word))
-        {
-            return false;
-        }
-
-        return MaddPattern.IsMatch(Strip(word));
-    }
+    private static bool HasMadd(string word) =>
+        !string.IsNullOrWhiteSpace(word) && MaddPattern.IsMatch(Strip(word));
 
     private static bool HasQalqalahAtEnd(string word)
     {
         var stripped = Strip(word);
-        if (stripped.Length == 0)
-        {
-            return false;
-        }
-
-        // Qalqalah applies when the qalqalah letter is s?kin (no vowel) or at a stop.
-        var last = stripped[^1];
-        return QalqalahLetters.Contains(last);
+        return stripped.Length > 0 && QalqalahLetters.Contains(stripped[^1]);
     }
 
     private static bool HasStandAloneGhunna(string word)
     {
-        // Shaddah (? \u0651) on n?n or m?m requires ghunna.
-        for (var i = 1; i < word.Length; i++)
+        var previousBaseLetter = '\0';
+        foreach (var character in word)
         {
-            if (word[i] == '\u0651' && GhunnaLetters.Contains(word[i - 1]))
+            if (character is >= '\u064B' and <= '\u065F')
             {
-                return true;
+                if (character == '\u0651' && GhunnaLetters.Contains(previousBaseLetter))
+                {
+                    return true;
+                }
+
+                continue;
             }
+
+            previousBaseLetter = character;
         }
 
         return false;
@@ -145,80 +154,50 @@ public static class TajweedRuleEngine
 
     private static TajweedRuleType? ClassifyNunMimRule(string currentWord, string nextWord)
     {
-        var stripped = Strip(currentWord);
-        if (stripped.Length == 0 || string.IsNullOrWhiteSpace(nextWord))
+        var current = Strip(currentWord);
+        var next = Strip(nextWord);
+        if (current.Length == 0 || next.Length == 0 || current[^1] != '\u0646')
         {
             return null;
         }
 
-        var lastLetter = stripped[^1];
-        if (lastLetter != '?')
+        return next[0] switch
         {
-            return null; // Only n?n s?kin/tanw?n triggers these rules
-        }
-
-        var nextFirst = Strip(nextWord).Length > 0 ? Strip(nextWord)[0] : '\0';
-        if (nextFirst == '\0')
-        {
-            return null;
-        }
-
-        // Iqlab: n?n before ??
-        if (nextFirst == '?')
-        {
-            return TajweedRuleType.Iqlab;
-        }
-
-        // Idgham: n?n before ? ? ? ? ? ?
-        if (IdghamLetters.Contains(nextFirst))
-        {
-            return TajweedRuleType.Idgham;
-        }
-
-        // Izhar: n?n before throat letters
-        if (IzharLetters.Contains(nextFirst))
-        {
-            return TajweedRuleType.Izhar;
-        }
-
-        // Ikhfa: n?n before any of the 15 ikhfa letters
-        if (IkhfaLetters.Contains(nextFirst))
-        {
-            return TajweedRuleType.Ikhfa;
-        }
-
-        return null;
+            '\u0628' => TajweedRuleType.Iqlab,
+            _ when IdghamLetters.Contains(next[0]) => TajweedRuleType.Idgham,
+            _ when IzharLetters.Contains(next[0]) => TajweedRuleType.Izhar,
+            _ when IkhfaLetters.Contains(next[0]) => TajweedRuleType.Ikhfa,
+            _ => null
+        };
     }
 
     private static string BuildNunMimHint(TajweedRuleType rule, string current, string next) => rule switch
     {
-        TajweedRuleType.Iqlab  => $"«{current}» before «{next}» — change n?n to m?m sound (iqlab) with nasal.",
-        TajweedRuleType.Idgham => $"«{current}» before «{next}» — merge (idgham) the n?n into the following letter.",
-        TajweedRuleType.Izhar  => $"«{current}» before «{next}» — pronounce n?n clearly with no nasalization (izhar).",
-        TajweedRuleType.Ikhfa  => $"«{current}» before «{next}» — partially hide n?n with gentle nasalization (ikhfa).",
-        _                      => string.Empty
+        TajweedRuleType.Iqlab => $"{current} before {next}: change nÅ«n to a mÄ«m sound with nasalization.",
+        TajweedRuleType.Idgham => $"{current} before {next}: merge the nÅ«n into the following letter.",
+        TajweedRuleType.Izhar => $"{current} before {next}: pronounce the nÅ«n clearly without merging.",
+        TajweedRuleType.Ikhfa => $"{current} before {next}: partially hide the nÅ«n with gentle nasalization.",
+        _ => string.Empty
     };
 
-    /// <summary>Strips Arabic diacritics (harakat) for consonant-level comparison.</summary>
-    private static string Strip(string word)
+    internal static string Strip(string word)
     {
         if (string.IsNullOrWhiteSpace(word))
         {
             return string.Empty;
         }
 
-        var sb = new StringBuilder(word.Length);
-        foreach (var ch in word)
+        var builder = new StringBuilder(word.Length);
+        foreach (var character in word)
         {
-            // Skip diacritics U+064B–U+065F (harakat range)
-            if (ch is >= '\u064B' and <= '\u065F')
+            if (character is >= '\u064B' and <= '\u065F')
             {
                 continue;
             }
 
-            sb.Append(ch);
+            builder.Append(character);
         }
 
-        return sb.ToString();
+        return builder.ToString();
     }
 }

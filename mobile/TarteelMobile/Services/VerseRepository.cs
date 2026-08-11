@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using TarteelClone.LocalRecitationCore.Models;
 using TarteelClone.LocalRecitationCore.Utilities;
 using Microsoft.Maui.Storage;
 using Microsoft.Data.Sqlite;
@@ -15,6 +16,7 @@ public interface IVerseRepository
     Task<Verse?> GetVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetMemorizedVersesAsync(string? userKey = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VerseProgress>> GetProgressAsync(string? userKey = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VerseProgress>> GetDueProgressAsync(string? userKey = null, DateTimeOffset? now = null, int limit = 20, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> normalizedWords, CancellationToken cancellationToken = default);
     Task<JuzInfo?> GetJuzForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
@@ -31,6 +33,45 @@ public interface IVerseRepository
         int surahNum,
         int ayahNum,
         double masteryScore,
+        CancellationToken cancellationToken = default);
+    Task<LearningPlan> GetOrCreateLearningPlanAsync(
+        string? userKey = null,
+        LearningPlanInput? input = null,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LessonAssignment>> CreateAssignmentsAsync(
+        string? userKey,
+        IReadOnlyList<LessonAssignmentInput> assignments,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LessonAssignment>> GetAssignmentsAsync(
+        string? userKey = null,
+        LessonAssignmentStatus? status = null,
+        CancellationToken cancellationToken = default);
+    Task<LessonAssignment?> GetAssignmentAsync(
+        long assignmentId,
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task<LessonAssignment> MarkAssignmentInProgressAsync(
+        long assignmentId,
+        long sessionId,
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task<RecitationSession> OpenRecitationSessionAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task<RecitationSession> CloseRecitationSessionAsync(
+        long sessionId,
+        RecitationSessionStatus status = RecitationSessionStatus.Completed,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RecitationSession>> GetRecitationSessionsAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task<VerseAttempt> SaveVerseAttemptAsync(
+        string? userKey,
+        VerseAttemptInput attempt,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VerseAttempt>> GetVerseAttemptsAsync(
+        string? userKey = null,
+        long? sessionId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -120,11 +161,13 @@ public partial class LocalVerseRepository : IVerseRepository
             ayah_num INTEGER NOT NULL,
             mastery_score REAL NOT NULL DEFAULT 0.0,
             updated_at TEXT NOT NULL,
+            next_review_at TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            recent_error_count INTEGER NOT NULL DEFAULT 0,
             UNIQUE(user_key, surah_num, ayah_num)
         );
 
         CREATE INDEX IF NOT EXISTS idx_progress_user_key ON memorization_progress (user_key);
-
         CREATE TABLE IF NOT EXISTS dataset_metadata (
             key TEXT PRIMARY KEY NOT NULL,
             value TEXT NOT NULL
@@ -167,6 +210,72 @@ public partial class LocalVerseRepository : IVerseRepository
 
         CREATE INDEX IF NOT EXISTS idx_mushaf_pages_range
             ON mushaf_pages (start_surah, start_ayah, end_surah, end_ayah);
+
+        CREATE TABLE IF NOT EXISTS learning_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_key TEXT NOT NULL UNIQUE,
+            daily_new_lesson_target INTEGER NOT NULL,
+            daily_review_target INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS lesson_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL REFERENCES learning_plans(id) ON DELETE CASCADE,
+            user_key TEXT NOT NULL,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            reason INTEGER NOT NULL,
+            status INTEGER NOT NULL DEFAULT 0,
+            due_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            session_id INTEGER,
+            UNIQUE(user_key, surah_num, ayah_num, reason, due_at)
+        );
+        CREATE INDEX IF NOT EXISTS idx_assignments_user_status ON lesson_assignments(user_key, status, due_at);
+
+        CREATE TABLE IF NOT EXISTS recitation_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL REFERENCES learning_plans(id) ON DELETE CASCADE,
+            user_key TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            closed_at TEXT,
+            status INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_started ON recitation_sessions(user_key, started_at);
+
+        CREATE TABLE IF NOT EXISTS verse_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES recitation_sessions(id) ON DELETE CASCADE,
+            assignment_id INTEGER REFERENCES lesson_assignments(id) ON DELETE SET NULL,
+            user_key TEXT NOT NULL,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            mastery_score REAL NOT NULL,
+            confidence REAL NOT NULL,
+            transcription_text TEXT NOT NULL,
+            attempted_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_attempts_user_verse ON verse_attempts(user_key, surah_num, ayah_num, attempted_at);
+
+        CREATE TABLE IF NOT EXISTS attempt_mismatches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id INTEGER NOT NULL REFERENCES verse_attempts(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL,
+            spoken TEXT NOT NULL,
+            expected TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS attempt_tajweed_errors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id INTEGER NOT NULL REFERENCES verse_attempts(id) ON DELETE CASCADE,
+            word_position INTEGER NOT NULL,
+            rule INTEGER NOT NULL,
+            expected_word TEXT NOT NULL,
+            spoken_word TEXT NOT NULL,
+            hint TEXT NOT NULL
+        );
         """;
 
     private readonly LocalQuranDataOptions _options;
@@ -212,6 +321,7 @@ public partial class LocalVerseRepository : IVerseRepository
 
             await using var connection = CreateOpenConnection();
             await ApplySchemaAsync(connection, cancellationToken);
+            await UpgradeProgressSchemaAsync(connection, cancellationToken);
 
             var verseCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM verses;", cancellationToken);
             if (verseCount == 0)
@@ -374,6 +484,23 @@ public partial class LocalVerseRepository : IVerseRepository
     {
         await EnsureInitializedAsync(cancellationToken);
         await using var connection = CreateOpenConnection();
+        var normalizedUserKey = ResolveUserKey(userKey);
+        var now = DateTimeOffset.UtcNow;
+        var boundedScore = Math.Clamp(masteryScore, 0.0, 1.0);
+        var existing = await GetProgressMetadataAsync(
+            connection,
+            normalizedUserKey,
+            surahNum,
+            ayahNum,
+            cancellationToken);
+        var attemptCount = existing.AttemptCount + 1;
+        var recentErrorCount = boundedScore < 0.6 ? existing.RecentErrorCount + 1 : 0;
+        var nextReviewAt = new ReviewScheduler().CalculateNextReview(
+            boundedScore,
+            recentErrorCount,
+            attemptCount,
+            now);
+
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO memorization_progress (
@@ -381,26 +508,38 @@ public partial class LocalVerseRepository : IVerseRepository
                 surah_num,
                 ayah_num,
                 mastery_score,
-                updated_at
+                updated_at,
+                next_review_at,
+                attempt_count,
+                recent_error_count
             )
             VALUES (
                 @user_key,
                 @surah_num,
                 @ayah_num,
                 @mastery_score,
-                @updated_at
+                @updated_at,
+                @next_review_at,
+                @attempt_count,
+                @recent_error_count
             )
             ON CONFLICT(user_key, surah_num, ayah_num)
             DO UPDATE SET
                 mastery_score = (memorization_progress.mastery_score * @ema_current)
                               + (@mastery_score * @ema_new),
-                updated_at = @updated_at;
+                updated_at = @updated_at,
+                next_review_at = @next_review_at,
+                attempt_count = @attempt_count,
+                recent_error_count = @recent_error_count;
             """;
-        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        command.Parameters.AddWithValue("@user_key", normalizedUserKey);
         command.Parameters.AddWithValue("@surah_num", surahNum);
         command.Parameters.AddWithValue("@ayah_num", ayahNum);
-        command.Parameters.AddWithValue("@mastery_score", Math.Clamp(masteryScore, 0.0, 1.0));
-        command.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("@mastery_score", boundedScore);
+        command.Parameters.AddWithValue("@updated_at", now.ToString("O"));
+        command.Parameters.AddWithValue("@next_review_at", nextReviewAt.ToString("O"));
+        command.Parameters.AddWithValue("@attempt_count", attemptCount);
+        command.Parameters.AddWithValue("@recent_error_count", recentErrorCount);
         command.Parameters.AddWithValue("@ema_current", EmaCurrentWeight);
         command.Parameters.AddWithValue("@ema_new", EmaNewWeight);
 
@@ -420,7 +559,10 @@ public partial class LocalVerseRepository : IVerseRepository
                 p.ayah_num,
                 v.arabic_text,
                 p.mastery_score,
-                p.updated_at
+                p.updated_at,
+                p.next_review_at,
+                p.attempt_count,
+                p.recent_error_count
             FROM memorization_progress p
             INNER JOIN verses v
                 ON v.surah_num = p.surah_num
@@ -439,11 +581,78 @@ public partial class LocalVerseRepository : IVerseRepository
                 AyahNum: reader.GetInt32(1),
                 ArabicText: reader.GetString(2),
                 MasteryScore: reader.GetDouble(3),
-                UpdatedAt: DateTimeOffset.TryParse(reader.GetString(4), out var dt) ? dt : DateTimeOffset.MinValue));
+                UpdatedAt: DateTimeOffset.TryParse(reader.GetString(4), out var dt) ? dt : DateTimeOffset.MinValue,
+                NextReviewAt: reader.IsDBNull(5) || !DateTimeOffset.TryParse(reader.GetString(5), out var nextReview) ? null : nextReview,
+                AttemptCount: reader.GetInt32(6),
+                RecentErrorCount: reader.GetInt32(7)));
         }
 
         return results;
     }
+
+    public async Task<IReadOnlyList<VerseProgress>> GetDueProgressAsync(
+        string? userKey = null,
+        DateTimeOffset? now = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var progress = await GetProgressAsync(userKey, cancellationToken);
+        var currentTime = now ?? DateTimeOffset.UtcNow;
+        var scheduler = new ReviewScheduler();
+        var dueKeys = scheduler.BuildDueQueue(
+                progress.Select(item => new ReviewProgress(
+                    item.SurahNum,
+                    item.AyahNum,
+                    item.MasteryScore,
+                    item.UpdatedAt,
+                    item.NextReviewAt,
+                    item.AttemptCount,
+                    item.RecentErrorCount)),
+                currentTime,
+                limit)
+            .Select(item => (item.SurahNum, item.AyahNum))
+            .ToHashSet();
+
+        return progress
+            .Where(item => dueKeys.Contains((item.SurahNum, item.AyahNum)))
+            .OrderByDescending(item => item.RecentErrorCount > 0 || item.MasteryScore < 0.6)
+            .ThenBy(item => item.NextReviewAt ?? DateTimeOffset.MinValue)
+            .ThenBy(item => item.SurahNum)
+            .ThenBy(item => item.AyahNum)
+            .Take(Math.Max(limit, 0))
+            .ToArray();
+    }
+
+    private async Task<ProgressMetadata> GetProgressMetadataAsync(
+        SqliteConnection connection,
+        string userKey,
+        int surahNum,
+        int ayahNum,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT attempt_count, recent_error_count
+            FROM memorization_progress
+            WHERE user_key = @user_key
+              AND surah_num = @surah_num
+              AND ayah_num = @ayah_num
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("@user_key", userKey);
+        command.Parameters.AddWithValue("@surah_num", surahNum);
+        command.Parameters.AddWithValue("@ayah_num", ayahNum);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return new ProgressMetadata(0, 0);
+        }
+
+        return new ProgressMetadata(reader.GetInt32(0), reader.GetInt32(1));
+    }
+
+    private sealed record ProgressMetadata(int AttemptCount, int RecentErrorCount);
 
     private SqliteConnection CreateOpenConnection()
     {
@@ -467,6 +676,45 @@ public partial class LocalVerseRepository : IVerseRepository
         await using var schemaCommand = connection.CreateCommand();
         schemaCommand.CommandText = SchemaSql;
         await schemaCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task UpgradeProgressSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(memorization_progress);";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                columns.Add(reader.GetString(1));
+            }
+        }
+
+        var statements = new List<string>();
+        if (!columns.Contains("next_review_at"))
+        {
+            statements.Add("ALTER TABLE memorization_progress ADD COLUMN next_review_at TEXT;");
+        }
+        if (!columns.Contains("attempt_count"))
+        {
+            statements.Add("ALTER TABLE memorization_progress ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;");
+        }
+        if (!columns.Contains("recent_error_count"))
+        {
+            statements.Add("ALTER TABLE memorization_progress ADD COLUMN recent_error_count INTEGER NOT NULL DEFAULT 0;");
+        }
+
+        foreach (var statement in statements)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = statement;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var indexCommand = connection.CreateCommand();
+        indexCommand.CommandText = "CREATE INDEX IF NOT EXISTS idx_progress_due ON memorization_progress (user_key, next_review_at);";
+        await indexCommand.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private async Task SetDatasetMetadataAsync(SqliteConnection connection, string key, string value, CancellationToken cancellationToken)

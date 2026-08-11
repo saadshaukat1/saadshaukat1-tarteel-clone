@@ -8,10 +8,33 @@ public partial class LoginViewModel : ObservableObject
 {
     private readonly ISessionService _session;
 
-    [ObservableProperty] private string _email    = string.Empty;
-    [ObservableProperty] private string _password = string.Empty;
-    [ObservableProperty] private string _error    = string.Empty;
-    [ObservableProperty] private bool   _isBusy;
+    private string _email = string.Empty;
+    public string Email
+    {
+        get => _email;
+        set => SetProperty(ref _email, value);
+    }
+
+    private string _password = string.Empty;
+    public string Password
+    {
+        get => _password;
+        set => SetProperty(ref _password, value);
+    }
+
+    private string _error = string.Empty;
+    public string Error
+    {
+        get => _error;
+        set => SetProperty(ref _error, value);
+    }
+
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set => SetProperty(ref _isBusy, value);
+    }
 
     public LoginViewModel(ISessionService session) => _session = session;
 

@@ -100,7 +100,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                 continue;
             }
 
-            var (matchedWords, processedWords, mismatches) = AlignTokens(expectedTokens, spokenTokens);
+            var (matchedWords, processedWords, mismatches, spokenToExpected) = AlignTokens(expectedTokens, spokenTokens);
             var rawConfidence = ComputeConfidence(expectedTokens, spokenTokens, matchedWords);
             var positionMultiplier = ComputePositionMultiplier(candidate.SurahNum, candidate.AyahNum);
             var adjustedConfidence = Math.Clamp(rawConfidence * positionMultiplier, 0, 1);
@@ -122,7 +122,8 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                     ProcessedWordCount = processedWords,
                     MatchedWordCount = matchedWords,
                     Mismatches = mismatches,
-                    TajweedViolations = tajweedViolations
+                    TajweedViolations = tajweedViolations,
+                    SpokenToExpectedPosition = spokenToExpected
                 };
             }
         }
@@ -205,7 +206,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
     private const double GapExtendPenalty = -0.5;
     private const double GapOpenPenalty = -1.2;
 
-    private static (int MatchedWords, int ProcessedWords, IReadOnlyList<RecitationWordMismatch> Mismatches) AlignTokens(
+    private static (int MatchedWords, int ProcessedWords, IReadOnlyList<RecitationWordMismatch> Mismatches, IReadOnlyList<int?> SpokenToExpected) AlignTokens(
         IReadOnlyList<WordToken> expectedTokens,
         IReadOnlyList<WordToken> spokenTokens)
     {
@@ -213,7 +214,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
         var sLen = spokenTokens.Count;
 
         if (eLen == 0 || sLen == 0)
-            return (0, 0, []);
+            return (0, 0, [], new int?[sLen]);
 
         var score = new double[eLen + 1, sLen + 1];
         var trace = new byte[eLen + 1, sLen + 1];
@@ -239,6 +240,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
             }
         }
 
+        var spokenToExpected = new int?[sLen];
         var mismatches = new List<RecitationWordMismatch>();
         var matchedWords = 0;
         var ei = eLen;
@@ -250,6 +252,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
             {
                 case 1:
                     ei--; sj--;
+                    spokenToExpected[sj] = ei;
                     if (TokensEqual(expectedTokens[ei], spokenTokens[sj]))
                         matchedWords++;
                     else
@@ -257,6 +260,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
                     break;
                 case 2:
                     sj--;
+                    spokenToExpected[sj] = null;
                     break;
                 case 3:
                     ei--;
@@ -267,7 +271,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
 
         mismatches.Reverse();
         var processedWords = matchedWords + mismatches.Count;
-        return (matchedWords, processedWords, mismatches);
+        return (matchedWords, processedWords, mismatches, spokenToExpected);
     }
 
     private static double WordSimilarity(WordToken expected, WordToken spoken)

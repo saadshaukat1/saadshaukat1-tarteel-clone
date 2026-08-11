@@ -10,7 +10,7 @@ on:
       runtimeIdentifier:
         description: Runtime identifier
         required: false
-        default: win10-x64
+        default: win-x64
       buildOnly:
         description: Build only (skip publish/MSIX)
         required: false
@@ -60,7 +60,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 9.0.x
 
       - name: Install MAUI workload
         shell: pwsh
@@ -70,7 +70,7 @@ jobs:
         shell: pwsh
         run: >
           dotnet restore mobile/TarteelMobile/TarteelMobile.csproj
-          -p:TargetFramework=net10.0-windows10.0.19041.0
+          -p:TargetFramework=net9.0-windows10.0.19041.0
           -p:RuntimeIdentifier=win-x64
 
       - name: Build Local Recitation Core
@@ -82,7 +82,23 @@ jobs:
         run: >
           dotnet build mobile/TarteelMobile/TarteelMobile.csproj
           -c Release
-          -f net10.0-windows10.0.19041.0
+          -f net9.0-windows10.0.19041.0
+          -p:RuntimeIdentifier=win-x64
+
+      - name: Restore test project
+        shell: pwsh
+        run: >
+          dotnet restore tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj
+          -p:TargetFramework=net9.0-windows10.0.19041.0
+          -p:RuntimeIdentifier=win-x64
+
+      - name: Run tests
+        shell: pwsh
+        run: >
+          dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj
+          -c Release
+          -f net9.0-windows10.0.19041.0
+          --no-restore
           -p:RuntimeIdentifier=win-x64
 
       - name: Validate packaging script (dry-run)
@@ -108,7 +124,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 9.0.x
 
       - name: Run packaging script
         shell: pwsh
@@ -120,7 +136,7 @@ jobs:
 
           $runtimeIdentifier = '${{ inputs.runtimeIdentifier }}'
           if ([string]::IsNullOrWhiteSpace($runtimeIdentifier)) {
-            $runtimeIdentifier = "win10-x64"
+            $runtimeIdentifier = "win-x64"
           }
 
           $modelDir = '${{ inputs.modelDir }}'

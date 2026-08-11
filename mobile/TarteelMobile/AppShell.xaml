@@ -3,16 +3,27 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:views="clr-namespace:TarteelMobile.Views"
        x:Class="TarteelMobile.AppShell"
-       Shell.FlyoutBehavior="Disabled">
+        Shell.FlyoutBehavior="Disabled"
+        Shell.BackgroundColor="{StaticResource SurfacePanel}"
+        Shell.ForegroundColor="{StaticResource OnSurface}"
+        Shell.TitleColor="{StaticResource OnSurface}"
+        Shell.UnselectedColor="{StaticResource TextTertiary}"
+        Shell.TabBarBackgroundColor="{StaticResource SurfacePanel}"
+        Shell.TabBarForegroundColor="{StaticResource Primary}"
+        Shell.TabBarUnselectedColor="{StaticResource TextTertiary}"
+        Shell.TabBarTitleColor="{StaticResource OnSurface}">
 
     <TabBar>
-        <ShellContent Title="Recite"
+        <ShellContent Title="Recitation"
+                      Icon="tab_recite.svg"
                       ContentTemplate="{DataTemplate views:RecitationPage}"
                       Route="RecitationPage" />
         <ShellContent Title="Mushaf"
+                      Icon="tab_mushaf.svg"
                       ContentTemplate="{DataTemplate views:MushafPageView}"
                       Route="MushafPageView" />
-        <ShellContent Title="Progress"
+        <ShellContent Title="Practice record"
+                      Icon="tab_progress.svg"
                       ContentTemplate="{DataTemplate views:ProgressPage}"
                       Route="ProgressPage" />
     </TabBar>

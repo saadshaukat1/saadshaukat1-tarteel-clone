@@ -36,6 +36,7 @@ public static class MauiProgram
             return Options.Create(options);
         });
         builder.Services.AddSingleton<TarteelMobile.Services.IVerseRepository, LocalVerseRepository>();
+        builder.Services.AddSingleton<ITodayWorkflowService, TodayWorkflowService>();
         builder.Services.AddSingleton<IOfflineReadinessService, OfflineReadinessService>();
         builder.Services.AddSingleton<IOptions<LocalWhisperOptions>>(sp =>
         {

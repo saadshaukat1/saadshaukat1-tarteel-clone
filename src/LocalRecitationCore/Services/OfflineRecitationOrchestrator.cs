@@ -154,9 +154,7 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
                 .ToList(),
             transcription.WordTimestamps);
 
-        var combinedViolations = new List<TajweedViolation>(match.TajweedViolations.Count + phonemeViolations.Count);
-        combinedViolations.AddRange(match.TajweedViolations);
-        combinedViolations.AddRange(phonemeViolations);
+        var combinedViolations = MergeViolations(match.TajweedViolations, phonemeViolations);
 
         DiagnosticEmitted?.Invoke(this,
             $"🎯 match #{matchCount} | {match.SurahNum}:{match.AyahNum} conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount} mismatches={match.Mismatches.Count} tajweed={combinedViolations.Count}");
@@ -174,7 +172,8 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
             SurahNameEnglish = match.SurahNameEnglish,
             SurahNameArabic = match.SurahNameArabic,
             Mismatches = match.Mismatches,
-            TajweedViolations = combinedViolations
+            TajweedViolations = combinedViolations,
+            SpokenToExpectedPosition = match.SpokenToExpectedPosition
         };
 
         await _progressStore.SaveAsync(matchWithTranscript, cancellationToken);
@@ -257,6 +256,29 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         }
 
         return 0;
+    }
+
+    private static List<TajweedViolation> MergeViolations(
+        IReadOnlyList<TajweedViolation> textViolations,
+        IReadOnlyList<TajweedViolation> phonemeViolations)
+    {
+        var seen = new HashSet<(int Position, TajweedRuleType Rule)>();
+        var result = new List<TajweedViolation>(textViolations.Count + phonemeViolations.Count);
+
+        // Prefer phoneme (audio-evidence) violations: add them first so text duplicates get skipped.
+        foreach (var v in phonemeViolations)
+        {
+            if (seen.Add((v.WordPosition, v.Rule)))
+                result.Add(v);
+        }
+
+        foreach (var v in textViolations)
+        {
+            if (seen.Add((v.WordPosition, v.Rule)))
+                result.Add(v);
+        }
+
+        return result;
     }
 
     private static string NormalizeToken(string token)

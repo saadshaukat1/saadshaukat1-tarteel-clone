@@ -26,14 +26,14 @@ public sealed record TajweedViolation(
 {
     public string RuleDisplayName => Rule switch
     {
-        TajweedRuleType.Madd        => "?? Madd � Elongate this letter",
-        TajweedRuleType.Ghunna      => "?? Ghunna � Apply nasalization (2 counts)",
-        TajweedRuleType.Qalqalah    => "?? Qalqalah � Add echo on plosive letter",
-        TajweedRuleType.Idgham      => "?? Idgham � Merge n?n into following letter",
-        TajweedRuleType.Ikhfa       => "?? Ikhfa � Hide n?n with partial nasalization",
-        TajweedRuleType.Iqlab       => "?? Iqlab � Change n?n to m?m before b?'",
-        TajweedRuleType.Izhar       => "? Izhar � Pronounce n?n clearly",
-        _                           => "? Makhraj � Check articulation point",
+        TajweedRuleType.Madd => "Madd · elongate",
+        TajweedRuleType.Ghunna => "Ghunna · nasalization",
+        TajweedRuleType.Qalqalah => "Qalqalah · echo",
+        TajweedRuleType.Idgham => "Idgham · merge",
+        TajweedRuleType.Ikhfa => "Ikhfa · conceal",
+        TajweedRuleType.Iqlab => "Iqlab · convert",
+        TajweedRuleType.Izhar => "Izhar · clarify",
+        _ => "Makhraj · articulation",
     };
 }
 
@@ -51,8 +51,14 @@ public sealed class RecitationMatchResult
     public string SurahNameArabic { get; init; } = string.Empty;
     public IReadOnlyList<RecitationWordMismatch> Mismatches { get; init; } = [];
     public IReadOnlyList<TajweedViolation> TajweedViolations { get; init; } = [];
+    /// <summary>
+    /// For each spoken word (by index), the aligned expected-word position or null
+    /// when the spoken word is an insertion with no expected counterpart. The count
+    /// matches the number of transcribed spoken words. Used by the phoneme analyzer
+    /// to pair real timestamps with their true ayah-word positions.
+    /// </summary>
+    public IReadOnlyList<int?> SpokenToExpectedPosition { get; init; } = [];
 }
-
 public sealed class RecitationVerse
 {
     public int SurahNum { get; init; }

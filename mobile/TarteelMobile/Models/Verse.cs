@@ -17,15 +17,18 @@ public sealed record VerseProgress(
     int AyahNum,
     string ArabicText,
     double MasteryScore,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? NextReviewAt = null,
+    int AttemptCount = 0,
+    int RecentErrorCount = 0)
 {
     public string Label => $"{SurahNum}:{AyahNum}";
     public string MasteryDisplay => $"{MasteryScore:P0}";
     public Color MasteryColor => MasteryScore switch
     {
-        >= 0.9 => Color.FromArgb("#1A6B3C"),
-        >= 0.6 => Color.FromArgb("#F59E0B"),
-        _       => Color.FromArgb("#E53935")
+        >= 0.9 => (Color)Application.Current!.Resources["Success"],
+        >= 0.6 => (Color)Application.Current!.Resources["Warning"],
+        _       => (Color)Application.Current!.Resources["Error"]
     };
     public string UpdatedDisplay => UpdatedAt == DateTimeOffset.MinValue
         ? string.Empty

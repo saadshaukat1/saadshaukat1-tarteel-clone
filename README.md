@@ -154,7 +154,7 @@ tarteel-clone/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- .NET 10 SDK
+- .NET 9 SDK
 - MAUI workload for Windows
 - Windows 10/11
 
@@ -185,11 +185,11 @@ dotnet workload install maui
 
 ```powershell
 dotnet restore mobile/TarteelMobile/TarteelMobile.csproj `
-  -p:TargetFramework=net10.0-windows10.0.19041.0 `
+  -p:TargetFramework=net9.0-windows10.0.19041.0 `
   -p:RuntimeIdentifier=win-x64
 
 dotnet build mobile/TarteelMobile/TarteelMobile.csproj `
-  -f net10.0-windows10.0.19041.0 `
+  -f net9.0-windows10.0.19041.0 `
   -p:RuntimeIdentifier=win-x64
 ```
 
@@ -197,7 +197,7 @@ dotnet build mobile/TarteelMobile/TarteelMobile.csproj `
 
 ```powershell
 dotnet run --project mobile/TarteelMobile/TarteelMobile.csproj `
-  -f net10.0-windows10.0.19041.0 `
+  -f net9.0-windows10.0.19041.0 `
   -p:RuntimeIdentifier=win-x64
 ```
 

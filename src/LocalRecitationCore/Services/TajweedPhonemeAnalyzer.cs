@@ -105,7 +105,7 @@ public static class TajweedPhonemeAnalyzer
             TajweedRuleType.Madd,
             expectedWord,
             expectedWord,
-            $"Madd in '{expectedWord}' is {durationMs:0} ms ({status}). Expected {minDurationMs:0}–{maxDurationMs:0} ms for 2–6 harakat.");
+            $"Madd in '{expectedWord}' may be {durationMs:0} ms ({status}). Expected {minDurationMs:0}–{maxDurationMs:0} ms for 2–6 harakat.");
     }
 
     private static TajweedViolation? CheckGhunna(
@@ -170,19 +170,47 @@ public static class TajweedPhonemeAnalyzer
     {
         if (string.IsNullOrWhiteSpace(word))
             return false;
-        return QalqalahLetters.Contains(word[^1]);
+        var stripped = TajweedRuleEngine.Strip(word);
+        return stripped.Length > 0 && QalqalahLetters.Contains(stripped[^1]);
     }
 
     private static float[] ExtractPcmSamples(byte[] audioData)
     {
-        var sampleCount = audioData.Length / 2;
+        var data = SkipWavHeader(audioData);
+        var sampleCount = data.Length / 2;
         var samples = new float[sampleCount];
-        for (var i = 0; i < audioData.Length; i += 2)
+        for (var i = 0; i < data.Length; i += 2)
         {
-            var sample = (short)(audioData[i] | (audioData[i + 1] << 8));
+            var sample = (short)(data[i] | (data[i + 1] << 8));
             samples[i / 2] = sample / 32768f;
         }
         return samples;
+    }
+
+    private static byte[] SkipWavHeader(byte[] data)
+    {
+        if (data.Length < 44)
+            return data;
+
+        // RIFF WAVE header: 'RIFF' at offset 0, 'WAVE' at offset 8.
+        if (data[0] != 'R' || data[1] != 'I' || data[2] != 'F' || data[3] != 'F')
+            return data;
+        if (data[8] != 'W' || data[9] != 'A' || data[10] != 'V' || data[11] != 'E')
+            return data;
+
+        // Parse RIFF chunks to find the 'data' chunk.
+        var pos = 12;
+        while (pos + 8 <= data.Length)
+        {
+            var chunkSize = BitConverter.ToInt32(data, pos + 4);
+            // Check for 'data' marker.
+            if (data[pos] == 'd' && data[pos + 1] == 'a' && data[pos + 2] == 't' && data[pos + 3] == 'a')
+                return data[(pos + 8)..];
+
+            pos += 8 + chunkSize;
+        }
+
+        return data;
     }
 
     private static float[] SliceSamples(float[] pcm, TimeSpan start, TimeSpan end, int sampleRate)
@@ -202,7 +230,10 @@ public static class TajweedPhonemeAnalyzer
         if (samples.Length < 2)
             return 0;
 
-        var window = samples.Take(Math.Min(samples.Length, 1024)).ToArray();
+        var window = samples;            // Use the full word slice, not just first 1024 samples.
+        if (window.Length > 4096)        // Cap at 4096 for performance.
+            window = new ArraySegment<float>(samples, 0, 4096).ToArray();
+
         var fftSize = NextPowerOfTwo(window.Length);
         var real = new double[fftSize];
         var imag = new double[fftSize];

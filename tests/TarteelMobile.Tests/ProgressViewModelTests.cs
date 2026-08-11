@@ -1,4 +1,5 @@
-﻿using TarteelMobile.Models;
+﻿using TarteelClone.LocalRecitationCore.Models;
+using TarteelMobile.Models;
 using TarteelMobile.Services;
 using TarteelMobile.ViewModels;
 using Xunit;
@@ -15,7 +16,7 @@ public sealed class ProgressViewModelTests
             new VerseProgress(1, 2, "text", 0.50, DateTimeOffset.UtcNow)
         ]);
 
-        var vm = new ProgressViewModel(repo, new FakeSessionService("hifz@example.com"), new FakeDiagnosticsService());
+        var vm = new ProgressViewModel(repo, new FakeTodayWorkflowService(), new FakeSessionService("hifz@example.com"), new FakeDiagnosticsService());
 
         await vm.RefreshCommand.ExecuteAsync(null);
 
@@ -31,12 +32,19 @@ public sealed class ProgressViewModelTests
     {
         var vm = new ProgressViewModel(
             new FakeVerseRepository([]),
+            new FakeTodayWorkflowService(),
             new FakeSessionService("hifz@example.com"),
             new FakeDiagnosticsService());
 
         await vm.RefreshCommand.ExecuteAsync(null);
 
         Assert.Equal("No verses practiced yet. Start reciting!", vm.OverallSummary);
+    }
+
+    private sealed class FakeTodayWorkflowService : ITodayWorkflowService
+    {
+        public Task<IReadOnlyList<TodayAssignment>> GetTodayAssignmentsAsync(string? userKey = null, DateTimeOffset? now = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<TodayAssignment>>([]);
     }
 
     private sealed class FakeVerseRepository : IVerseRepository
@@ -60,8 +68,21 @@ public sealed class ProgressViewModelTests
         public Task<IReadOnlyList<VerseProgress>> GetProgressAsync(string? userKey = null, CancellationToken cancellationToken = default)
             => Task.FromResult(_progress);
 
+        public Task<IReadOnlyList<VerseProgress>> GetDueProgressAsync(string? userKey = null, DateTimeOffset? now = null, int limit = 20, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<VerseProgress>>(_progress.Take(Math.Max(limit, 0)).ToArray());
+
         public Task RecordRecitationAsync(string? userKey, int surahNum, int ayahNum, double masteryScore, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+        public Task<LearningPlan> GetOrCreateLearningPlanAsync(string? userKey = null, LearningPlanInput? input = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<LessonAssignment>> CreateAssignmentsAsync(string? userKey, IReadOnlyList<LessonAssignmentInput> assignments, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<LessonAssignment>> GetAssignmentsAsync(string? userKey = null, LessonAssignmentStatus? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<LessonAssignment?> GetAssignmentAsync(long assignmentId, string? userKey = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<LessonAssignment> MarkAssignmentInProgressAsync(long assignmentId, long sessionId, string? userKey = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<RecitationSession> OpenRecitationSessionAsync(string? userKey = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<RecitationSession> CloseRecitationSessionAsync(long sessionId, RecitationSessionStatus status = RecitationSessionStatus.Completed, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<RecitationSession>> GetRecitationSessionsAsync(string? userKey = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<VerseAttempt> SaveVerseAttemptAsync(string? userKey, VerseAttemptInput attempt, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<VerseAttempt>> GetVerseAttemptsAsync(string? userKey = null, long? sessionId = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
         public Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> w, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Verse>>([]);
         public Task<JuzInfo?> GetJuzForVerseAsync(int s, int a, CancellationToken ct = default) => Task.FromResult<JuzInfo?>(null);

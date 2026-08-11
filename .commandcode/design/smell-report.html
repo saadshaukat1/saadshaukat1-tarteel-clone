@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Tarteel Desktop - Smell Report</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<style>
+		body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+		.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+		.report-section { border: 1px solid #222226; background: #0a0a0b; position: relative; }
+		.corner-box { position: absolute; width: 20px; height: 20px; border: 1px solid #222226; background: #000; }
+		.code-block { background: #111827; border: 1px solid #374151; padding: 12px; border-radius: 4px; overflow-x: auto; }
+		.code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+	</style>
+</head>
+<body class="bg-black text-[#fafafa]">
+	<main class="mx-auto w-full max-w-6xl px-5 py-8 md:px-10 md:py-12">
+		<header class="report-section mb-8 p-6 md:p-8">
+			<div class="corner-box left-0 top-0 -translate-x-1/2 -translate-y-1/2"></div>
+			<div class="corner-box right-0 top-0 translate-x-1/2 -translate-y-1/2"></div>
+			<div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+				<div>
+					<div class="mono mb-2 text-xs tracking-widest text-[#666]">// SMELL REPORT</div>
+					<h1 class="text-4xl font-bold tracking-tight md:text-6xl">Tarteel Desktop</h1>
+				</div>
+				<div class="mono text-left text-xs text-[#666] md:text-right">
+					<div>COMMANDCODE REPORT</div>
+					<div class="text-[#444]">2026-08-07</div>
+				</div>
+			</div>
+		</header>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="corner-box left-0 top-0 -translate-x-1/2 -translate-y-1/2"></div>
+			<div class="corner-box right-0 top-0 translate-x-1/2 -translate-y-1/2"></div>
+			<div>
+				<div class="mono mb-3 text-xs tracking-widest text-[#666]">// TL;DR</div>
+				<p class="text-sm leading-6 text-[#a0a0a0]">12 AI-tell patterns detected across 7 XAML files and 1 C# code-behind. Two HIGH-severity tells — the ConverterParameter hex-string hack and the non-compiling ThemeBinding — directly break usability and build correctness. The app has the bones of a real product but the surface reads as "assembled, not authored."</p>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// SMELL CATALOG</div>
+			<div class="overflow-x-auto">
+				<table class="w-full min-w-[720px] border-collapse text-sm">
+					<thead>
+						<tr class="border-b border-[#222226] text-left mono text-xs text-[#666]">
+							<th class="py-3 pr-4 font-normal">#</th>
+							<th class="py-3 pr-4 font-normal">TELL</th>
+							<th class="py-3 pr-4 font-normal">WHERE</th>
+							<th class="py-3 font-normal">SEVERITY</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">1</td>
+							<td class="py-4 pr-4 text-[#fafafa]">String-delimited ConverterParameter with hex colors</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">App.xaml, RecitationPage.xaml</td>
+							<td class="py-4"><span class="border border-[#f43f5e]/30 bg-[#f43f5e]/10 px-2 py-0.5 text-xs text-[#f43f5e]">HIGH</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">2</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Invalid ThemeBinding (does not compile)</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">MushafPageView.xaml</td>
+							<td class="py-4"><span class="border border-[#f43f5e]/30 bg-[#f43f5e]/10 px-2 py-0.5 text-xs text-[#f43f5e]">HIGH</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">3</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Border + RoundRectangle as every container</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">All XAML pages</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">4</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Picker-as-primary-interaction on desktop</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">MushafPageView.xaml</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">5</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Text-only TabBar, no icons</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">AppShell.xaml</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">6</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Algorithmic word-wrap 16-liner, not pre-computed</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">MushafPageView.xaml.cs</td>
+							<td class="py-4"><span class="border border-[#fbbf24]/30 bg-[#fbbf24]/10 px-2 py-0.5 text-xs text-[#fbbf24]">MEDIUM</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">7</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Auto/\*/Auto header-content-footer grid</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">RecitationPage.xaml</td>
+							<td class="py-4"><span class="border border-[#444]/30 bg-[#444]/10 px-2 py-0.5 text-xs text-[#888]">LOW</span></td>
+						</tr>
+						<tr class="border-b border-[#1a1a1e]">
+							<td class="py-4 pr-4 text-[#555]">8</td>
+							<td class="py-4 pr-4 text-[#fafafa]">Inconsistent x:DataType adoption</td>
+							<td class="py-4 pr-4 text-[#a0a0a0]">MushafPageView vs Recitation/Login</td>
+							<td class="py-4"><span class="border border-[#444]/30 bg-[#444]/10 px-2 py-0.5 text-xs text-[#888]">LOW</span></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="report-section mb-8 p-6 md:p-8">
+			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// TELL DETAILS</div>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#f43f5e]">HIGH</div>
+				<h2 class="mb-3 text-lg font-semibold">1. String-delimited ConverterParameter with hex colors</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;I need to branch on a boolean but don&lsquo;t want to touch the ViewModel&rdquo; — pushing color decisions into the View layer via a pipe-delimited string of hex codes instead of binding to named token resources.</p>
+				<div class="code-block mb-3">
+					<code>Color="{Binding IsVerseCorrect,<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Converter={StaticResource BoolToColorConverter},<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ConverterParameter='#2D8C4F|#C04040'}"</code>
+				</div>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Move bool→color logic to ViewModel (e.g. VerseCorrectColor bound to {StaticResource Success}/{StaticResource Error}). Replace with VisualStateManager where possible.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#f43f5e]">HIGH</div>
+				<h2 class="mb-3 text-lg font-semibold">2. Invalid ThemeBinding markup extension — does not compile</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;Hallucinated API&rdquo; — writing XAML that looks plausible but was never validated. Build fails with XC0000: Cannot resolve type &ldquo;ThemeBinding&rdquo;.</p>
+				<div class="code-block mb-3">
+					<code>BackgroundColor&ldquo;{ThemeBinding Primary, Light={StaticResource Surface}, Dark={StaticResource SurfaceDark}}&rdquo;</code>
+				</div>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Use {AppThemeBinding Light=..., Dark=...} — the real MAUI extension. Until dark-mode is implemented, remove all theme bindings and use light-only resources.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#fbbf24]">MEDIUM</div>
+				<h2 class="mb-3 text-lg font-semibold">3. Border + RoundRectangle as every container</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;I need a container, which primitive?&rdquo; — every panel uses Border+RoundRectangle with no visual hierarchy between surface layers.</p>
+				<div class="code-block mb-3">
+					<code>&lt;Border StrokeShape="RoundRectangle 12"&gt;</code>
+				</div>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Corner-radius scale (16 primary, 8 secondary, 0 flat). Primary cards get 1px stroke; secondary panels get 0.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#fbbf24]">MEDIUM</div>
+				<h2 class="mb-2 text-lg font-semibold">4. Picker-as-primary-interaction on desktop</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;Throw a native control at it&rdquo; — avoiding the hard work of designing a proper selector by deferring to generic platform dropdowns.</p>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Style Pickers to match the app&lsquo;s surface language, or replace with a custom flyout that matches the recitation tool&lsquo;s visual tier.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#fbbf24]">MEDIUM</div>
+				<h2 class="mb-2 text-lg font-semibold">5. Text-only TabBar — no icons</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;I can&lsquo;t choose good icons so I&lsquo;ll use text&rdquo; — three tabs with no visual shorthand.</p>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Add MAUI Shell icon resources (book, mic, chart) to match tab semantics.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5 mb-5">
+				<div class="mono mb-2 text-xs text-[#fbbf24]">MEDIUM</div>
+				<h2 class="mb-2 text-lg font-semibold">6. Algorithmic word-wrap 16-liner</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]">&ldquo;Make it work&rdquo; algorithm packs words by character count instead of using pre-computed mushaf line data. Arabic glyphs aren't monospaced — character-count distribution produces visually uneven lines.</p>
+				<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Use pre-computed line data from the mushaf page map. If unavailable, render verses in natural flow within the 16 rows instead of forcing an approximation.</div>
+			</article>
+
+			<article class="border border-[#1a1f24] p-5">
+				<div class="mono mb-2 text-xs text-[#888]">LOW</div>
+				<h2 class="mb-2 text-lg font-semibold">7-8. Header-content-footer grid &amp; Inconsistent x:DataType</h2>
+				<p class="mb-3 text-sm leading-6 text-[#a0a0a0]"><span class="text-[#fbbf24]">7.</span> Auto/* /Auto is the lazy page-structure default. <span class="text-[#fbbf24]">8.</span> x:DataType added to MushafPageView only — half-adopted compiled bindings. Both are "started something and forgot" patterns.</p>
+				<div class="border-l border-[#444] pl-4 text-sm leading-6 text-[#888]">FIX: Use explicit row heights for fixed-height chrome. Add x:DataType to all pages and DataTemplates consistently.</div>
+			</article>
+		</section>
+
+		<footer class="mono py-8 text-center text-xs tracking-widest text-[#444]">
+			Generated with CommandCode · 2026-08-07
+		</footer>
+	</main>
+</body>
+</html>

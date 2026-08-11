@@ -179,13 +179,13 @@ Typical commands (Windows):
 - Install workload:
   - dotnet workload install maui
 - Restore:
-  - dotnet restore mobile/TarteelMobile/TarteelMobile.csproj -p:TargetFramework=net10.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
+  - dotnet restore mobile/TarteelMobile/TarteelMobile.csproj -p:TargetFramework=net9.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
 - Build app:
-  - dotnet build mobile/TarteelMobile/TarteelMobile.csproj -f net10.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
+  - dotnet build mobile/TarteelMobile/TarteelMobile.csproj -f net9.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
 - Run app:
-  - dotnet run --project mobile/TarteelMobile/TarteelMobile.csproj -f net10.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
+  - dotnet run --project mobile/TarteelMobile/TarteelMobile.csproj -f net9.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
 - Run tests:
-  - dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj
+  - dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj -f net9.0-windows10.0.19041.0 -p:RuntimeIdentifier=win-x64
 
 Packaging:
 
@@ -254,7 +254,7 @@ If you are hardening ASR:
 ## 15. Operational Notes for AI Agents
 
 - Prefer offline-safe changes unless a task explicitly introduces network dependency.
-- Keep Windows target compatibility intact (net10.0-windows10.0.19041.0).
+- Keep Windows target compatibility intact (net9.0-windows10.0.19041.0 with win-x64).
 - Avoid breaking MauiProgram registration graph; a missing adapter registration can silently break runtime features.
 - For behavioral claims, cite/inspect code in:
   - MauiProgram.cs

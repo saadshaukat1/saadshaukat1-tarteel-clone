@@ -21,11 +21,11 @@
 				<div>
 					<div class="mono mb-2 text-xs tracking-widest text-[#666]">// CHECKUP</div>
 					<h1 class="text-4xl font-bold tracking-tight md:text-6xl">Tarteel</h1>
-					<div class="mt-2 text-sm text-[#666]">Offline Recitation Desktop App &middot; MAUI .NET 9</div>
+					<div class="mt-2 text-sm text-[#666]">Offline Recitation Desktop App · MAUI .NET 9</div>
 				</div>
 				<div class="mono text-left text-xs text-[#666] md:text-right">
 					<div>COMMANDCODE REPORT</div>
-					<div class="text-[#444]">2026-07-15</div>
+					<div class="text-[#444]">2026-08-11</div>
 				</div>
 			</div>
 		</header>
@@ -36,14 +36,14 @@
 			<div class="grid gap-8 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
 				<div>
 					<div class="mono mb-2 text-xs tracking-widest text-[#666]">// OVERALL</div>
-					<div class="text-6xl font-bold tracking-tight md:text-7xl">45</div>
+					<div class="text-6xl font-bold tracking-tight md:text-7xl">25</div>
 					<div class="mt-1 text-lg text-[#666]">/ 60</div>
-					<div class="mt-4 inline-flex border border-[#34d399]/30 bg-[#34d399]/10 px-3 py-1 text-sm text-[#34d399]">PROCEED WITH FIXES</div>
+					<div class="mt-4 inline-flex border border-[#ef4444]/30 bg-[#ef4444]/10 px-3 py-1 text-sm text-[#ef4444]">PAUSE: VISUAL BLOCKER</div>
 				</div>
 				<div>
 					<div class="mono mb-3 text-xs tracking-widest text-[#666]">// TL;DR</div>
-					<p class="text-sm leading-6 text-[#a0a0a0]">Strong recovery from the June 24/50 review: token system, Arabic typography, real labels, and visible states are all implemented. Remaining risk is accessibility (no dark mode, keyboard, or focus) plus one stale font-registration comment and an unverified speed signal from a blocked build.</p>
-					<p class="mt-4 text-sm leading-6 text-[#fbbf24]">Run /design interaction next — keyboard shortcuts, focus rings, disabled states.</p>
+					<p class="text-sm leading-6 text-[#a0a0a0]">The composition and build are healthy, but recent Windows screenshots show the static-resource-driven interface resolving to black. Labels, pickers, borders, and status text are unreadable; only the direct view-model mic color is clearly visible.</p>
+					<p class="mt-4 text-sm leading-6 text-[#fbbf24]">Run /design recolor and verify the actual Windows rendering before further polish.</p>
 				</div>
 			</div>
 		</section>
@@ -52,58 +52,14 @@
 			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// HEURISTIC SCORES</div>
 			<div class="overflow-x-auto">
 				<table class="w-full min-w-[720px] border-collapse text-sm">
-					<thead>
-						<tr class="border-b border-[#222226] text-left mono text-xs text-[#666]">
-							<th class="py-3 pr-4 font-normal">#</th>
-							<th class="py-3 pr-4 font-normal">VITAL SIGN</th>
-							<th class="py-3 pr-4 font-normal">SCORE</th>
-							<th class="py-3 font-normal">STATUS</th>
-							<th class="py-3 font-normal">KEY FINDING</th>
-						</tr>
-					</thead>
+					<thead><tr class="border-b border-[#222226] text-left mono text-xs text-[#666]"><th class="py-3 pr-4 font-normal">#</th><th class="py-3 pr-4 font-normal">VITAL SIGN</th><th class="py-3 pr-4 font-normal">SCORE</th><th class="py-3 pr-4 font-normal">STATUS</th><th class="py-3 font-normal">KEY FINDING</th></tr></thead>
 					<tbody>
-						<tr class="border-b border-[#1a1a1e]">
-							<td class="py-4 pr-4 text-[#555]">1</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Intentionality</td>
-							<td class="py-4 pr-4 text-[#fbbf24]">8/10</td>
-							<td class="py-4 text-[#fbbf24]">WATCH</td>
-							<td class="py-4 text-[#a0a0a0]">Authored palette + type scale; stale MauiProgram font comment contradicts csproj registration.</td>
-						</tr>
-						<tr class="border-b border-[#1a1a1e]">
-							<td class="py-4 pr-4 text-[#555]">2</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Readability</td>
-							<td class="py-4 pr-4 text-[#34d399]">9/10</td>
-							<td class="py-4 text-[#34d399]">HEALTHY</td>
-							<td class="py-4 text-[#a0a0a0]">Noto Naskh Arabic at 28px, 1.8 line-height, 700px measure. Body uses token scale.</td>
-						</tr>
-						<tr class="border-b border-[#1a1a1e]">
-							<td class="py-4 pr-4 text-[#555]">3</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Usability</td>
-							<td class="py-4 pr-4 text-[#fbbf24]">7/10</td>
-							<td class="py-4 text-[#fbbf24]">WATCH</td>
-							<td class="py-4 text-[#a0a0a0]">Full recitation loop + states, but no keyboard shortcuts or focus rings on a desktop app.</td>
-						</tr>
-						<tr class="border-b border-[#1a1a1e]">
-							<td class="py-4 pr-4 text-[#555]">4</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Responsiveness</td>
-							<td class="py-4 pr-4 text-[#34d399]">8/10</td>
-							<td class="py-4 text-[#34d399]">HEALTHY</td>
-							<td class="py-4 text-[#a0a0a0]">Desktop single-window layout; Arabic measure + wrap prevents runaway lines. Mobile unverified.</td>
-						</tr>
-						<tr class="border-b border-[#1a1a1e]">
-							<td class="py-4 pr-4 text-[#555]">5</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Speed</td>
-							<td class="py-4 pr-4 text-[#fbbf24]">5/10</td>
-							<td class="py-4 text-[#fbbf24]">WATCH</td>
-							<td class="py-4 text-[#a0a0a0]">Unverified. Build blocked: LocalRecitationCore targets net10.0, SDK is 9.0.315 (NETSDK1045).</td>
-						</tr>
-						<tr>
-							<td class="py-4 pr-4 text-[#555]">6</td>
-							<td class="py-4 pr-4 text-[#fafafa]">Accessibility</td>
-							<td class="py-4 pr-4 text-[#fbbf24]">8/10</td>
-							<td class="py-4 text-[#fbbf24]">WATCH</td>
-							<td class="py-4 text-[#a0a0a0]">High-contrast tokens, but no dark mode, focus, keyboard nav, or reduced-motion.</td>
-						</tr>
+						<tr class="border-b border-[#1a1a1e]"><td class="py-4 pr-4 text-[#555]">1</td><td class="py-4 pr-4">Intentionality</td><td class="py-4 pr-4 text-[#fbbf24]">5/10</td><td class="py-4 pr-4 text-[#fbbf24]">WATCH</td><td class="py-4 text-[#a0a0a0]">Authored palette in XAML, but rendered output collapses to black.</td></tr>
+						<tr class="border-b border-[#1a1a1e]"><td class="py-4 pr-4 text-[#555]">2</td><td class="py-4 pr-4">Readability</td><td class="py-4 pr-4 text-[#ef4444]">0/10</td><td class="py-4 pr-4 text-[#ef4444]">CRITICAL</td><td class="py-4 text-[#a0a0a0]">Screenshot shows unreadable labels, selectors, borders, and status text.</td></tr>
+						<tr class="border-b border-[#1a1a1e]"><td class="py-4 pr-4 text-[#555]">3</td><td class="py-4 pr-4">Usability</td><td class="py-4 pr-4 text-[#fbbf24]">5/10</td><td class="py-4 pr-4 text-[#fbbf24]">WATCH</td><td class="py-4 text-[#a0a0a0]">Recitation controls exist, but invisible controls block reliable use.</td></tr>
+						<tr class="border-b border-[#1a1a1e]"><td class="py-4 pr-4 text-[#555]">4</td><td class="py-4 pr-4">Responsiveness</td><td class="py-4 pr-4 text-[#fbbf24]">5/10</td><td class="py-4 pr-4 text-[#fbbf24]">WATCH</td><td class="py-4 text-[#a0a0a0]">Desktop structure is defined; narrow and mobile behavior is unverified.</td></tr>
+						<tr class="border-b border-[#1a1a1e]"><td class="py-4 pr-4 text-[#555]">5</td><td class="py-4 pr-4">Speed</td><td class="py-4 pr-4 text-[#34d399]">10/10</td><td class="py-4 pr-4 text-[#34d399]">HEALTHY</td><td class="py-4 text-[#a0a0a0]">Windows build completed with 0 warnings and 0 errors; runtime speed not measured.</td></tr>
+						<tr><td class="py-4 pr-4 text-[#555]">6</td><td class="py-4 pr-4">Accessibility</td><td class="py-4 pr-4 text-[#ef4444]">0/10</td><td class="py-4 pr-4 text-[#ef4444]">CRITICAL</td><td class="py-4 text-[#a0a0a0]">Observed contrast failure blocks low-vision and keyboard users.</td></tr>
 					</tbody>
 				</table>
 			</div>
@@ -112,77 +68,16 @@
 		<section class="report-section mb-8 p-6 md:p-8">
 			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// SIGNAL / RISK</div>
 			<div class="grid gap-6 md:grid-cols-2">
-				<div>
-					<div class="mb-3 text-xl font-semibold text-[#34d399]">Watch Items</div>
-					<ul class="space-y-3 text-sm text-[#a0a0a0]">
-						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>Empty ConfigureFonts block with a false "fonts not added" comment while csproj registers NotoNaskhArabic.ttf.</li>
-						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>No AppThemeBinding / dark mode; unused SurfaceDark + SurfacePanelDark tokens.</li>
-						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>No keyboard accelerators; pickers disable mid-recording with zero visual change.</li>
-						<li><span class="mono mr-2 text-[#fbbf24]">WATCH</span>Speed unverifiable — build fails on .NET 10 SDK mismatch.</li>
-					</ul>
-				</div>
-				<div>
-					<div class="mono mb-3 text-xs tracking-widest text-[#666]">// NEXT MODES</div>
-					<div class="flex flex-wrap gap-2">
-						<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design interaction</span>
-						<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design recolor</span>
-						<span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design relayout</span>
-					</div>
-				</div>
+				<div><div class="mb-3 text-xl font-semibold text-[#ef4444]">Critical blockers</div><ul class="space-y-3 text-sm text-[#a0a0a0]"><li><span class="mono mr-2 text-[#ef4444]">FAIL</span>Static resources render as black in the supplied Windows screenshots.</li><li><span class="mono mr-2 text-[#ef4444]">FAIL</span>Contrast and visible focus cannot be evaluated as healthy while the base palette is unreadable.</li></ul></div>
+				<div><div class="mono mb-3 text-xs tracking-widest text-[#666]">// NEXT MODES</div><div class="flex flex-wrap gap-2"><span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design recolor</span><span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design interaction</span><span class="border border-[#333] px-3 py-1 text-sm text-[#a0a0a0]">/design responsive</span></div></div>
 			</div>
 		</section>
 
-		<section class="report-section mb-8 p-6 md:p-8">
-			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// WHAT'S WORKING</div>
-			<div class="grid gap-4 md:grid-cols-3">
-				<article class="border border-[#1f1f24] p-4">
-					<h2 class="mb-2 text-sm font-semibold">Real token system</h2>
-					<p class="text-sm leading-6 text-[#a0a0a0]">51 named Color resources in App.xaml; no page-level hex spam (4 inline hex are converter parameters).</p>
-				</article>
-				<article class="border border-[#1f1f24] p-4">
-					<h2 class="mb-2 text-sm font-semibold">Correct Arabic type</h2>
-					<p class="text-sm leading-6 text-[#a0a0a0]">Noto Naskh Arabic registered and applied with 1.8 line-height and 700px measure.</p>
-				</article>
-				<article class="border border-[#1f1f24] p-4">
-					<h2 class="mb-2 text-sm font-semibold">States present</h2>
-					<p class="text-sm leading-6 text-[#a0a0a0]">Model-missing/downloading overlays, transcription indicator, empty progress view, verse-hidden placeholder.</p>
-				</article>
-			</div>
-		</section>
+		<section class="report-section mb-8 p-6 md:p-8"><div class="mono mb-6 text-xs tracking-widest text-[#666]">// WHAT'S WORKING</div><div class="grid gap-4 md:grid-cols-3"><article class="border border-[#1f1f24] p-4"><h2 class="mb-2 text-sm font-semibold">Task-shaped composition</h2><p class="text-sm leading-6 text-[#a0a0a0]">Selectors, verse workspace, feedback panels, and persistent mic status map to the recitation workflow.</p></article><article class="border border-[#1f1f24] p-4"><h2 class="mb-2 text-sm font-semibold">Arabic presentation</h2><p class="text-sm leading-6 text-[#a0a0a0]">RTL flow, Noto Naskh Arabic, large verse type, and bounded measure are present in the page implementation.</p></article><article class="border border-[#1f1f24] p-4"><h2 class="mb-2 text-sm font-semibold">Build health</h2><p class="text-sm leading-6 text-[#a0a0a0]">The required Windows target builds with no warnings or errors.</p></article></div></section>
 
-		<section class="report-section mb-8 p-6 md:p-8">
-			<div class="mono mb-6 text-xs tracking-widest text-[#666]">// PRIORITY ISSUES</div>
-			<div class="space-y-5">
-				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
-					<div class="mono mb-2 text-xs text-[#f43f5e]">P1</div>
-					<h2 class="mb-2 text-lg font-semibold">Stale font-registration contradiction</h2>
-					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">MauiProgram.ConfigureFonts is empty with a comment claiming fonts are not yet added, but csproj already registers Resources/Fonts/*.ttf (incl. NotoNaskhArabic.ttf). The comment is false and will mislead the next contributor.</p>
-					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Delete the empty ConfigureFonts block + stale comment; font truth is the csproj MauiFont include.</div>
-				</article>
-				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
-					<div class="mono mb-2 text-xs text-[#f43f5e]">P1</div>
-					<h2 class="mb-2 text-lg font-semibold">No dark mode / AppThemeBinding</h2>
-					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">Every color is a single light value. SurfaceDark / SurfacePanelDark tokens exist but are never used. Desktop users on dark OS themes get no adaptation.</p>
-					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: /design recolor — add AppThemeBinding scaffolding and wire the existing *Dark tokens.</div>
-				</article>
-				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
-					<div class="mono mb-2 text-xs text-[#fbbf24]">P2</div>
-					<h2 class="mb-2 text-lg font-semibold">No keyboard paths or focus on a desktop-first app</h2>
-					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">No KeyboardAccelerator / KeyUp handlers. Mic toggle, reset, tab nav, login submit are mouse/touch-only. Focus + FocusRing gold tokens are defined but never applied; pickers disable mid-recording with no visual feedback.</p>
-					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: /design interaction — Space toggles mic, Esc resets, Enter submits; add focus rings + disabled visual state.</div>
-				</article>
-				<article class="border border-[#2a1d22] bg-[#110b0d] p-5">
-					<div class="mono mb-2 text-xs text-[#fbbf24]">P2</div>
-					<h2 class="mb-2 text-lg font-semibold">Speed unverified — build blocked by SDK mismatch</h2>
-					<p class="mb-4 text-sm leading-6 text-[#a0a0a0]">dotnet build fails: LocalRecitationCore targets net10.0 while installed SDK is 9.0.315 (NETSDK1045). Cannot confirm runtime smoothness, layout shift, or font-load this pass.</p>
-					<div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Align the SDK target (or install .NET 10 SDK) before the next visual pass to verify speed.</div>
-				</article>
-			</div>
-		</section>
+		<section class="report-section mb-8 p-6 md:p-8"><div class="mono mb-6 text-xs tracking-widest text-[#666]">// PRIORITY ISSUES</div><div class="space-y-5"><article class="border border-[#4a2025] bg-[#110b0d] p-5"><div class="mono mb-2 text-xs text-[#ef4444]">P0</div><h2 class="mb-2 text-lg font-semibold">Runtime palette resolves to black</h2><p class="mb-4 text-sm leading-6 text-[#a0a0a0]">The supplied Windows screenshots show unreadable static-resource-driven content while the direct view-model mic color remains visible.</p><div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Verify every shared resource on the running Windows app and do not close the issue until a fresh screenshot shows readable controls and text.</div></article><article class="border border-[#4a2025] bg-[#110b0d] p-5"><div class="mono mb-2 text-xs text-[#fbbf24]">P1</div><h2 class="mb-2 text-lg font-semibold">Build success does not prove visual success</h2><p class="mb-4 text-sm leading-6 text-[#a0a0a0]">Compilation is clean, but the observed runtime surface is still broken.</p><div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Add launch-and-screenshot verification to the recolor pass.</div></article><article class="border border-[#2a1d22] bg-[#110b0d] p-5"><div class="mono mb-2 text-xs text-[#fbbf24]">P2</div><h2 class="mb-2 text-lg font-semibold">Interaction and responsive states unverified</h2><p class="mb-4 text-sm leading-6 text-[#a0a0a0]">Focus, disabled, keyboard, narrow-width, and touch behavior cannot be trusted from the current screenshot evidence.</p><div class="border-l border-[#fbbf24] pl-4 text-sm leading-6 text-[#fbbf24]">FIX: Recheck these states after the base color system is visibly correct.</div></article></div></section>
 
-		<footer class="mono py-8 text-center text-xs tracking-widest text-[#444]">
-			Generated with CommandCode - 2026-07-15
-		</footer>
+		<footer class="mono py-8 text-center text-xs tracking-widest text-[#444]">Generated with CommandCode - 2026-08-11</footer>
 	</main>
 </body>
 </html>

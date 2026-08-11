@@ -1,6 +1,8 @@
 # تارتيل کلون — نفاذی کی حیثیت (Implementation Status)
 
-**تاریخ:** 6 اگست 2026
+**Canonical guide:** `docs/implementation-status-english.md`
+**ترجمہ شدہ status copy:** یہ فائل English guide کی verified حالت کا اردو ترجمہ ہے۔
+**تاریخ:** 10 اگست 2026
 **پروجیکٹ:** تارتيل کلون — قرآن حفظ اور تجوید کی درست کاری کے لیے مقامی ڈیسک �اپ ایپلی کیشن
 
 ---
@@ -38,11 +40,20 @@
 
 ### ۲.۴ تجوید رول انجن (Tajweed Rule Engine)
 - ✅ 7 قواعد کی نشاندہی: مد، غنہ، قلقله، ادغام، اخفاء، اقلا ب، اظهار
-- ⚠️ **صرف متن کی سطح پر** — الفاظ کی رجیکس کی بنیاد پر میچنگ
-- ❌ فونیم (phoneme) لیول کا تجزیہ نہیں
-- ❌ آواز کی دیرانی (duration) کی پیمائش نہیں
-- ❌ سپیکٹروگرام کے ذریعے غنہ کا پتہ لگانا نہیں
-- ❌ مخارج (articulation points) کا تجزیہ نہیں
+- ✅ **متن کی سطح پر** — Madd، Ghunna، Qalqalah، Idgham، Ikhfa، Iqlab، اور Izhar کی rule detection
+- ✅ عربی rule tables اور feedback labels اب encoding-safe Unicode ہیں، اور سات direct regression tests سے verified ہیں
+- ✅ **فونیم (phoneme) لیول کا تجزیہ** — `TajweedPhonemeAnalyzer` کے ذریعے:
+  - ✅ **مد (Madd)** — آواز کی دیرانی (duration) کی پیمائش، 2–6 حرکات (500–3000ms)
+  - ✅ **غنہ (Ghunna)** — FFT سپیکٹرل سینٹرائڈ کے ذریعے ناک کی گونج کا پتہ لگانا
+  - ✅ **قلقله (Qalqalah)** — RMS برسٹ تناسب کے ذریعے plosive echo کی نشاندہی
+- ✅ Word timestamps اب linear interpolation کی بجائے اصلی Whisper token timestamps (`SegmentData.Tokens`) سے بنائے جاتے ہیں
+- ✅ Word alignment اب `SpokenToExpectedPosition` export کرتا ہے — ہر spoken word کا true ayah index
+- ✅ Phoneme analyzer Windows WAV headers کو صحیح طریقے سے skip کرتا ہے
+- ✅ Text engine اب تمام الفاظ کو madd/ghunna/nun-sakinah traits کے لیے check کرتا ہے، نہ صرف mismatched words
+- ✅ Combined violations کو `(Position, Rule)` سے deduplicate کیا جاتا ہے، audio-evidence version کو ترجیح
+- ✅ `OfflineRecitationOrchestrator` میں متن اور فونیم دونوں سطحوں کی غلطیوں کا مجموعہ، اور recitation UI میں feedback
+- ❌ **مخارج (articulation points) کا تجزیہ نہیں** — `MakhrajError` اینوم موجود ہے مگر استعمال نہیں
+- ❌ ادغام، اخفاء، اقلاب، اظہار کا phoneme-level تجزیہ ابھی مکمل نہیں
 
 ### ۲.۵ ڈیٹا بیس (Database)
 - ✅ SQLite مکمل اسکیما: آیات، ترجمے، حفظ کی پیش رفت، جوز، سورتیں، ورڈ انڈیکس، مصحف صفحات
@@ -89,22 +100,33 @@
 
 ## ۴. اہم خامیاں (Critical Gaps)
 
-### ۴.۱ مکمل قرآن ڈیٹا موجود نہیں
-صرف سورہ الفاتحہ کا ڈیٹا ہارڈ کوڈڈ ہے۔ 6,236 آیات، انڈو پاک رسم الخط، اور 604 صفحات کا نقشہ درکار ہے۔
+### ۴.۱ مکمل قرآن ڈیٹا
+- ✅ `offline-assets/data/quran/import/full_quran.json` میں 6,236 آیات موجود ہیں۔
+- ✅ `mobile/TarteelMobile/Resources/Raw/quran/mushaf/page_map.json` میں 604 صفحات موجود ہیں۔
+- ✅ 114 سورتوں اور 30 پاروں کا حوالہ جاتی میٹا ڈیٹا موجود ہے۔
+- ⚠️ انڈو پاک/فارسی رسم الخط کا مستند لائن لیول متن ابھی درکار ہے۔
 
-### ۴.۲ تجوید انجن صرف متن پر مبنی ہے
-یہ مکتب کے ٹیچر کی جگہ لینے کے لیے سب سے بڑا خامیہ ہے۔ موجودہ انجن:
-- Whisper کے ٹرانسکرائب کئے الفاظ کو امیدوار الفاظ سے موازنہ کرتا ہے
-- آواز کی دیرانی سے مد کی نشاندہ نہیں کرتا
-- سپیکٹروگرام سے غنہ کا پتہ نہیں لگاتا
-- مخارج کا تجزیہ نہیں کرتا (MakhrajError انوم موجود ہے مگر استعمال نہیں ہوتی)
-- صرف "تم نے الفظ X کی جگہ Y کہا" بتا سکتا ہے — "تم نے صحیح الفظ کہا مگر غلط توسیع سے" نہیں بتا سکتا
+### ۴.۲ فونیم لیول تجوید تجزیہ — مد، غنہ، قلقله ✅ مکمل، ابھی باقی: ادغام، اخفاء، مخارج
+`TajweedPhonemeAnalyzer` کے ذریعے تین اہم قواعد کا فونیم سطح پر تجزیہ مکمل کر لیا گیا:
+- ✅ **مد (Madd):** Whisper ورڈ ٹائمسٹیمپس کی بنیاد پر دورانیہ ناپتا ہے — مد کے حروف (ا، و، ي) پر 2–6 حرکات (500ms–3000ms) چیک کرتا ہے
+- ✅ **غنہ (Ghunna):** FFT سپیکٹرل سینٹرائڈ تجزیہ — ن اور م کے الفاظ میں ناک کی گونج (nasal resonance) کا پتہ لگاتا ہے
+- ✅ **قلقله (Qalqalah):** RMS برسٹ تجزیہ — plosive حروف (ق، ط، ب، ج، د) کے آخر میں echo/باؤنس کی تصدیق کرتا ہے
+- ❌ **مخارج (Makharij):** ابھی تک لاگو نہیں — `MakhrajError` اینوم موجود ہے مگر استعمال نہیں
+- ❌ **ادغام، اخفاء:** صرف متن کی سطح پر — فونیم تجزیہ نہیں
+- ⚠️ درستگی Whisper کے ورڈ ٹائمسٹیمپس کے معیار پر منحصر ہے — بہتر ماڈلز (small, medium) بہتر نتائج دیتے ہیں
 
 ### ۴.۳ درست تلاوت کے لیے آواز پلے بیک نہیں
 منصوبے میں "صحیح تلاوت کی پلے بیک" کا ذکر ہے — کوئی حوالہ آواز، پلے بیک میکانزم، یا فی الفظ صحیح تلاوت کے نمونے موجود نہیں۔
 
-### ۴.۴ فی رول غلطیوں کا ریکارڈ نہیں
-منصوبے میں "فی رول غلطی کی فریکوئنسی ٹریک کرنا" (مثلاً "تم اکثر سورہ النسس میں غنہ چھوڑ دیتے ہو") شامل ہے، مگر ڈیٹا بیس میں صرف ایک ماسٹری سکور فی آیت محفوظ ہوتا ہے۔
+### ۴.۴ جائزہ شیڈول اور فی رول غلطیوں کا ریکارڈ
+- ✅ `ReviewScheduler` کے ذریعے نئی آیت، کمزور کارکردگی، آج کے جائزے، اور تاخیر شدہ جائزے کی ترجیح بندی موجود ہے۔
+- ✅ `memorization_progress` میں `next_review_at`، `attempt_count`، اور `recent_error_count` شامل ہیں، اور پرانے مقامی ڈیٹا بیس کے لیے additive upgrade موجود ہے۔
+- ✅ Progress صفحے پر “Today’s review” کے ذریعے واجب الادا آیات الگ دکھائی جاتی ہیں۔
+- ❌ فی تجوید رول کی مستقل تاریخ اور تفصیلی غلطی لاگ ابھی باقی ہے۔
+- ✅ مستقل learning plans، lesson assignments، recitation sessions، verse-level attempts، mismatches، اور tajweed violations SQLite میں محفوظ ہیں۔
+- ✅ Attempt لکھنے کا عمل transactional ہے، EMA progress اور next review کو `ReviewScheduler` کے ذریعے دوبارہ حساب کرتا ہے، اور نئی repository instance کے ذریعے restart recovery ثابت ہے۔
+- ✅ Guided Today workflow اب learning plan کے مطابق محدود review/new-lesson assignments بناتا ہے، assignment-aware recitation شروع کرتا ہے، مکمل attempt محفوظ کرتا ہے، اور retry/next actions فراہم کرتا ہے۔
+- ⚠️ Partial/error attempts ابھی صرف active session میں دکھائے جاتے ہیں؛ ان کی مستقل history اگلا مرحلہ ہے۔
 
 ### ۴.۵ سچی 16 لائنر رینڈرنگ نہیں
 مصحف آیات کو لگاتار لیبلز میں رینڈر کرتا ہے — لائن لیول قرآنی متن کا استعمال نہیں کرتا جہاں ہر صفحے پر بالکل 16 قطاریں ہوں۔
@@ -113,21 +135,29 @@
 
 ## ۵. ترجیح بند ترتیب (Priority Order for Implementation)
 
-1. **مکمل قرآن ڈیٹا لوڈ کریں** — JSON (انڈو پاک 16 لائنر لائن لیول متن) کو SQLite میں — یہ مصحف ڈسپلے کو ان بلاک کرتا ہے
-2. **فونیم لیول تجوید تجزیہ** — دیرانی پر مبنی مد کا پتہ لگانا، سپیکٹروگرام پر مبنی غنہ کا پتہ لگانا، مخارج کا موازنہ — یہ ہر دوسری قرآن ایپ سے تفریق کرنے والا بنیادی خصوصیت ہے
-3. **حوالہ آواز + پلے بیک** — تلاوت کی درست کاری کے لیے
-4. **فی رول غلطیوں کا �ریکنگ** — ڈیٹا بیس اسکیما اور پیش رفت ویوز میں
-5. **سچی 16 لائنر رینڈرنگ** — لائن لیول متن، انڈو پاک فونٹ، اور مطبوعہ مصحف سے مطابقت رکھنے والے پیج لے آؤٹ کے ساتھ
-6. **نصاب / سیکھنے کا راستہ** — چھوٹی سورتوں سے بڑی سورتوں تک گائیڈڈ پیش قدمی، سپیسڈ ریپیٹیشن پرامپٹس کے ساتھ
-7. **PlaceholderVerseMatcher کا نام بدلیں** — یہ اب پلیس ہولڈر نہیں، اصلی میچر ہے
+1. **مستقل lesson assignments اور recitation history** — طالب علم کے لیے نیا سبق، حالیہ جائزہ، session، attempt، mismatch، اور تجوید غلطی کا مکمل ریکارڈ
+2. **Partial/error attempt history** — ناکام یا جزوی recitation attempts کی مستقل history، completion states، اور بہتر retry guidance
+3. **Full-mushaf verse matching** — `PlaceholderVerseMatcher` کو tested production matcher سے بدلنا، ayah continuation، assignment context، omissions اور repetitions سنبھالنا
+4. **فی تجوید رول کی مستقل tracking** — بار بار آنے والی Madd، Ghunna، Idgham، Ikhfa، Iqlab، Izhar، اور Makhraj غلطیوں کی تاریخ اور feedback
+5. **فونیم تجوید کی توسیع** — ادغام، اخفاء، اقلاب، اظہار، اور قابل اعتماد مخارج تجزیہ
+6. **حوالہ آواز + پلے بیک** — لائسنس کے مطابق offline reciter audio اور verse/word playback
+7. **سچی 16 لائنر رینڈرنگ** — verified Indo-Pak/Madani line-level text، فونٹ، اور ہر صفحے کی 16 مستند قطاریں
+8. **طالب علم کا نصاب اور teacher-like guidance** — روزانہ ہدف، حفظ کا راستہ، streak، کمزور مقامات، اور اگلا واضح قدم
 
 ---
 
 ## ۶. نتیجہ (Conclusion)
 
-تارتيل کلون کی بنیاد مضبوط ہے — ASR، آیت میچنگ، اور آواز پائپ لائن تینوں کام کر رہے ہیں۔ دو بڑے خلا ہیں:
+تارتيل کلون کی بنیاد اب مکمل قرآن asset، local Whisper، آیت matching، SQLite progress، deterministic review scheduling، verified text-level tajweed feedback، اور durable lesson/attempt domain پر قائم ہے۔ Recitation screen کو demo کے لیے دوبارہ ترتیب دیا گیا ہے: verse workspace، fixed recording/status dock، typed mismatch rows، اور واضح tajweed coaching موجود ہیں۔ مکمل مکتب قاری متبادل بننے کے لیے guided Today workflow، full-mushaf continuation، reference playback، persistent per-rule history، اور teacher-like curriculum ابھی درکار ہیں۔
 
-1. **ڈیٹا لیئر** — کوئی قرآنی مواد نہیں
-2. **تجوید گہرائی** — متن لیول موازنہ، فونیم تجزیہ نہیں
+Guided Today workflow اب verified ہے: assignment-aware recitation، completion، retry، اور next-item recommendation موجود ہیں۔ اگلا عملی مرحلہ partial/error attempts کی مستقل history اور بہتر completion states ہیں۔
 
-ان دو خلا کو پُر کرنے سے ایپلی کیشن مکتب لیول کے ٹول کے قریب پہنچ جائے گی۔
+### ۷. تازہ verification evidence
+- `dotnet build tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 0 warnings، 0 errors
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~TajweedAccuracyTests` — 14 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~TodayWorkflowServiceTests` — 1 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~LearningDomainRepositoryTests` — 2 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 34 passed، 0 failed
+- `TajweedAccuracyTests` token timestamps، alignment، WAV handling، matched-word checks، phoneme analysis، اور dedup verify کرتا ہے۔
+- Android `mobile/TarteelMobile/TarteelMobile.csproj` کے active `TargetFrameworks` میں شامل نہیں
+- اگلا milestone ASR speed optimization (processor reuse، thread pinning، chunk tuning) ہے۔

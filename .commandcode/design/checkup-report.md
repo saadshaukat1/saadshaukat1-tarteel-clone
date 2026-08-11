@@ -1,62 +1,86 @@
-# Design Checkup — Tarteel (Offline Recitation Desktop App)
+# Design Checkup — Tarteel
 
-**Date:** 2026-07-15
+**Date:** 2026-08-11
 **Mode:** checkup
-**Register:** Product (offline Windows desktop utility; MAUI .NET 9, also builds for Android)
-**Surface:** `mobile/TarteelMobile` — Recitation, Progress, Login pages + `App.xaml` token system
-**Score:** 45 / 60
+**Register:** Product (offline Windows desktop utility; MAUI .NET 9)
+**Surface:** `mobile/TarteelMobile` — Recitation, Mushaf, Progress, Login, and shared `App.xaml` resources
+**Score:** 25 / 60
 
 ---
 
 ## TL;DR
 
-The app is in much better shape than the June 24/50 review suggested. The token system, Arabic typography, real form labels, and visible states have all been implemented. The remaining risks are accessibility (no dark mode, no keyboard paths, no focus rings), one stale code contradiction around the Arabic font, and an unverified speed signal because the build is blocked by an unrelated .NET 10 SDK mismatch. Proceed to `/design interaction` and `/design recolor` (dark-mode + cleanup), then revisit.
+The product structure is coherent and the Windows target builds cleanly, but the rendered Windows surface is not safe to ship: recent screenshots show the application background and most static-resource-driven text resolving to black, leaving the Recitation page unreadable. The next fix must verify runtime resource resolution on the actual Windows app, not only XAML compilation.
 
----
+**Primary recommendation:** Run `/design recolor` or a focused runtime resource fix. Replace the failing theme-resource path with a verified MAUI-compatible resource strategy and confirm the result visually on Windows.
 
 ## Heuristic Scores (/60)
 
 | # | Vital sign | Score | Status | Key finding |
-|---|---|---|---|---|
-| 1 | Intentionality | 8 | Watch | Coherent, authored palette and type scale; isolated stale contradiction in `MauiProgram.ConfigureFonts` (empty with a comment claiming fonts are not yet added, while `csproj` does register `NotoNaskhArabic.ttf`). |
-| 2 | Readability | 9 | Healthy | Arabic renders via `NotoNaskhArabic` with 28px hero, 1.8 line-height, 700px max-width measure. Body copy uses a consistent tokenized type scale. |
-| 3 | Usability | 7 | Watch | Core recitation loop is complete: mic (80px), confidence bar, verse visibility toggle, reset, model-missing/download overlays, empty states. No keyboard shortcuts or focus rings for a desktop-first app. |
-| 4 | Responsiveness | 8 | Healthy | Single-window desktop layout; Arabic `MaximumWidthRequest` + `LineBreakMode="WordWrap"` prevents runaway lines. Mobile target (Android) has no verified responsive pass. |
-| 5 | Speed | 5 | Watch | Unverified. Build blocked by environment: referenced `LocalRecitationCore` targets .NET 10.0 while installed SDK is 9.0.315. Cannot confirm runtime smoothness, layout shift, or font load this pass. |
-| 6 | Accessibility | 8 | Watch | Color tokens are high-contrast (green/cream, red on light bg). Gaps: no dark mode/`AppThemeBinding`, no visible focus, no keyboard nav, no reduced-motion handling, picker disabled state has no visual treatment. |
+|---|---|---:|---|---|
+| 1 | Intentionality | 5/10 | WATCH | The intended green/gold product palette and page composition are clear in XAML, but the rendered result collapses into an unintentional black surface. |
+| 2 | Readability | 0/10 | CRITICAL | Screenshots show black page content with labels, picker titles, and controls effectively invisible; the Mic button is the only clearly visible primary element. |
+| 3 | Usability | 5/10 | WATCH | The recitation loop has selectors, loading states, feedback panels, and a mic action, but invisible controls prevent reliable operation. |
+| 4 | Responsiveness | 5/10 | WATCH | Desktop layout structure is defined and buildable, but runtime rendering is unverified beyond the failing screenshot state; narrow/mobile behavior was not tested in this pass. |
+| 5 | Speed | 10/10 | HEALTHY | The required Windows build completed successfully with 0 warnings and 0 errors. Runtime responsiveness was not measured. |
+| 6 | Accessibility | 0/10 | CRITICAL | The observed contrast failure blocks low-vision users and makes keyboard focus, labels, and control states impossible to distinguish visually. |
 
----
+## Signal / Risk
+
+### Watch items
+
+- Static resource colors in `App.xaml` do not match the rendered Windows screenshot.
+- The Recitation page depends heavily on shared `StaticResource` values for all labels, surfaces, borders, and picker styling.
+- The concrete-color fallback currently fixes compile-time validity but still requires visual runtime confirmation.
+- Mobile/narrow-width behavior and keyboard accessibility remain unverified.
+
+### Next modes
+
+- `/design recolor` — verify and repair runtime color/resource resolution.
+- `/design interaction` — add visible focus and disabled states after contrast is reliable.
+- `/design responsive` — verify the desktop composition at narrow widths and touch input sizes.
 
 ## What's Working
 
-- **Token system is real.** 51 named `Color` resources in `App.xaml`; no page-level hex spam (the 4 inline hex values in RecitationPage live inside `BoolToColorConverter` `ConverterParameter` strings, which is required by the converter, not drift).
-- **Arabic typography is correct.** `NotoNaskhArabic` is registered via `csproj` `<MauiFont Include="Resources/Fonts/*.ttf" />` and applied with a proper fallback, 1.8 line-height, and 700px measure. This directly answers the June review's #1 critical complaint.
-- **Login form is fixed.** Real `<Label>` fields ("Email", "Password"), not placeholder-only. `ReturnType`/`ReturnCommand` wired for Enter-to-submit. Emoji logo from the June review is gone — replaced by a wordmark plus gold accent rules.
-- **States exist.** Model-missing and model-downloading overlays, transcription "Transcribing…" indicator, tajweed corrections panel, empty `CollectionView` on Progress, verse hidden placeholder, error label on login.
-
----
+- **Composition matches the task.** Recitation is organized as selector controls, a verse/feedback workspace, and a persistent mic/status action.
+- **Arabic presentation is intentional.** The page uses `NotoNaskhArabic`, right-to-left flow, a large verse size, and a bounded reading measure.
+- **State coverage exists.** Model missing/downloading, transcription, mismatch, tajweed, hidden verse, and reset states are represented in XAML.
+- **Build health is strong.** The Windows target compiles with no warnings or errors after the recent resource edits.
 
 ## Priority Issues
 
-**P1 — Stale font-registration contradiction**
-`MauiProgram.cs` `ConfigureFonts` is empty with the comment "Keep default system fonts until packaged font assets are added," but `TarteelMobile.csproj` already registers `Resources/Fonts/*.ttf` (which includes `NotoNaskhArabic.ttf`). The comment is wrong and will mislead the next contributor into "fixing" working font code. Remove the empty `ConfigureFonts` block and the stale comment so the registration truth is the csproj.
+### P0 — Runtime palette resolves to black
 
-**P1 — No dark mode / `AppThemeBinding`**
-Every color is a single light value. `SurfaceDark`/`SurfacePanelDark` tokens exist but are unused. Desktop users on dark OS themes get no adaptation, and the green confidence bar + debug panel lose context. Add `AppThemeBinding` scaffolding (or a manual theme) and wire the existing `*Dark` tokens.
+**Evidence:** The supplied Windows screenshots show a nearly black page where the Recitation heading, selector labels, picker fields, borders, and status text cannot be read. The Mic button remains visible because its color comes from a direct view-model binding rather than the shared static palette.
 
-**P2 — No keyboard paths on a desktop-first app**
-No `KeyboardAccelerator` or `KeyUp` handlers. Core actions (toggle mic, reset, navigate tabs, submit login) are mouse/touch-only. Add Space → toggle mic, Esc → reset, Enter → submit, and Tab order through the verse selector.
+**Why it matters:** This blocks the primary task and invalidates the contrast/accessibility baseline regardless of successful compilation.
 
-**P2 — No visible focus or disabled-state treatment**
-`App.xaml` defines `Focus`/`FocusRing` gold tokens but nothing applies them. The Surah/Ayah pickers disable during recording with no visual change (opacity/desaturation). Add focus rings and a disabled visual state so keyboard and disabled users get feedback.
+**FIX:** Verify each shared resource at runtime on Windows. Use a known-good MAUI resource pattern, add an unmistakable temporary diagnostic color if necessary, and do not close the issue until a fresh screenshot shows readable labels, picker text, surfaces, and borders.
 
-**P2 — Speed unverified due to build block**
-The project references `LocalRecitationCore` targeting `net10.0`, but the active SDK is 9.0.315, so `dotnet build` fails with `NETSDK1045`. This is an environment/SDK mismatch, not a design defect, but it prevents verifying runtime speed, layout shift, and font-load behavior. Resolve the SDK target (or install .NET 10 SDK) before the next visual pass.
+### P1 — Compile success is being mistaken for visual success
 
----
+**Evidence:** The Windows build reports 0 warnings and 0 errors, while the supplied runtime screenshots remain unreadable.
 
-## Next Modes
+**Why it matters:** XAML compilation cannot validate the effective color values produced by the runtime resource dictionary and native WinUI control rendering.
 
-- `/design interaction` — keyboard shortcuts, focus rings, disabled states, reduced-motion. Highest-impact remaining fix.
-- `/design recolor` — `AppThemeBinding` dark mode, apply the unused `*Dark` tokens, retire the stale `ConfigureFonts` comment.
-- `/design relayout` (lighter) — only if the Recitation middle stack still feels crowded; the June "six panels" concern is mitigated by conditional `IsVisible` but worth a re-look after interaction work.
+**FIX:** Add a manual visual verification step to the recolor pass: launch the Windows app, inspect Recitation/Progress/Mushaf, toggle the OS theme if supported, and capture the actual rendered states.
+
+### P2 — Focus and disabled states remain visually unverified
+
+**Evidence:** Picker and button visual states are defined in `App.xaml`, but the screenshot does not show readable focus, disabled, or hover treatment.
+
+**Why it matters:** A desktop app needs visible keyboard and interaction feedback, especially when pickers are disabled during recording.
+
+**FIX:** Recheck focus rings and disabled opacity only after the base palette is visibly working.
+
+### P2 — Narrow-width and touch behavior unverified
+
+**Evidence:** The page uses a two-column desktop grid with fixed secondary-column width and tightly grouped selectors; no narrow-width screenshot or interaction trace was provided.
+
+**Why it matters:** The same composition may clip or make controls too small on mobile or a narrow desktop window.
+
+**FIX:** Run a responsive pass at narrow desktop and mobile widths, preserving the complete recitation workflow.
+
+## Verdict
+
+**PAUSE visual work on new features.** The app needs a runtime contrast/resource fix and fresh Windows screenshots before further polish or accessibility work can be trusted.

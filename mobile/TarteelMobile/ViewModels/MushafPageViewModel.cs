@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TarteelClone.LocalRecitationCore.Models;
 using TarteelMobile.Models;
 using TarteelMobile.Services;
 
@@ -17,29 +18,34 @@ public partial class MushafPageViewModel : ObservableObject
     private readonly IVerseRepository _verseRepository;
     private readonly IAppDiagnosticsService _diagnostics;
 
-    [ObservableProperty]
     private int _currentPage = 1;
+    public int CurrentPage { get => _currentPage; set => SetProperty(ref _currentPage, value); }
 
-    [ObservableProperty]
     private IReadOnlyList<Verse> _pageVerses = [];
+    public IReadOnlyList<Verse> PageVerses { get => _pageVerses; set => SetProperty(ref _pageVerses, value); }
 
-    [ObservableProperty]
     private string _pageLabel = "Page 1 / 604";
+    public string PageLabel { get => _pageLabel; set => SetProperty(ref _pageLabel, value); }
 
-    [ObservableProperty]
     private string _verseRangeLabel = string.Empty;
+    public string VerseRangeLabel { get => _verseRangeLabel; set => SetProperty(ref _verseRangeLabel, value); }
 
-    [ObservableProperty]
     private bool _isLoading;
+    public bool IsLoading { get => _isLoading; set => SetProperty(ref _isLoading, value); }
 
-    [ObservableProperty]
     private bool _hasPageData;
+    public bool HasPageData { get => _hasPageData; set => SetProperty(ref _hasPageData, value); }
 
-    // "surah:ayah" of the verse to highlight from recitation, or empty.
-    [ObservableProperty]
     private string _highlightedVerseKey = string.Empty;
+    public string HighlightedVerseKey { get => _highlightedVerseKey; set => SetProperty(ref _highlightedVerseKey, value); }
 
     public int PageCount => TotalPages;
+    public IReadOnlyList<JuzInfo> JuzList { get; private set; } = [];
+    public IReadOnlyList<SurahInfo> SurahList { get; private set; } = [];
+    public JuzInfo? SelectedJuz { get; set; }
+    public SurahInfo? SelectedSurah { get; set; }
+    public IReadOnlyList<int> AyahNumbers { get; private set; } = [];
+    public int? SelectedAyah { get; set; }
 
     public MushafPageViewModel(IVerseRepository verseRepository, IAppDiagnosticsService diagnostics)
     {
@@ -50,7 +56,23 @@ public partial class MushafPageViewModel : ObservableObject
     [RelayCommand]
     public async Task LoadInitialAsync()
     {
+        await _verseRepository.EnsureInitializedAsync();
+        JuzList = await _verseRepository.GetAllJuzAsync();
+        SurahList = await _verseRepository.GetAllSurahsAsync();
+        OnPropertyChanged(nameof(JuzList));
+        OnPropertyChanged(nameof(SurahList));
         await LoadPageAsync(1);
+    }
+
+    [RelayCommand]
+    private async Task JumpToJuzAsync()
+    {
+        if (SelectedJuz is null)
+        {
+            return;
+        }
+
+        await LoadPageAsync(await _verseRepository.GetPageForVerseAsync(SelectedJuz.StartSurah, SelectedJuz.StartAyah));
     }
 
     [RelayCommand]

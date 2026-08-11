@@ -1,8 +1,12 @@
-feat: Add Mushaf 16-liner display, tune Whisper ASR, disable Android build
+feat: Add phoneme-level tajweed analysis (Madd, Ghunna, Qalqalah)
 
-Add Mushaf page view with 16-line Indo-Pak layout and page map generation,
-retarget LocalRecitationCore to .NET 9, tune Whisper ASR engine and options for
-improved recitation accuracy, and remove net9.0-android from the active build
-targets (Android implementation files are kept for a future task).
+Introduce TajweedPhonemeAnalyzer with audio-signal-level detection:
+- FFT-based spectral centroid for Ghunna (nasal resonance)
+- Duration-based Madd elongation checking (2–6 harakat)
+- RMS burst detection for Qalqalah plosive echo
+Wire analyser into OfflineRecitationOrchestrator to combine text-level and
+audio-level violations. Improve Mushaf 16-liner rendering with proper
+word-wrapping and verse-key tracking. Add documentation of implementation
+gaps in Urdu.
 
 Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

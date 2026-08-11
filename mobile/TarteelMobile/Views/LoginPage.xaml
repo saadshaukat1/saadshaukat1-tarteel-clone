@@ -1,99 +1,52 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              x:Class="TarteelMobile.Views.LoginPage"
+             x:DataType="vm:LoginViewModel"
              Title="Tarteel"
-             Shell.NavBarIsVisible="False">
-
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{StaticResource Surface}">
     <Grid RowDefinitions="*,Auto">
-        <!-- ═══════════════ HERO SECTION ═══════════════ -->
-        <Grid Grid.Row="0" BackgroundColor="{StaticResource PrimaryDark}">
-            <VerticalStackLayout VerticalOptions="Center"
-                                  HorizontalOptions="Center"
-                                  Spacing="8">
-                <!-- Bismillah accent line -->
-                <BoxView HeightRequest="2"
-                         WidthRequest="48"
-                         HorizontalOptions="Center"
-                         Color="{StaticResource Accent}" />
-                <Label Text="Tarteel"
-                       FontSize="36"
-                       FontAttributes="Bold"
-                       HorizontalTextAlignment="Center"
-                       TextColor="White" />
-                <Label Text="Perfect your recitation"
-                       FontSize="{StaticResource FontSizeSubtitle}"
-                       HorizontalTextAlignment="Center"
-                       TextColor="{StaticResource AccentMuted}" />
-                <BoxView HeightRequest="2"
-                         WidthRequest="48"
-                         HorizontalOptions="Center"
-                         Color="{StaticResource Accent}"
-                         Margin="0,4,0,0" />
+        <Grid Grid.Row="0" BackgroundColor="{StaticResource PrimaryDark}" Padding="44">
+            <VerticalStackLayout VerticalOptions="Center" Spacing="12">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <BoxView WidthRequest="4" BackgroundColor="{StaticResource Accent}" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                        <Label Text="Tarteel" FontSize="{StaticResource FontSizeHeroVerse}" FontAttributes="Bold" TextColor="{StaticResource TextOnPrimary}" />
+                        <Label Text="Offline recitation console" FontSize="{StaticResource FontSizeSubtitle}" TextColor="{StaticResource AccentMuted}" />
+                    </VerticalStackLayout>
+                </Grid>
+                <BoxView HeightRequest="1" WidthRequest="220" HorizontalOptions="Start" BackgroundColor="{StaticResource BorderSubtle}" Margin="16,12,0,0" />
+                <Label Text="A quiet workspace for hifz practice, verse matching, and tajweed coaching." FontSize="{StaticResource FontSizeBodyLarge}" TextColor="{StaticResource TextSecondary}" MaximumWidthRequest="420" Margin="16,0,0,0" />
             </VerticalStackLayout>
         </Grid>
 
-        <!-- ═══════════════ FORM SECTION ═══════════════ -->
-        <VerticalStackLayout Grid.Row="1"
-                              Padding="32,28,32,36"
-                              Spacing="16"
-                              BackgroundColor="{StaticResource Surface}">
-
-            <!-- Email field -->
-            <VerticalStackLayout Spacing="4">
-                <Label Text="Email"
-                       FontSize="{StaticResource FontSizeCaption}"
-                       TextColor="{StaticResource TextSecondary}" />
-                <Entry Text="{Binding Email}"
-                       Keyboard="Email"
-                       ReturnType="Next"
-                       Placeholder="name@example.com"
-                       FontSize="{StaticResource FontSizeSubtitle}" />
+        <Grid x:Name="LoginGrid" Grid.Row="1" Padding="44,28,44,36" BackgroundColor="{StaticResource Surface}" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="28" RowSpacing="20">
+            <VerticalStackLayout x:Name="LoginFormLayout" Spacing="14" MaximumWidthRequest="520">
+                <Label Text="Local session" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
+                <Label Text="Sign in to keep your practice record connected across sessions." FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
+                <Grid x:Name="LoginFieldsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12">
+                    <VerticalStackLayout x:Name="EmailFieldLayout" Spacing="4">
+                        <Label Text="Email" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+                        <Entry Text="{Binding Email}" Keyboard="Email" ReturnType="Next" Placeholder="name@example.com" FontSize="{StaticResource FontSizeSubtitle}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout x:Name="PasswordFieldLayout" Grid.Column="1" Spacing="4">
+                        <Label Text="Password" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+                        <Entry x:Name="PasswordEntry" Text="{Binding Password}" IsPassword="True" ReturnType="Done" Placeholder="Your password" FontSize="{StaticResource FontSizeBodyLarge}" ReturnCommand="{Binding LoginCommand}" />
+                    </VerticalStackLayout>
+                </Grid>
+                <Label Text="{Binding Error}" TextColor="{StaticResource Error}" FontSize="{StaticResource FontSizeBody}" IsVisible="{Binding Error, Converter={StaticResource StringToBoolConverter}}" />
+                <HorizontalStackLayout x:Name="LoginActionsLayout" Spacing="10">
+                    <Button Text="Log in" Style="{StaticResource PrimaryButtonStyle}" FontSize="{StaticResource FontSizeBodyLarge}" HeightRequest="48" Padding="24,0" Command="{Binding LoginCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                    <Button Text="Create account" BackgroundColor="Transparent" TextColor="{StaticResource Accent}" BorderColor="{StaticResource BorderSubtle}" HeightRequest="48" Padding="18,0" Command="{Binding RegisterCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                </HorizontalStackLayout>
             </VerticalStackLayout>
-
-            <!-- Password field -->
-            <VerticalStackLayout Spacing="4">
-                <Label Text="Password"
-                       FontSize="{StaticResource FontSizeCaption}"
-                       TextColor="{StaticResource TextSecondary}" />
-                <Entry Text="{Binding Password}"
-                       IsPassword="True"
-                       ReturnType="Done"
-                       Placeholder="Your password"
-                       FontSize="{StaticResource FontSizeBodyLarge}"
-                       ReturnCommand="{Binding LoginCommand}" />
+            <VerticalStackLayout x:Name="OfflineStatusLayout" Grid.Column="1" Grid.Row="0" VerticalOptions="End" Spacing="3">
+                <Label Text="OFFLINE READY" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+                <Label Text="Local SQLite · Whisper.net" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" Color="{StaticResource Accent}" />
             </VerticalStackLayout>
-
-            <!-- Error message -->
-            <Label Text="{Binding Error}"
-                   TextColor="{StaticResource Error}"
-                   FontSize="{StaticResource FontSizeBody}"
-                   IsVisible="{Binding Error, Converter={StaticResource StringToBoolConverter}}" />
-
-            <!-- Primary action -->
-            <Button Text="Log In"
-                    Command="{Binding LoginCommand}"
-                    BackgroundColor="{StaticResource Primary}"
-                    TextColor="White"
-                    FontSize="{StaticResource FontSizeBodyLarge}"
-                    HeightRequest="48"
-                    CornerRadius="8"
-                    Margin="0,4,0,0"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
-
-            <!-- Secondary action -->
-            <Button Text="Create Account"
-                    Command="{Binding RegisterCommand}"
-                    BackgroundColor="Transparent"
-                    TextColor="{StaticResource Primary}"
-                    FontSize="{StaticResource FontSizeBody}"
-                    HeightRequest="44"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
-
-            <!-- Loading indicator -->
-            <ActivityIndicator IsRunning="{Binding IsBusy}"
-                               IsVisible="{Binding IsBusy}"
-                               Color="{StaticResource Primary}" />
-        </VerticalStackLayout>
+        </Grid>
     </Grid>
 </ContentPage>

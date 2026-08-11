@@ -9,49 +9,47 @@
     <maui:MauiWinUIApplication.Resources>
         <ResourceDictionary>
 
-            <!-- MAUI Picker renders as WinUI ComboBox on Windows. Under a dark
-                 system theme the dropdown flyout inherits OS colors, making
-                 items invisible. Override the ComboBoxItem resources to use the
-                 app's light palette so the dropdown is always readable. -->
+            <!-- MAUI Picker renders as WinUI ComboBox on Windows. Keep the
+                 native flyout aligned with the app's dark surface and readable text. -->
             <SolidColorBrush x:Key="ComboBoxItemBackground"
-                             Color="#F9F6EF" />
+                             Color="#192327" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver"
-                             Color="#F0EBDD" />
+                             Color="#2B3A40" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed"
-                             Color="#E8E3D8" />
+                             Color="#405158" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected"
-                             Color="#EBF5EE" />
+                             Color="#234A35" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedUnfocused"
-                             Color="#EBF5EE" />
+                             Color="#234A35" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver"
-                             Color="#D1FAE5" />
+                             Color="#2D6848" />
 
             <SolidColorBrush x:Key="ComboBoxItemForeground"
-                             Color="#1C1C1E" />
+                             Color="#F4F1E8" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver"
-                             Color="#1C1C1E" />
+                             Color="#FFFFFF" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundPressed"
-                             Color="#1C1C1E" />
+                             Color="#FFFFFF" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundSelected"
-                             Color="#1C1C1E" />
+                             Color="#FFFFFF" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedUnfocused"
-                             Color="#1C1C1E" />
+                             Color="#FFFFFF" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver"
-                             Color="#1C1C1E" />
+                             Color="#FFFFFF" />
             <SolidColorBrush x:Key="ComboBoxItemForegroundDisabled"
-                             Color="#B8B2A6" />
+                             Color="#91A19A" />
 
             <!-- Dropdown flyout background -->
             <SolidColorBrush x:Key="ComboBoxDropdownBackground"
-                             Color="#F9F6EF" />
+                             Color="#192327" />
             <SolidColorBrush x:Key="ComboBoxDropdownBackgroundPointerOver"
-                             Color="#F9F6EF" />
+                             Color="#192327" />
             <SolidColorBrush x:Key="ComboBoxDropdownBackgroundPressed"
-                             Color="#F9F6EF" />
+                             Color="#192327" />
 
             <!-- Border -->
             <SolidColorBrush x:Key="ComboBoxDropDownBorderFill"
-                             Color="#D4CEC2" />
+                             Color="#405158" />
             <SolidColorBrush x:Key="ComboBoxItemBorderFill"
                              Color="Transparent" />
             <SolidColorBrush x:Key="ComboBoxItemBorderFillPointerOver"

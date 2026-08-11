@@ -429,7 +429,7 @@ public sealed class LocalWhisperAsrEngine(
                     .Build();
 
             var transcript = new System.Text.StringBuilder();
-            var segmentTimings = new List<(string Text, TimeSpan Start, TimeSpan End)>();
+            var segments = new List<Whisper.net.SegmentData>();
             var segmentCount = 0;
             var totalProbability = 0.0;
             using var audioStream = new MemoryStream(audioChunk);
@@ -442,7 +442,7 @@ public sealed class LocalWhisperAsrEngine(
                 await foreach (var segment in processor.ProcessAsync(audioStream, linkedCts.Token))
                 {
                     transcript.Append(segment.Text);
-                    segmentTimings.Add((segment.Text, segment.Start, segment.End));
+                    segments.Add(segment);
                     segmentCount++;
                     totalProbability += segment.Probability;
                 }
@@ -489,7 +489,7 @@ public sealed class LocalWhisperAsrEngine(
                 _crossChunkContext = string.Join(' ', contextWords);
             }
 
-            var wordTimestamps = BuildWordTimestamps(text, segmentTimings);
+            var wordTimestamps = BuildWordTimestamps(text, segments);
 
             return new RecitationTranscriptionResult(true, text, confidence, tier, usedFallback)
             {
@@ -535,11 +535,94 @@ public sealed class LocalWhisperAsrEngine(
 
     private static IReadOnlyList<RecitationWordTimestamp> BuildWordTimestamps(
         string text,
-        IReadOnlyList<(string Text, TimeSpan Start, TimeSpan End)> segments)
+        IReadOnlyList<Whisper.net.SegmentData> segments)
     {
         if (string.IsNullOrWhiteSpace(text) || segments.Count == 0)
             return [];
 
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0)
+            return [];
+
+        var tokenTimestamps = CollectTokenTimestamps(segments);
+        if (tokenTimestamps.Count > 0)
+        {
+            return BuildWordTimestampsFromTokens(words, tokenTimestamps);
+        }
+
+        // Fallback: linear interpolation when token timestamps are unavailable.
+        return BuildWordTimestampsFromSegments(text, segments);
+    }
+
+    private static IReadOnlyList<(string Text, TimeSpan Start, TimeSpan End)> CollectTokenTimestamps(
+        IReadOnlyList<Whisper.net.SegmentData> segments)
+    {
+        var tokens = new List<(string Text, TimeSpan Start, TimeSpan End)>();
+        foreach (var segment in segments)
+        {
+            if (segment.Tokens is not { Length: > 0 })
+                continue;
+
+            foreach (var token in segment.Tokens)
+            {
+                var tokenText = ArabicNormalizer.Normalize(token.Text?.Trim() ?? string.Empty);
+                if (string.IsNullOrWhiteSpace(tokenText) ||
+                    tokenText is "." or "," or "。" or "!" or "?" or " " or "\r" or "\n")
+                    continue;
+
+                var startTicks = token.DtwTimestamp > 0 ? token.DtwTimestamp : token.Start;
+                var endTicks = token.End;
+                if (startTicks <= 0 || endTicks <= 0)
+                    continue;
+
+                tokens.Add((tokenText, TimeSpan.FromTicks(startTicks), TimeSpan.FromTicks(endTicks)));
+            }
+        }
+
+        return tokens;
+    }
+
+    private static IReadOnlyList<RecitationWordTimestamp> BuildWordTimestampsFromTokens(
+        IReadOnlyList<string> words,
+        IReadOnlyList<(string Text, TimeSpan Start, TimeSpan End)> tokens)
+    {
+        var result = new List<RecitationWordTimestamp>(words.Count);
+        var tokenIdx = 0;
+        for (var wi = 0; wi < words.Count && tokenIdx < tokens.Count; wi++)
+        {
+            var wordBuilder = new System.Text.StringBuilder();
+            var wordStart = tokens[tokenIdx].Start;
+            var wordEnd = tokens[tokenIdx].End;
+
+            while (tokenIdx < tokens.Count && wordBuilder.Length < words[wi].Length)
+            {
+                wordBuilder.Append(tokens[tokenIdx].Text);
+                wordEnd = tokens[tokenIdx].End;
+                tokenIdx++;
+            }
+
+            var mergedText = wordBuilder.ToString();
+            if (string.IsNullOrWhiteSpace(mergedText))
+                continue;
+
+            var normalizedText = ArabicNormalizer.Normalize(mergedText);
+            if (string.IsNullOrWhiteSpace(normalizedText))
+                continue;
+
+            result.Add(new RecitationWordTimestamp(
+                wi,
+                words[wi],
+                wordStart,
+                wordEnd));
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<RecitationWordTimestamp> BuildWordTimestampsFromSegments(
+        string text,
+        IReadOnlyList<Whisper.net.SegmentData> segments)
+    {
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (words.Length == 0)
             return [];

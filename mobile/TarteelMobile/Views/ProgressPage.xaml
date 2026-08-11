@@ -1,87 +1,86 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              xmlns:models="clr-namespace:TarteelMobile.Models"
+             xmlns:services="clr-namespace:TarteelMobile.Services"
              x:Class="TarteelMobile.Views.ProgressPage"
-             Title="My Progress">
+             x:Name="ProgressRoot"
+             x:DataType="vm:ProgressViewModel"
+             Title="Progress"
+             BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="28,20,28,20">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,18">
+            <VerticalStackLayout Spacing="3">
+                <Label Text="Practice record" FontSize="{StaticResource FontSizeTitle}" FontAttributes="Bold" />
+                <Label Text="What needs your attention next" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+            </VerticalStackLayout>
+            <Button Grid.Column="1" Text="Refresh" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" Command="{Binding RefreshCommand}" />
+        </Grid>
 
-    <Grid RowDefinitions="Auto,*,Auto" Padding="16" BackgroundColor="{StaticResource Surface}">
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="18">
+                <Grid x:Name="SummaryGrid" ColumnDefinitions="*,240" ColumnSpacing="16">
+                    <Border x:Name="TodaySummaryBorder" Padding="20" BackgroundColor="{StaticResource PrimaryDark}" Stroke="{StaticResource Primary}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="TODAY" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                            <Label Text="{Binding DueSummary}" FontSize="{StaticResource FontSizeDisplay}" FontAttributes="Bold" TextColor="{StaticResource TextOnPrimary}" />
+                            <Label Text="{Binding TodayMessage}" FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
+                            <Button Text="Start today" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" IsEnabled="{Binding HasTodayAssignments}" Command="{Binding StartTodayCommand}" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border x:Name="OverallSummaryBorder" Grid.Column="1" Padding="20" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
+                        <VerticalStackLayout Spacing="5">
+                            <Label Text="OVERALL" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                            <Label Text="{Binding OverallSummary}" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
 
-        <Label Grid.Row="0"
-               Text="Hifz Progress"
-               FontSize="{StaticResource FontSizeTitle}"
-               FontAttributes="Bold"
-               Margin="0,0,0,4" />
-
-        <!-- Per-verse progress list -->
-        <CollectionView Grid.Row="1"
-                        ItemsSource="{Binding VerseProgress}"
-                        EmptyView="No verses practiced yet. Start reciting on the Recite tab">
-            <CollectionView.Header>
-                <Border Padding="12"
-                        Margin="0,0,0,12"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 8"
-                        BackgroundColor="{StaticResource SurfaceInfoBg}">
-                    <Label Text="{Binding OverallSummary}"
-                           FontSize="{StaticResource FontSizeBody}"
-                           TextColor="{StaticResource Primary}" />
-                </Border>
-            </CollectionView.Header>
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="models:VerseProgress">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                          Padding="8,6"
-                          ColumnSpacing="12">
-
-                        <!-- Surah:Ayah badge -->
-                        <Border Grid.Column="0"
-                                BackgroundColor="{StaticResource Primary}"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 6"
-                                Padding="6,2">
-                            <Label Text="{Binding Label}"
-                                   FontSize="{StaticResource FontSizeCaption}"
-                                   FontAttributes="Bold"
-                                   TextColor="White" />
+                <Grid x:Name="ProgressColumnsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16">
+                    <VerticalStackLayout x:Name="DueAssignmentsLayout" Spacing="8">
+                        <Label Text="Today’s assignments" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
+                        <CollectionView ItemsSource="{Binding TodayAssignments}" HeightRequest="260" EmptyView="Today is complete. Keep your current pace.">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="services:TodayAssignment">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="10,8" ColumnSpacing="12" BackgroundColor="{StaticResource SurfacePanel}">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding Assignment.SurahNum, StringFormat='{0}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                            <Label Text="{Binding ReasonDisplay}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="{Binding Verse.ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="16" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                                        <Button Grid.Column="2" Text="Start" BackgroundColor="Transparent" TextColor="{StaticResource Accent}" HeightRequest="44" MinimumWidthRequest="72" Clicked="OnAssignmentStartClicked" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout x:Name="ReviewSignalLayout" Grid.Column="1" Spacing="8">
+                        <Label Text="Review signal" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
+                        <Border Padding="16" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 6">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Mastery is a guide, not a verdict." FontAttributes="Bold" />
+                                <Label Text="Use repeated mismatches and tajweed coaching to decide what to repeat. The local record keeps the history available offline." FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
+                            </VerticalStackLayout>
                         </Border>
+                    </VerticalStackLayout>
+                </Grid>
 
-                        <!-- Arabic snippet -->
-                        <Label Grid.Column="1"
-                               Text="{Binding ArabicText}"
-                               FontFamily="{StaticResource ArabicFontFamily}"
-                               FontSize="16"
-                               HorizontalTextAlignment="End"
-                               LineBreakMode="TailTruncation"
-                               VerticalOptions="Center" />
-
-                        <!-- Mastery % -->
-                        <Label Grid.Column="2"
-                               Text="{Binding MasteryDisplay}"
-                               FontAttributes="Bold"
-                               FontSize="{StaticResource FontSizeBodyLarge}"
-                               TextColor="{Binding MasteryColor}"
-                               VerticalOptions="Center" />
-
-                        <!-- Last practiced date -->
-                        <Label Grid.Column="3"
-                               Text="{Binding UpdatedDisplay}"
-                               FontSize="{StaticResource FontSizeMicro}"
-                               TextColor="{StaticResource TextSecondary}"
-                               VerticalOptions="Center" />
-
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-        </CollectionView>
-
-        <!-- Refresh button -->
-        <Button Grid.Row="2"
-                Text="Refresh"
-                BackgroundColor="{StaticResource Primary}"
-                TextColor="White"
-                Margin="0,12,0,0"
-                Command="{Binding RefreshCommand}" />
-
+                <BoxView HeightRequest="1" Color="{StaticResource BorderSubtle}" />
+                <Label Text="Practice history" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
+                <CollectionView ItemsSource="{Binding VerseProgress}" EmptyView="No verses practiced yet. Start reciting.">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:VerseProgress">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Padding="10,8" ColumnSpacing="14">
+                                <Label Text="{Binding Label}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                <Label Grid.Column="1" Text="{Binding ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="16" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" />
+                                <Label Grid.Column="2" Text="{Binding MasteryDisplay}" FontAttributes="Bold" TextColor="{Binding MasteryColor}" />
+                                <Label Grid.Column="3" Text="{Binding UpdatedDisplay}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
     </Grid>
 </ContentPage>

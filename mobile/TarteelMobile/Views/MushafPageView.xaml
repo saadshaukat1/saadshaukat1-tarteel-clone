@@ -4,80 +4,51 @@
              xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              xmlns:models="clr-namespace:TarteelMobile.Models"
              x:Class="TarteelMobile.Views.MushafPageView"
-             Title="Mushaf">
-
-    <Grid RowDefinitions="Auto,*,Auto" BackgroundColor="{StaticResource Surface}">
-
-        <!-- Top bar: page navigation -->
-        <Grid Grid.Row="0" Padding="16,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-            <Button Grid.Column="0"
-                    Text="‹ Prev"
-                    Command="{Binding GoToPreviousPageCommand}"
-                    BackgroundColor="{StaticResource PrimaryDark}"
-                    TextColor="White"
-                    HeightRequest="40"
-                    FontSize="{StaticResource FontSizeCaption}" />
-            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" HorizontalOptions="Center" Spacing="2">
-                <Label Text="{Binding PageLabel}"
-                       FontAttributes="Bold"
-                       FontSize="{StaticResource FontSizeBodyLarge}"
-                       TextColor="{StaticResource Primary}"
-                       HorizontalTextAlignment="Center" />
-                <Label Text="{Binding VerseRangeLabel}"
-                       FontSize="{StaticResource FontSizeNano}"
-                       TextColor="{StaticResource TextTertiary}"
-                       HorizontalTextAlignment="Center" />
+             x:DataType="vm:MushafPageViewModel"
+             Title="Mushaf"
+             BackgroundColor="{StaticResource Surface}">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Grid Grid.Row="0" Padding="28,20,28,16" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+            <Button Grid.Column="0" Text="Previous page" Command="{Binding GoToPreviousPageCommand}" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" FontSize="{StaticResource FontSizeCaption}" Padding="14,6" />
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                <Label Text="{Binding PageLabel}" FontAttributes="Bold" FontSize="{StaticResource FontSizeBodyLarge}" TextColor="{StaticResource Accent}" HorizontalTextAlignment="Center" />
+                <Label Text="{Binding VerseRangeLabel}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" />
             </VerticalStackLayout>
-            <Button Grid.Column="2"
-                    Text="Next ›"
-                    Command="{Binding GoToNextPageCommand}"
-                    BackgroundColor="{StaticResource PrimaryDark}"
-                    TextColor="White"
-                    HeightRequest="40"
-                    FontSize="{StaticResource FontSizeCaption}" />
+            <Button Grid.Column="2" Text="Next page" Command="{Binding GoToNextPageCommand}" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" FontSize="{StaticResource FontSizeCaption}" Padding="14,6" />
         </Grid>
 
-        <!-- Middle: 16-line Mushaf page, scrolls continuously between pages -->
-        <ScrollView Grid.Row="1" x:Name="PageScroll" Padding="12,8" Scrolled="OnPageScrolled">
-            <Border StrokeThickness="1"
-                    StrokeShape="RoundRectangle 12"
-                    Stroke="{StaticResource BorderSubtle}"
-                    BackgroundColor="{StaticResource SurfacePanel}"
-                    HorizontalOptions="Center"
-                    MaximumWidthRequest="720">
-                <Grid x:Name="LinesGrid"
-                      RowSpacing="0"
-                      ColumnSpacing="0"
-                      HorizontalOptions="Center">
+        <Grid Grid.Row="1" Padding="28,0,28,14" ColumnDefinitions="*,Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}">
+            <VerticalStackLayout Spacing="2">
+                <Label Text="Juz" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding JuzList}" ItemDisplayBinding="{Binding JuzNum, StringFormat='Juz {0}', x:DataType=models:JuzInfo}" SelectedItem="{Binding SelectedJuz}" HeightRequest="40" />
+            </VerticalStackLayout>
+            <Button Grid.Column="1" Text="Go" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" WidthRequest="48" FontSize="{StaticResource FontSizeCaption}" VerticalOptions="End" Command="{Binding JumpToJuzCommand}" />
+            <VerticalStackLayout Grid.Column="2" Spacing="2">
+                <Label Text="Surah" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding SurahList}" ItemDisplayBinding="{Binding NameArabic, x:DataType=models:SurahInfo}" SelectedItem="{Binding SelectedSurah}" HeightRequest="40" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Grid.Column="3" Spacing="2" WidthRequest="70">
+                <Label Text="Ayah" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding AyahNumbers}" SelectedItem="{Binding SelectedAyah}" HeightRequest="40" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <ScrollView Grid.Row="2" x:Name="PageScroll" Padding="28,0" Scrolled="OnPageScrolled">
+            <Border StrokeThickness="0" BackgroundColor="{StaticResource SurfaceElevated}" HorizontalOptions="Center" MaximumWidthRequest="760" Padding="28,22">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,3" Radius="10" Opacity="0.32" />
+                </Border.Shadow>
+                <Grid x:Name="LinesGrid" BackgroundColor="{StaticResource SurfaceElevated}" RowSpacing="0" ColumnSpacing="0" HorizontalOptions="Center">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" />
+                        <RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" />
+                        <RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" />
+                        <RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" /><RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                 </Grid>
             </Border>
         </ScrollView>
 
-        <!-- Bottom: hint for continuous reading -->
-        <Label Grid.Row="2"
-               Text="Scroll to the bottom of the page to continue to the next page."
-               FontSize="{StaticResource FontSizeNano}"
-               TextColor="{StaticResource TextTertiary}"
-               HorizontalTextAlignment="Center"
-               Padding="0,6,0,10" />
-
+        <Label Grid.Row="3" Text="Scroll to advance · authentic line data will replace the current flow layout" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" Padding="0,6,0,14" />
     </Grid>
 </ContentPage>
