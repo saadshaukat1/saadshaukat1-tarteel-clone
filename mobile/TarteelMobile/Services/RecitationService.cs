@@ -12,6 +12,7 @@ public interface IRecitationService
     void SetSurahContext(int surahNum, string surahArabicName);
     void ClearSurahContext();
     void ClearLastMatchedPosition();
+    void MarkCurrentAyahComplete();
     Task ConnectAsync();
     Task FlushAsync(CancellationToken cancellationToken = default);
     Task DisconnectAsync();
@@ -62,6 +63,11 @@ public sealed class RecitationService : IRecitationService
     public void ClearLastMatchedPosition()
     {
         _orchestrator.ClearLastMatchedPosition();
+    }
+
+    public void MarkCurrentAyahComplete()
+    {
+        _orchestrator.MarkCurrentAyahComplete();
     }
 
     public async Task ConnectAsync()

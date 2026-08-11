@@ -83,4 +83,5 @@ public sealed record VerseAttemptInput(
     string TranscriptionText,
     IReadOnlyList<RecitationWordMismatch> Mismatches,
     IReadOnlyList<TajweedViolation> TajweedViolations,
-    DateTimeOffset? AttemptedAt = null);
+    DateTimeOffset? AttemptedAt = null,
+    bool MarkAssignmentComplete = true);

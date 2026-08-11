@@ -73,6 +73,13 @@ public interface IVerseRepository
         string? userKey = null,
         long? sessionId = null,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TajweedRuleSummary>> GetTajweedRuleSummariesAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TajweedErrorRecord>> GetTajweedErrorsAsync(
+        string? userKey = null,
+        TajweedRuleType? rule = null,
+        CancellationToken cancellationToken = default);
 }
 
 public partial class LocalVerseRepository : IVerseRepository
@@ -276,6 +283,21 @@ public partial class LocalVerseRepository : IVerseRepository
             spoken_word TEXT NOT NULL,
             hint TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS tajweed_error_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_key TEXT NOT NULL,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            rule INTEGER NOT NULL,
+            error_count INTEGER NOT NULL DEFAULT 1,
+            last_attempted_at TEXT NOT NULL,
+            UNIQUE(user_key, surah_num, ayah_num, rule)
+        );
+        CREATE INDEX IF NOT EXISTS idx_error_history_user_rule
+            ON tajweed_error_history(user_key, rule);
+        CREATE INDEX IF NOT EXISTS idx_error_history_user_verse
+            ON tajweed_error_history(user_key, surah_num, ayah_num);
         """;
 
     private readonly LocalQuranDataOptions _options;

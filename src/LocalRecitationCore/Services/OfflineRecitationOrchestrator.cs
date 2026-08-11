@@ -50,6 +50,11 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         _verseMatcher.ClearLastMatchedPosition();
     }
 
+    public void MarkCurrentAyahComplete()
+    {
+        _verseMatcher.MarkCurrentAyahComplete();
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         lock (_transcriptSync)

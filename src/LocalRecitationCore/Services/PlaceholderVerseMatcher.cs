@@ -4,15 +4,16 @@ using TarteelClone.LocalRecitationCore.Utilities;
 
 namespace TarteelClone.LocalRecitationCore.Services;
 
-public sealed class PlaceholderVerseMatcher : IVerseMatcher
+public sealed class LocalVerseMatcher : IVerseMatcher
 {
     private readonly IVerseRepository _verses;
     private int? _surahContext;
     private int? _lastSurahNum;
     private int? _lastAyahNum;
+    private bool _wasLastAyahCompleted;
     private sealed record WordToken(string Original, string Normalized);
 
-    public PlaceholderVerseMatcher(IVerseRepository verses)
+    public LocalVerseMatcher(IVerseRepository verses)
     {
         _verses = verses;
     }
@@ -31,12 +32,19 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
     {
         _lastSurahNum = surahNum >= 1 && surahNum <= 114 ? surahNum : null;
         _lastAyahNum = ayahNum >= 1 ? ayahNum : null;
+        _wasLastAyahCompleted = false;
     }
 
     public void ClearLastMatchedPosition()
     {
         _lastSurahNum = null;
         _lastAyahNum = null;
+        _wasLastAyahCompleted = false;
+    }
+
+    public void MarkCurrentAyahComplete()
+    {
+        _wasLastAyahCompleted = true;
     }
 
     public async Task<RecitationMatchResult> MatchAsync(
@@ -169,7 +177,7 @@ public sealed class PlaceholderVerseMatcher : IVerseMatcher
 
         if (delta == 1)
         {
-            return 1.03;
+            return _wasLastAyahCompleted ? 1.10 : 1.03;
         }
 
         if (delta <= 3)

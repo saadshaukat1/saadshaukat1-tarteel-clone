@@ -18,6 +18,28 @@ public static class TajweedPhonemeAnalyzer
     // Ghunna source letters: nun and mim.
     private static readonly HashSet<char> GhunnaLetters = new() { 'ن', 'م' };
 
+    // Idgham target letters (with ghunna): the letters ي, ر, م, ل, و, ن after a nun-sakinah merge.
+    private static readonly HashSet<char> IdghamWithGhunnaLetters = new() { 'ي', 'ر', 'م', 'ل', 'و', 'ن' };
+
+    // Idgham target letters (without ghunna): ل, ر after nun-sakinah merge without nasalization.
+    private static readonly HashSet<char> IdghamWithoutGhunnaLetters = new() { 'ل', 'ر' };
+
+    // Ikhfa letters: the 15 letters after which nun-sakinah/tanween is concealed with nasalization.
+    private static readonly HashSet<char> IkhfaLetters = new()
+        { 'ت', 'ث', 'ج', 'د', 'ذ', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ف', 'ق', 'ك' };
+
+    // Common makhraj-confusion pairs: letters that share similar articulation points and are often confused.
+    // Key = actual letter, Value = common confusion letter.
+    private static readonly Dictionary<char, char> MakhrajConfusions = new()
+    {
+        ['ح'] = 'خ', ['خ'] = 'ح',
+        ['س'] = 'ص', ['ص'] = 'س',
+        ['ذ'] = 'ز', ['ز'] = 'ذ',
+        ['ظ'] = 'ض', ['ض'] = 'ظ',
+        ['ق'] = 'ك', ['ك'] = 'ق',
+        ['ط'] = 'ت', ['ت'] = 'ط',
+    };
+
     // One harakah ≈ 250–500 ms depending on recitation speed.
     // Madd requires 2–6 harakat, so the expected vowel duration range is:
     private const double MinHarakahMs = 250;
@@ -76,6 +98,24 @@ public static class TajweedPhonemeAnalyzer
             if (qalqalahViolation is not null)
             {
                 violations.Add(qalqalahViolation);
+            }
+
+            var idghamViolation = CheckIdgham(expected, pos, expectedWords, wordSamples, sampleRate);
+            if (idghamViolation is not null)
+            {
+                violations.Add(idghamViolation);
+            }
+
+            var ikhfaViolation = CheckIkhfa(expected, pos, expectedWords, wordSamples, sampleRate);
+            if (ikhfaViolation is not null)
+            {
+                violations.Add(ikhfaViolation);
+            }
+
+            var makhrajViolation = CheckMakhraj(expected, wordSamples, pos, sampleRate);
+            if (makhrajViolation is not null)
+            {
+                violations.Add(makhrajViolation);
             }
         }
 
@@ -172,6 +212,128 @@ public static class TajweedPhonemeAnalyzer
             return false;
         var stripped = TajweedRuleEngine.Strip(word);
         return stripped.Length > 0 && QalqalahLetters.Contains(stripped[^1]);
+    }
+
+    private static TajweedViolation? CheckIdgham(
+        string expectedWord,
+        int position,
+        IReadOnlyList<string> expectedWords,
+        float[] wordSamples,
+        int sampleRate)
+    {
+        // Idgham: nun-sakinah or tanween merges into the following letter.
+        // Check if the current word ends with a nun-sakinah marker and the next word starts with an idgham letter.
+        var normalized = TajweedRuleEngine.Strip(expectedWord);
+        if (normalized.Length == 0 || normalized[^1] != 'ن' || position + 1 >= expectedWords.Count)
+            return null;
+
+        var nextWord = expectedWords[position + 1];
+        var nextStripped = TajweedRuleEngine.Strip(nextWord);
+        if (nextStripped.Length == 0)
+            return null;
+
+        var nextFirstLetter = nextStripped[0];
+        if (!IdghamWithGhunnaLetters.Contains(nextFirstLetter))
+            return null;
+
+        var withGhunna = IdghamWithGhunnaLetters.Contains(nextFirstLetter) && !IdghamWithoutGhunnaLetters.Contains(nextFirstLetter);
+        var centroid = ComputeSpectralCentroid(wordSamples, sampleRate);
+
+        if (withGhunna && centroid <= GhunnaSpectralCentroidMax)
+            return null; // Nasal resonance detected — correct idgham with ghunna.
+
+        if (!withGhunna && centroid > GhunnaSpectralCentroidMax)
+            return null; // No nasal resonance — correct idgham without ghunna.
+
+        var hint = withGhunna
+            ? $"Idgham with ghunna expected: '{normalized}' merges into '{nextStripped}' with nasal resonance."
+            : $"Idgham without ghunna expected: '{normalized}' merges into '{nextStripped}' without nasal resonance.";
+
+        return new TajweedViolation(position, TajweedRuleType.Idgham, expectedWord, expectedWord, hint);
+    }
+
+    private static TajweedViolation? CheckIkhfa(
+        string expectedWord,
+        int position,
+        IReadOnlyList<string> expectedWords,
+        float[] wordSamples,
+        int sampleRate)
+    {
+        // Ikhfa: nun-sakinah or tanween is concealed with nasalization before ikhfa letters.
+        var normalized = TajweedRuleEngine.Strip(expectedWord);
+        if (normalized.Length == 0 || normalized[^1] != 'ن' || position + 1 >= expectedWords.Count)
+            return null;
+
+        var nextWord = expectedWords[position + 1];
+        var nextStripped = TajweedRuleEngine.Strip(nextWord);
+        if (nextStripped.Length == 0)
+            return null;
+
+        if (!IkhfaLetters.Contains(nextStripped[0]))
+            return null;
+
+        var centroid = ComputeSpectralCentroid(wordSamples, sampleRate);
+        if (centroid <= GhunnaSpectralCentroidMax)
+            return null; // Nasal concealment detected.
+
+        return new TajweedViolation(
+            position,
+            TajweedRuleType.Ikhfa,
+            expectedWord,
+            expectedWord,
+            $"Ikhfa expected: conceal '{normalized}' before '{nextStripped}' with a nasal hum.");
+    }
+
+    private static TajweedViolation? CheckMakhraj(
+        string expectedWord,
+        float[] wordSamples,
+        int position,
+        int sampleRate)
+    {
+        // Makhraj: check for common articulation-point confusion.
+        // Uses spectral features to detect if a letter might have been mispronounced.
+        var normalized = TajweedRuleEngine.Strip(expectedWord);
+        if (normalized.Length == 0)
+            return null;
+
+        // Check for common confusion pairs.
+        foreach (var ch in normalized)
+        {
+            if (MakhrajConfusions.TryGetValue(ch, out var confusedWith))
+            {
+                // Perform basic spectral check: if the spectral centroid is significantly
+                // different from the expected range for this letter class, flag it.
+                var centroid = ComputeSpectralCentroid(wordSamples, sampleRate);
+
+                // Heuristic: throaty letters (ح, خ, ه, غ, ع) tend to have lower spectral centroid.
+                var isThroaty = ch is 'ح' or 'خ' or 'ه' or 'غ' or 'ع';
+                var isEmphatic = ch is 'ص' or 'ض' or 'ط' or 'ظ';
+
+                if (isThroaty && centroid > 0.25)
+                {
+                    return new TajweedViolation(
+                        position,
+                        TajweedRuleType.MakhrajError,
+                        expectedWord,
+                        expectedWord,
+                        $"Possible articulation error in '{normalized}': '{ch}' should be from deep throat (spectral centroid {centroid:0.00}). Do not replace with '{confusedWith}'.");
+                }
+
+                if (isEmphatic && centroid < 0.15)
+                {
+                    return new TajweedViolation(
+                        position,
+                        TajweedRuleType.MakhrajError,
+                        expectedWord,
+                        expectedWord,
+                        $"Possible articulation error in '{normalized}': '{ch}' should be emphatic/heavy. Avoid the light version '{confusedWith}'.");
+                }
+
+                break; // One flag per word is enough.
+            }
+        }
+
+        return null;
     }
 
     private static float[] ExtractPcmSamples(byte[] audioData)

@@ -1,12 +1,38 @@
-feat: Add phoneme-level tajweed analysis (Madd, Ghunna, Qalqalah)
+feat: Durable partial attempts, per-rule tajweed history, matcher rename, phoneme expansion, audio playback
 
-Introduce TajweedPhonemeAnalyzer with audio-signal-level detection:
-- FFT-based spectral centroid for Ghunna (nasal resonance)
-- Duration-based Madd elongation checking (2–6 harakat)
-- RMS burst detection for Qalqalah plosive echo
-Wire analyser into OfflineRecitationOrchestrator to combine text-level and
-audio-level violations. Improve Mushaf 16-liner rendering with proper
-word-wrapping and verse-key tracking. Add documentation of implementation
-gaps in Urdu.
+Durable partial/error attempt history:
+- VerseAttemptInput gains MarkAssignmentComplete flag
+- SaveGuidedAttemptAsync saves partial attempts (confidence >= 0.65) with assignment staying InProgress
+- Perfect attempts (confidence >= 0.90, 0 mismatches) mark assignment Completed
+- SaveBestPartialAttemptAsync auto-saves best result on mic stop / session reset
+- ToggleRecordingAsync and StopSessionAsync both persist partial results before session close
+- Retry command properly closes previous session and opens a new one
+
+Per-rule tajweed error history:
+- tajweed_error_history table: (user_key, surah_num, ayah_num, rule, error_count, last_attempted_at)
+- SaveVerseAttemptAsync upserts error counts per rule violation
+- GetTajweedRuleSummariesAsync returns aggregated per-rule stats
+- GetTajweedErrorsAsync returns detailed error records, filterable by rule
+- ProgressViewModel loads and surfaces tajweed summaries
+
+Matcher rename and continuation:
+- PlaceholderVerseMatcher → LocalVerseMatcher (class, DI registration)
+- MarkCurrentAyahComplete() on IVerseMatcher, IRecitationOrchestrator, IRecitationService
+- Ayah-completion flag boosts next-verse priority multiplier from 1.03 to 1.10
+- ViewModel calls MarkCurrentAyahComplete on perfect attempt save
+
+Phoneme expansion (Idgham, Ikhfa, Makharij):
+- Idgham: spectral centroid check for nun-sakinah merging with/without nasalization
+- Ikhfa: nasal concealment before 15 ikhfa letters via spectral centroid
+- Makhraj: 6 confusion pairs (ح↔خ, س↔ص, ذ↔ز, ظ↔ض, ق↔ك, ط↔ت) with spectral thresholds
+- All wired into TajweedPhonemeAnalyzer.Analyze alongside existing Madd/Ghunna/Qalqalah
+
+Reference audio playback:
+- AudioPlaybackService: verse-level WAV playback via shell execute
+- HasReferenceAudio validates file existence per (surah, ayah)
+- PlayVerseRangeAsync supports sequential multi-verse playback
+- Registered as IAudioPlaybackService singleton in DI
+
+Updated implementation-status-english.md reflecting all changes.
 
 Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

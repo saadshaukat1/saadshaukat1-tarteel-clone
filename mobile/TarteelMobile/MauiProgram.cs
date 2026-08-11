@@ -47,11 +47,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAsrEngine, LocalWhisperAsrEngine>();
         builder.Services.AddSingleton<CoreAbstractions.IAsrEngine, AsrEngineCoreAdapter>();
         builder.Services.AddSingleton<CoreAbstractions.IVerseRepository, VerseRepositoryCoreAdapter>();
-        builder.Services.AddSingleton<CoreAbstractions.IVerseMatcher, CoreServices.PlaceholderVerseMatcher>();
+        builder.Services.AddSingleton<CoreAbstractions.IVerseMatcher, CoreServices.LocalVerseMatcher>();
         builder.Services.AddSingleton<CoreAbstractions.IProgressStore, DiagnosticsProgressStore>();
         builder.Services.AddSingleton<CoreAbstractions.IRecitationOrchestrator, CoreServices.OfflineRecitationOrchestrator>();
         builder.Services.AddSingleton<IRecitationService, RecitationService>();
         builder.Services.AddSingleton<IAudioService, AudioService>();
+        builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
 
         // ── ViewModels ────────────────────────────────────────────────────────
         builder.Services.AddTransient<RecitationViewModel>();

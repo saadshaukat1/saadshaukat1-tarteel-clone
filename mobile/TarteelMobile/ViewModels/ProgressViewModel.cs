@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.Controls;
+using TarteelClone.LocalRecitationCore.Models;
 using TarteelMobile.Services;
 
 namespace TarteelMobile.ViewModels;
@@ -26,6 +27,11 @@ public partial class ProgressViewModel : ObservableObject
 
     private string _todayMessage = "Preparing today’s practice…";
     public string TodayMessage { get => _todayMessage; private set => SetProperty(ref _todayMessage, value); }
+
+    private IReadOnlyList<TajweedRuleSummary> _tajweedSummaries = [];
+    public IReadOnlyList<TajweedRuleSummary> TajweedSummaries { get => _tajweedSummaries; private set => SetProperty(ref _tajweedSummaries, value); }
+
+    public bool HasTajweedSummary => TajweedSummaries.Count > 0;
 
     public TodayAssignment? CurrentTodayAssignment => TodayAssignments.FirstOrDefault();
     public bool HasTodayAssignments => TodayAssignments.Count > 0;
@@ -76,10 +82,12 @@ public partial class ProgressViewModel : ObservableObject
         {
             var results = await _verses.GetProgressAsync(_session.CurrentUserEmail);
             TodayAssignments = await _today.GetTodayAssignmentsAsync(_session.CurrentUserEmail);
+            TajweedSummaries = await _verses.GetTajweedRuleSummariesAsync(_session.CurrentUserEmail);
             OnPropertyChanged(nameof(CurrentTodayAssignment));
             OnPropertyChanged(nameof(HasTodayAssignments));
             OnPropertyChanged(nameof(DueSummary));
-            _diagnostics.Info($"Loaded {results.Count} progress record(s) and {TodayAssignments.Count} Today assignment(s).");
+            OnPropertyChanged(nameof(HasTajweedSummary));
+            _diagnostics.Info($"Loaded {results.Count} progress record(s), {TodayAssignments.Count} Today assignment(s), and {TajweedSummaries.Count} tajweed rule group(s).");
             VerseProgress = [.. results];
             TodayMessage = TodayAssignments.Count == 0
                 ? "Today is complete. Keep your current pace."

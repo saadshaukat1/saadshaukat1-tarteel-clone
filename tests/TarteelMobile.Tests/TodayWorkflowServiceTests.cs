@@ -79,5 +79,7 @@ public sealed class TodayWorkflowServiceTests
         public Task<IReadOnlyList<RecitationSession>> GetRecitationSessionsAsync(string? userKey = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<VerseAttempt> SaveVerseAttemptAsync(string? userKey, VerseAttemptInput attempt, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<VerseAttempt>> GetVerseAttemptsAsync(string? userKey = null, long? sessionId = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TajweedRuleSummary>> GetTajweedRuleSummariesAsync(string? userKey = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TajweedRuleSummary>>([]);
+        public Task<IReadOnlyList<TajweedErrorRecord>> GetTajweedErrorsAsync(string? userKey = null, TajweedRuleType? rule = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TajweedErrorRecord>>([]);
     }
 }

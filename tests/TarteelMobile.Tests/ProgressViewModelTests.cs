@@ -94,6 +94,8 @@ public sealed class ProgressViewModelTests
         public Task<int> GetPageCountAsync(CancellationToken ct = default) => Task.FromResult(0);
         public Task<MushafPage?> GetPageAsync(int pageNum, CancellationToken ct = default) => Task.FromResult<MushafPage?>(null);
         public Task<int> GetPageForVerseAsync(int s, int a, CancellationToken ct = default) => Task.FromResult(1);
+        public Task<IReadOnlyList<TajweedRuleSummary>> GetTajweedRuleSummariesAsync(string? userKey = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TajweedRuleSummary>>([]);
+        public Task<IReadOnlyList<TajweedErrorRecord>> GetTajweedErrorsAsync(string? userKey = null, TajweedRuleType? rule = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TajweedErrorRecord>>([]);
     }
 
     private sealed class FakeSessionService : ISessionService

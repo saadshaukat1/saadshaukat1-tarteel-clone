@@ -15,6 +15,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
 {
     private const double MatchConfidenceThreshold = 0.65;
     private const double PerfectConfidenceThreshold = 0.90;
+    private const double PartialAttemptSaveThreshold = 0.30;
 
     private readonly IAudioService      _audio;
     private readonly IRecitationService _recitation;
@@ -344,6 +345,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 await _recitation.DisconnectAsync();
                 _recitation.ClearSurahContext();
                 _recitation.ClearLastMatchedPosition();
+                await SaveBestPartialAttemptAsync(CoreModels.RecitationSessionStatus.Abandoned);
                 IsRecording    = false;
                 IsTranscribing = false;
                 StatusMessage  = "Recitation paused";
@@ -373,6 +375,19 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 ProcessingSummary = "Connecting recitation pipeline…";
                 if (IsGuidedAssignment)
                 {
+                    if (_sessionId is not null)
+                    {
+                        await SaveBestPartialAttemptAsync(CoreModels.RecitationSessionStatus.Abandoned);
+                        try
+                        {
+                            await _verseRepository.CloseRecitationSessionAsync(_sessionId.Value, CoreModels.RecitationSessionStatus.Abandoned);
+                        }
+                        catch (Exception ex)
+                        {
+                            _diagnostics.Warn($"Could not close previous session before retry: {ex.Message}");
+                        }
+                    }
+
                     var session = await _verseRepository.OpenRecitationSessionAsync(_session.CurrentUserEmail);
                     _sessionId = session.Id;
                     await _verseRepository.MarkAssignmentInProgressAsync(_assignmentId!.Value, session.Id, _session.CurrentUserEmail);
@@ -563,6 +578,11 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
             return;
         }
 
+        if (_bestSessionResult.Confidence >= MatchConfidenceThreshold)
+        {
+            await SaveGuidedAttemptAsync(_bestSessionResult);
+        }
+
         StatusMessage = _bestSessionResult.Mismatches.Count == 0
             ? $"Surah {surahNum}:{ayahNum} — match improving ({_bestSessionResult.Confidence:P0})"
             : $"Surah {surahNum}:{ayahNum} — {_bestSessionResult.Mismatches.Count} correction(s)";
@@ -610,6 +630,15 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
 
             if (_sessionId is not null)
             {
+                try
+                {
+                    await SaveBestPartialAttemptAsync(CoreModels.RecitationSessionStatus.Abandoned);
+                }
+                catch (Exception ex)
+                {
+                    _diagnostics.Warn($"Could not save partial attempt while resetting: {ex.Message}");
+                }
+
                 try
                 {
                     await _verseRepository.CloseRecitationSessionAsync(_sessionId.Value, CoreModels.RecitationSessionStatus.Abandoned);
@@ -788,6 +817,80 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
             return;
         }
 
+        var isPerfect = result.Mismatches.Count == 0 && result.Confidence >= PerfectConfidenceThreshold;
+        var isGoodEnough = result.Confidence >= MatchConfidenceThreshold;
+
+        if (isPerfect)
+        {
+            _attemptSaved = true;
+            try
+            {
+                await _verseRepository.SaveVerseAttemptAsync(
+                    _session.CurrentUserEmail,
+                    new CoreModels.VerseAttemptInput(
+                        _sessionId.Value,
+                        _assignmentId,
+                        result.SurahNum,
+                        result.AyahNum,
+                        result.Confidence,
+                        result.Confidence,
+                        result.TranscriptionText,
+                        result.Mismatches.Select(m => new CoreModels.RecitationWordMismatch(m.Position, m.Spoken, m.Expected)).ToArray(),
+                        result.TajweedViolations.Select(v => new CoreModels.TajweedViolation(v.WordPosition, v.Rule, v.ExpectedWord, v.SpokenWord, v.Hint)).ToArray(),
+                        MarkAssignmentComplete: true));
+                await _verseRepository.CloseRecitationSessionAsync(_sessionId.Value, CoreModels.RecitationSessionStatus.Completed);
+                _recitation.MarkCurrentAyahComplete();
+                StatusMessage = "Assignment complete. Choose retry or continue to the next ayah.";
+            }
+            catch (Exception ex)
+            {
+                _attemptSaved = false;
+                _diagnostics.Error("Could not persist guided recitation attempt.", ex);
+                StatusMessage = "The result was matched, but could not be saved. Retry the assignment.";
+            }
+        }
+        else if (isGoodEnough && !_attemptSaved)
+        {
+            _attemptSaved = true;
+            try
+            {
+                await _verseRepository.SaveVerseAttemptAsync(
+                    _session.CurrentUserEmail,
+                    new CoreModels.VerseAttemptInput(
+                        _sessionId.Value,
+                        _assignmentId,
+                        result.SurahNum,
+                        result.AyahNum,
+                        result.Confidence,
+                        result.Confidence,
+                        result.TranscriptionText,
+                        result.Mismatches.Select(m => new CoreModels.RecitationWordMismatch(m.Position, m.Spoken, m.Expected)).ToArray(),
+                        result.TajweedViolations.Select(v => new CoreModels.TajweedViolation(v.WordPosition, v.Rule, v.ExpectedWord, v.SpokenWord, v.Hint)).ToArray(),
+                        MarkAssignmentComplete: false));
+                StatusMessage = "Attempt saved. Keep reciting to improve, or stop to review corrections.";
+            }
+            catch (Exception ex)
+            {
+                _attemptSaved = false;
+                _diagnostics.Error("Could not persist partial recitation attempt.", ex);
+                StatusMessage = "Could not save the attempt. Keep trying or reset.";
+            }
+        }
+    }
+
+    private async Task SaveBestPartialAttemptAsync(CoreModels.RecitationSessionStatus sessionStatus)
+    {
+        if (!IsGuidedAssignment || _sessionId is null || _attemptSaved)
+        {
+            return;
+        }
+
+        var best = _bestSessionResult;
+        if (best is null || best.Confidence < PartialAttemptSaveThreshold)
+        {
+            return;
+        }
+
         _attemptSaved = true;
         try
         {
@@ -796,21 +899,19 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 new CoreModels.VerseAttemptInput(
                     _sessionId.Value,
                     _assignmentId,
-                    result.SurahNum,
-                    result.AyahNum,
-                    result.Confidence,
-                    result.Confidence,
-                    result.TranscriptionText,
-                    result.Mismatches.Select(m => new CoreModels.RecitationWordMismatch(m.Position, m.Spoken, m.Expected)).ToArray(),
-                    result.TajweedViolations.Select(v => new CoreModels.TajweedViolation(v.WordPosition, v.Rule, v.ExpectedWord, v.SpokenWord, v.Hint)).ToArray()));
-            await _verseRepository.CloseRecitationSessionAsync(_sessionId.Value, CoreModels.RecitationSessionStatus.Completed);
-            StatusMessage = "Assignment complete. Choose retry or continue to the next ayah.";
+                    best.SurahNum,
+                    best.AyahNum,
+                    best.Confidence,
+                    best.Confidence,
+                    best.TranscriptionText,
+                    best.Mismatches.Select(m => new CoreModels.RecitationWordMismatch(m.Position, m.Spoken, m.Expected)).ToArray(),
+                    best.TajweedViolations.Select(v => new CoreModels.TajweedViolation(v.WordPosition, v.Rule, v.ExpectedWord, v.SpokenWord, v.Hint)).ToArray(),
+                    MarkAssignmentComplete: false));
         }
         catch (Exception ex)
         {
             _attemptSaved = false;
-            _diagnostics.Error("Could not persist guided recitation attempt.", ex);
-            StatusMessage = "The result was matched, but could not be saved. Retry the assignment.";
+            _diagnostics.Error("Could not save best partial attempt on session close.", ex);
         }
     }
 

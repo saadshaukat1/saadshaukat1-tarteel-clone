@@ -37,6 +37,32 @@ public sealed record TajweedViolation(
     };
 }
 
+public sealed record TajweedErrorRecord(
+    TajweedRuleType Rule,
+    int SurahNum,
+    int AyahNum,
+    int ErrorCount,
+    DateTimeOffset LastAttemptedAt)
+{
+    public string RuleDisplayName => Rule switch
+    {
+        TajweedRuleType.Madd => "Madd",
+        TajweedRuleType.Ghunna => "Ghunna",
+        TajweedRuleType.Qalqalah => "Qalqalah",
+        TajweedRuleType.Idgham => "Idgham",
+        TajweedRuleType.Ikhfa => "Ikhfa",
+        TajweedRuleType.Iqlab => "Iqlab",
+        TajweedRuleType.Izhar => "Izhar",
+        _ => "Makhraj",
+    };
+}
+
+public sealed record TajweedRuleSummary(
+    TajweedRuleType Rule,
+    int TotalErrors,
+    int AffectedVerseCount,
+    DateTimeOffset LastErrorAt);
+
 public sealed class RecitationMatchResult
 {
     public int SurahNum { get; init; }

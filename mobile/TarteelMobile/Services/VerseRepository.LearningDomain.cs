@@ -270,13 +270,35 @@ public partial class LocalVerseRepository
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        foreach (var violation in attempt.TajweedViolations)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO tajweed_error_history (user_key, surah_num, ayah_num, rule, error_count, last_attempted_at)
+                VALUES (@user_key, @surah_num, @ayah_num, @rule, 1, @attempted_at)
+                ON CONFLICT(user_key, surah_num, ayah_num, rule) DO UPDATE SET
+                    error_count = tajweed_error_history.error_count + 1,
+                    last_attempted_at = @attempted_at;
+                """;
+            command.Parameters.AddWithValue("@user_key", normalizedUserKey);
+            command.Parameters.AddWithValue("@surah_num", attempt.SurahNum);
+            command.Parameters.AddWithValue("@ayah_num", attempt.AyahNum);
+            command.Parameters.AddWithValue("@rule", (int)violation.Rule);
+            command.Parameters.AddWithValue("@attempted_at", attemptedAt.ToString("O"));
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         await UpdateProgressFromAttemptAsync(connection, transaction, normalizedUserKey, attempt.SurahNum, attempt.AyahNum, score, attemptedAt, attempt.Mismatches.Count + attempt.TajweedViolations.Count > 0, cancellationToken);
         if (attempt.AssignmentId is not null)
         {
             await using var assignmentCommand = connection.CreateCommand();
             assignmentCommand.Transaction = transaction;
+            var assignmentStatus = attempt.MarkAssignmentComplete
+                ? (int)LessonAssignmentStatus.Completed
+                : (int)LessonAssignmentStatus.InProgress;
             assignmentCommand.CommandText = "UPDATE lesson_assignments SET status = @status, session_id = @session_id WHERE id = @id AND user_key = @user_key;";
-            assignmentCommand.Parameters.AddWithValue("@status", (int)LessonAssignmentStatus.Completed);
+            assignmentCommand.Parameters.AddWithValue("@status", assignmentStatus);
             assignmentCommand.Parameters.AddWithValue("@session_id", attempt.SessionId);
             assignmentCommand.Parameters.AddWithValue("@id", attempt.AssignmentId.Value);
             assignmentCommand.Parameters.AddWithValue("@user_key", normalizedUserKey);
@@ -434,6 +456,79 @@ public partial class LocalVerseRepository
         while (await reader.ReadAsync(cancellationToken))
         {
             results.Add(new TajweedViolation(reader.GetInt32(0), (TajweedRuleType)reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetString(4)));
+        }
+        return results;
+    }
+
+    public async Task<IReadOnlyList<TajweedRuleSummary>> GetTajweedRuleSummariesAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT rule, SUM(error_count) AS total_errors, COUNT(DISTINCT surah_num || '-' || ayah_num) AS affected_verses,
+                   MAX(last_attempted_at) AS last_error_at
+            FROM tajweed_error_history
+            WHERE user_key = @user_key
+            GROUP BY rule
+            ORDER BY total_errors DESC;
+            """;
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        var results = new List<TajweedRuleSummary>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new TajweedRuleSummary(
+                (TajweedRuleType)reader.GetInt32(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                DateTimeOffset.Parse(reader.GetString(3))));
+        }
+        return results;
+    }
+
+    public async Task<IReadOnlyList<TajweedErrorRecord>> GetTajweedErrorsAsync(
+        string? userKey = null,
+        TajweedRuleType? rule = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        if (rule is not null)
+        {
+            command.CommandText = """
+                SELECT rule, surah_num, ayah_num, error_count, last_attempted_at
+                FROM tajweed_error_history
+                WHERE user_key = @user_key AND rule = @rule
+                ORDER BY error_count DESC, last_attempted_at DESC
+                LIMIT 50;
+                """;
+            command.Parameters.AddWithValue("@rule", (int)rule.Value);
+        }
+        else
+        {
+            command.CommandText = """
+                SELECT rule, surah_num, ayah_num, error_count, last_attempted_at
+                FROM tajweed_error_history
+                WHERE user_key = @user_key
+                ORDER BY error_count DESC, last_attempted_at DESC
+                LIMIT 100;
+                """;
+        }
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        var results = new List<TajweedErrorRecord>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new TajweedErrorRecord(
+                (TajweedRuleType)reader.GetInt32(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetInt32(3),
+                DateTimeOffset.Parse(reader.GetString(4))));
         }
         return results;
     }
