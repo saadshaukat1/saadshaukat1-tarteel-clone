@@ -11,7 +11,17 @@ public sealed class LocalWhisperOptions
     public bool WarmupOnStartup { get; set; } = false;
     public bool AllowMockWhenUnavailable { get; set; } = true;
     public string Language { get; set; } = "ar";
-    public int InferenceTimeoutSeconds { get; set; } = 20;
+    public int InferenceTimeoutSeconds { get; set; } = 45;
+
+    /// <summary>
+    /// Performance trade-off profile for the ASR engine:
+    /// 'Speed'    — token timestamps (DTW alignment) always off; fastest streaming.
+    /// 'Accuracy' — token timestamps always on; slower inference, precise phoneme timing.
+    /// 'Auto'     — start with timestamps off, enable once measured real-time factor
+    ///              (inferenceMs / audioMs) shows headroom, and lock off again if a
+    ///              chunk gets too close to the inference timeout.
+    /// </summary>
+    public string PerformanceProfile { get; set; } = "Auto";
 
     // Whisper inference tuning
     public int BeamSearchWidth { get; set; } = 1;

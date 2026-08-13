@@ -6,6 +6,18 @@
   <Folder Name="/src/LocalRecitationCore/">
     <Project Path="src/LocalRecitationCore/TarteelClone.LocalRecitationCore.csproj" />
   </Folder>
+  <Folder Name="/src/QuranEngine/">
+    <Project Path="src/QuranEngine/TarteelClone.QuranEngine.csproj" />
+  </Folder>
+  <Folder Name="/src/SearchService/">
+    <Project Path="src/SearchService/TarteelClone.SearchService.csproj" />
+  </Folder>
+  <Folder Name="/src/UserService/">
+    <Project Path="src/UserService/TarteelClone.UserService.csproj" />
+  </Folder>
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/TarteelClone.Api.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj" />
   </Folder>

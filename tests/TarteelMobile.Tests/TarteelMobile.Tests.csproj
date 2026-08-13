@@ -36,5 +36,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\mobile\TarteelMobile\TarteelMobile.csproj" />
+    <ProjectReference Include="..\..\src\QuranEngine\TarteelClone.QuranEngine.csproj" />
+    <ProjectReference Include="..\..\src\UserService\TarteelClone.UserService.csproj" />
+    <ProjectReference Include="..\..\src\Api\TarteelClone.Api.csproj" />
   </ItemGroup>
 </Project>

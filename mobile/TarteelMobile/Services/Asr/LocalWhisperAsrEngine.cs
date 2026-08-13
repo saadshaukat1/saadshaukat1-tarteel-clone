@@ -12,7 +12,7 @@ namespace TarteelMobile.Services.Asr;
 /// In-process Whisper ASR engine using Whisper.net C# bindings.
 /// Models are persisted to FileSystem.AppDataDirectory — survives app restarts.
 /// </summary>
-public sealed class LocalWhisperAsrEngine(
+public partial class LocalWhisperAsrEngine(
     IOptions<LocalWhisperOptions> options,
     ILogger<LocalWhisperAsrEngine> logger,
     IAppDiagnosticsService diagnostics) : IAsrEngine, IAsyncDisposable
@@ -42,6 +42,13 @@ public sealed class LocalWhisperAsrEngine(
 
     // Surah name injected into Whisper prompt to bias decoding toward Quranic vocabulary.
     private string? _surahPrompt;
+
+    // Adaptive performance profile state (Auto mode).
+    private bool _tokenTimestampsLockedOff;
+    private bool _timestampsEnabled;
+    private bool _profileDecisionLogged;
+    private int _rtfSampleCount;
+    private double _rtfMovingAverage;
 
     public bool IsReady => _isInitialized;
 
@@ -196,36 +203,57 @@ public sealed class LocalWhisperAsrEngine(
                 "Whisper factory not ready. Call InitializeAsync first.", ActiveTier);
         }
 
-        var primary = _options.PrimaryTier.Trim().ToLowerInvariant();
-        var fallback = _options.FallbackTier?.Trim().ToLowerInvariant();
+        var activeTier = ActiveTier.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(activeTier))
+        {
+            activeTier = _options.PrimaryTier.Trim().ToLowerInvariant();
+        }
 
-        var result = await TryTranscribeWithTierAsync(primary, audioChunk, false, cancellationToken);
+        var result = await TryTranscribeWithTierAsync(activeTier, audioChunk, false, cancellationToken);
         if (result.IsSuccess)
         {
             return result;
         }
 
-        if (!string.IsNullOrWhiteSpace(fallback)
-            && !string.Equals(primary, fallback, StringComparison.Ordinal))
+        var fallback = _options.FallbackTier?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(fallback)
+            || string.Equals(activeTier, fallback, StringComparison.Ordinal))
         {
-            _logger.LogWarning(
-                "Primary tier '{Primary}' failed. Trying fallback '{Fallback}'. Reason: {Reason}",
-                primary, fallback, result.DiagnosticMessage);
-
-            var fallbackResult = await TryTranscribeWithTierAsync(fallback, audioChunk, true, cancellationToken);
-            if (fallbackResult.IsSuccess)
-            {
-                return fallbackResult;
-            }
-
-            return fallbackResult with
-            {
-                DiagnosticMessage =
-                    $"Primary failed: {result.DiagnosticMessage}. Fallback failed: {fallbackResult.DiagnosticMessage}"
-            };
+            return result;
         }
 
-        return result;
+        // Only retry with the fallback tier when it would actually use a different
+        // model file — retrying the same factory can never succeed and only burns
+        // another timeout budget.
+        if (!_options.TryGetTierDefinition(fallback, out var fallbackDef) || fallbackDef is null)
+        {
+            return result;
+        }
+
+        var fallbackPath = ResolvePersistentModelPath(fallbackDef.ModelPath);
+        if (string.Equals(fallbackPath, _activeFactoryModelPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Fallback tier '{Fallback}' resolves to the same model as the active factory ({Path}) — skipping retry.",
+                fallback, fallbackPath);
+            return result;
+        }
+
+        _logger.LogWarning(
+            "Active tier '{Active}' failed. Trying fallback '{Fallback}'. Reason: {Reason}",
+            activeTier, fallback, result.DiagnosticMessage);
+
+        var fallbackResult = await TryTranscribeWithTierAsync(fallback, audioChunk, true, cancellationToken);
+        if (fallbackResult.IsSuccess)
+        {
+            return fallbackResult;
+        }
+
+        return fallbackResult with
+        {
+            DiagnosticMessage =
+                $"Primary failed: {result.DiagnosticMessage}. Fallback failed: {fallbackResult.DiagnosticMessage}"
+        };
     }
 
     public async Task ImportModelFromFileAsync(string sourcePath, CancellationToken cancellationToken = default)
@@ -382,52 +410,79 @@ public sealed class LocalWhisperAsrEngine(
         {
             // Lazy one-shot warmup on the first real transcription so the app launches
             // instantly. Warms the model/interpreter without blocking startup.
+            // The inference lock is already held here, so WarmupCore runs in-process
+            // (the old path re-entered the lock and deadlocked itself).
             if (!_warmupDone)
             {
                 _warmupDone = true;
-                await WarmupAsync(cancellationToken);
+                await WarmupCoreAsync(cancellationToken);
             }
 
-            using var timeoutCts = new CancellationTokenSource(
-                TimeSpan.FromSeconds(_options.InferenceTimeoutSeconds));
-            using var linkedCts = CancellationTokenSource
-                .CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+            return await TranscribeCoreAsync(audioChunk, tier, usedFallback, cancellationToken);
+        }
+        finally
+        {
+            _inferenceLock.Release();
+        }
+    }
 
-            var builder = _activeFactory
-                .CreateBuilder()
-                .WithLanguage(_options.Language);
+    private async Task<RecitationTranscriptionResult> TranscribeCoreAsync(
+        byte[] audioChunk,
+        string tier,
+        bool usedFallback,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var prompt = BuildPrompt();
-            if (!string.IsNullOrWhiteSpace(prompt))
-                builder = builder.WithPrompt(prompt);
+        using var timeoutCts = new CancellationTokenSource(
+            TimeSpan.FromSeconds(_options.InferenceTimeoutSeconds));
+        using var linkedCts = CancellationTokenSource
+            .CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
+        // _activeFactory is non-null here — TryTranscribeWithTierAsync and
+        // ImportModelFromStreamAsync both guard before calling this method.
+        var builder = _activeFactory!
+            .CreateBuilder()
+            .WithLanguage(_options.Language);
 
-            if (_options.ThreadsOverride > 0)
-                builder = builder.WithThreads(_options.ThreadsOverride);
+        var prompt = BuildPrompt();
+        if (!string.IsNullOrWhiteSpace(prompt))
+            builder = builder.WithPrompt(prompt);
 
-            if (_options.NoTimestamps)
-                builder = builder.WithPrintTimestamps(false);
+        builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
 
-            // Word-level timestamps feed the phoneme-level tajweed analyzer.
+        if (_options.ThreadsOverride > 0)
+            builder = builder.WithThreads(_options.ThreadsOverride);
+
+        if (_options.NoTimestamps)
+            builder = builder.WithPrintTimestamps(false);
+
+        // Word-level timestamps feed the phoneme-level tajweed analyzer, but DTW
+        // alignment roughly doubles-to-triples inference time. The performance
+        // profile gates it: Speed = off, Accuracy = on, Auto = on only when the
+        // measured real-time factor shows the machine has headroom.
+        var useTimestamps = ShouldUseTokenTimestamps(out var timestampsReason);
+        if (useTimestamps)
             builder = builder.WithTokenTimestamps();
 
-            // Greedy decoding (BeamSearchWidth <= 1) is dramatically faster than beam
-            // search and is sufficient for clean single-speaker Arabic recitation.
-            // Beam search is only used for larger tiers where accuracy matters more.
-            // The sampling-strategy builder returns to the processor builder via
-            // ParentBuilder before Build().
-            using var processor = _options.BeamSearchWidth > 1
-                ? ((BeamSearchSamplingStrategyBuilder)builder
-                    .WithBeamSearchSamplingStrategy())
-                    .WithBeamSize(_options.BeamSearchWidth)
-                    .ParentBuilder
-                    .Build()
-                : builder
-                    .WithGreedySamplingStrategy()
-                    .ParentBuilder
-                    .Build();
+        // Greedy decoding (BeamSearchWidth <= 1) is dramatically faster than beam
+        // search and is sufficient for clean single-speaker Arabic recitation.
+        // Beam search is only used for larger tiers where accuracy matters more.
+        // The sampling-strategy builder returns to the processor builder via
+        // ParentBuilder before Build().
+        var processor = _options.BeamSearchWidth > 1
+            ? ((BeamSearchSamplingStrategyBuilder)builder
+                .WithBeamSearchSamplingStrategy())
+                .WithBeamSize(_options.BeamSearchWidth)
+                .ParentBuilder
+                .Build()
+            : builder
+                .WithGreedySamplingStrategy()
+                .ParentBuilder
+                .Build();
 
+        try
+        {
             var transcript = new System.Text.StringBuilder();
             var segments = new List<Whisper.net.SegmentData>();
             var segmentCount = 0;
@@ -435,7 +490,7 @@ public sealed class LocalWhisperAsrEngine(
             using var audioStream = new MemoryStream(audioChunk);
 
             _diagnostics.Info(
-                $"Whisper inference starting: tier={tier} audioLen={audioChunk.Length} modelPath={_activeFactoryModelPath} lang={_options.Language}");
+                $"Whisper inference starting: tier={tier} audioLen={audioChunk.Length} modelPath={_activeFactoryModelPath} lang={_options.Language} timestamps={useTimestamps}");
 
             try
             {
@@ -460,8 +515,12 @@ public sealed class LocalWhisperAsrEngine(
                     $"Unsupported wave: {waveEx.Message}", tier, usedFallback);
             }
 
+            stopwatch.Stop();
+            var durationMs = stopwatch.ElapsedMilliseconds;
+            ObserveChunkPerformance(audioChunk, durationMs, timestampsReason);
+
             _diagnostics.Info(
-                $"Whisper inference complete: tier={tier} segments={segmentCount} rawTextLen={transcript.Length}");
+                $"Whisper inference complete: tier={tier} segments={segmentCount} rawTextLen={transcript.Length} durationMs={durationMs}");
 
             var text = ArabicNormalizer.Normalize(transcript.ToString().Trim());
 
@@ -513,8 +572,156 @@ public sealed class LocalWhisperAsrEngine(
         }
         finally
         {
-            _inferenceLock.Release();
+            // Whisper.net processors are IAsyncDisposable. DisposeAsync waits for
+            // in-flight native work to finish; the synchronous Dispose() throws
+            // "Cannot dispose while processing" when a timeout cancelled a decode
+            // mid-flight. Dispose here, outside the catch blocks, so the honest
+            // timeout message is returned instead of a masked dispose crash.
+            await processor.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// Decides whether token timestamps (DTW) are used for this chunk.
+    /// Speed: always off. Accuracy: always on. Auto: start off, enable once the
+    /// measured real-time factor shows headroom, lock off if a chunk ever gets
+    /// too close to the inference timeout.
+    /// </summary>
+    private bool ShouldUseTokenTimestamps(out string reason)
+    {
+        var profile = _options.PerformanceProfile?.Trim().ToLowerInvariant();
+        if (profile == "speed")
+        {
+            reason = "Speed";
+            return false;
+        }
+
+        if (profile == "accuracy")
+        {
+            reason = "Accuracy";
+            return true;
+        }
+
+        // Auto (default). The field _timestampsEnabled may be false even on
+        // fast machines until enough chunks have been observed — that is the
+        // desired "measuring" behavior.
+        if (profile == "auto")
+        {
+            if (_tokenTimestampsLockedOff)
+            {
+                reason = "Auto: locked off (slow machine)";
+                return false;
+            }
+
+            reason = _timestampsEnabled ? "Auto: enabled (fast machine)" : "Auto: disabled (measuring)";
+            return _timestampsEnabled;
+        }
+
+        reason = "Unknown profile (defaulting to Speed)";
+        return false;
+    }
+
+    /// <summary>
+    /// Returns whether token timestamps should currently be used for decoding —
+    /// the profile gate used by TranscribeCoreAsync. Exposed for the unit tests
+    /// to verify profile behavior without a Whisper model.
+    /// </summary>
+    internal bool ShouldUseTokenTimestampsForTest()
+        => ShouldUseTokenTimestamps(out _);
+
+    /// <summary>
+    /// Does this profile allow token timestamps at all? Auto is stateful
+    /// (locked-off / measuring / enabled); Speed is always off; Accuracy is
+    /// always on. Unknown values are treated as Speed.
+    /// </summary>
+    internal static bool ProfileAllowsTimestamps(string? profile)
+    {
+        var normalized = profile?.Trim().ToLowerInvariant();
+        return normalized == "auto" || normalized == "accuracy";
+    }
+
+    /// <summary>
+    /// Updates the Auto-mode RTF (real-time factor = inferenceMs / audioMs) moving
+    /// average and flips the DTW gate. Called after every completed chunk.
+    /// </summary>
+    private void ObserveChunkPerformance(byte[] audioChunk, double inferenceMs, string timestampsReason)
+    {
+        // Only the stateful Auto profile learns from chunk timing; Speed and
+        // Accuracy are pinned, and their observation calls don't mutate state.
+        var profileIsAuto = string.Equals(
+            _options.PerformanceProfile?.Trim(), "auto", StringComparison.OrdinalIgnoreCase);
+        if (!profileIsAuto)
+        {
+            return;
+        }
+
+        var audioMs = audioChunk.Length / 2.0 / 16.0; // 16-bit mono at 16 kHz.
+        var rtf = ComputeRtf(audioChunk.Length, inferenceMs);
+
+        _rtfSampleCount++;
+        _rtfMovingAverage += (rtf - _rtfMovingAverage) / _rtfSampleCount;
+
+        if (!_timestampsEnabled && _rtfMovingAverage < 0.5 && _rtfSampleCount >= 2)
+        {
+            _timestampsEnabled = true;
+            _logger.LogInformation(
+                "Whisper Auto profile: enabling token timestamps (rtf={Rtf:0.00} < 0.5 over {N} chunks).",
+                _rtfMovingAverage, _rtfSampleCount);
+        }
+
+        // Auto only: never lock Speed/Accuracy — their profile choice is pinned.
+        var timeoutBudgetMs = _options.InferenceTimeoutSeconds * 1000.0;
+        if (profileIsAuto && inferenceMs > timeoutBudgetMs * 0.6)
+        {
+            _tokenTimestampsLockedOff = true;
+            _timestampsEnabled = false;
+            _logger.LogWarning(
+                "Whisper Auto profile: chunk took {Ms:0}ms (>60% of {Timeout}s timeout) — locking token timestamps off.",
+                inferenceMs, _options.InferenceTimeoutSeconds);
+        }
+
+        if (!_profileDecisionLogged)
+        {
+            _profileDecisionLogged = true;
+            _diagnostics.Info(
+                $"Whisper profile: {_options.PerformanceProfile} → timestamps={(useTimestampsUnsafe() ? "enabled" : "disabled")} (rtf={_rtfMovingAverage:0.00}, n={_rtfSampleCount})");
+        }
+
+        // Local helper so the diagnostics line can reflect the state set above.
+        bool useTimestampsUnsafe() => _timestampsEnabled && !_tokenTimestampsLockedOff;
+    }
+
+    /// <summary>
+    /// Real-time factor: inference wall-time / audio duration (1.0 = decodes at
+    /// real-time speed, lower is faster).
+    /// </summary>
+    private static double ComputeRtf(int audioByteCount, double inferenceMs)
+    {
+        // 16-bit mono PCM at 16 kHz → 2 bytes per sample, 16000 samples/sec.
+        var audioMs = audioByteCount / 2.0 / 16.0;
+        return audioMs > 0 ? inferenceMs / audioMs : double.PositiveInfinity;
+    }
+
+    // ── Test hooks (used by WhisperProfileTests) ─────────────────────────────
+
+    internal bool GetTimestampsEnabledForTest() => _timestampsEnabled && !_tokenTimestampsLockedOff;
+    internal bool GetTimestampsLockedOffForTest() => _tokenTimestampsLockedOff;
+    internal string GetTimestampsReasonForTest() => ShouldUseTokenTimestamps(out var reason) ? reason : reason;
+    internal void ObserveChunkPerformanceForTest(byte[] audioChunk, double inferenceMs, string timestampsReason)
+        => ObserveChunkPerformance(audioChunk, inferenceMs, timestampsReason);
+    internal LocalWhisperOptions GetOptionsForTest() => _options;
+    internal static double GetRtfForTest(int audioByteCount, double inferenceMs)
+        => ComputeRtf(audioByteCount, inferenceMs);
+    internal double GetRtfMovingAverageForTest() => _rtfMovingAverage;
+    internal int GetRtfSampleCountForTest() => _rtfSampleCount;
+    internal string GetProfileForTest() => _options.PerformanceProfile ?? string.Empty;
+    internal void ResetProfileStateForTest()
+    {
+        _tokenTimestampsLockedOff = false;
+        _timestampsEnabled = false;
+        _profileDecisionLogged = false;
+        _rtfSampleCount = 0;
+        _rtfMovingAverage = 0.0;
     }
 
     private string BuildPrompt()
@@ -667,11 +874,11 @@ public sealed class LocalWhisperAsrEngine(
         return timestamps;
     }
 
-    private async Task WarmupAsync(CancellationToken cancellationToken)
+    private async Task WarmupCoreAsync(CancellationToken cancellationToken)
     {
         var silence = BuildSilenceWav(durationMs: 100);
-        var warmupResult = await TryTranscribeWithTierAsync(
-            _options.PrimaryTier, silence, false, cancellationToken);
+        var warmupResult = await TranscribeCoreAsync(
+            silence, _options.PrimaryTier, false, cancellationToken);
 
         if (warmupResult.IsSuccess)
         {

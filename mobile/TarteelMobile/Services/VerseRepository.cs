@@ -1,6 +1,7 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using TarteelClone.LocalRecitationCore.Models;
 using TarteelClone.LocalRecitationCore.Utilities;
+using TarteelClone.UserService;
 using Microsoft.Maui.Storage;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,7 @@ public interface IVerseRepository
     Task<IReadOnlyList<VerseProgress>> GetDueProgressAsync(string? userKey = null, DateTimeOffset? now = null, int limit = 20, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetAllVersesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Verse>> GetVersesByWordsAsync(IReadOnlyList<string> normalizedWords, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Verse>> GetVersesBySearchAsync(string query, int maxResults = 20, CancellationToken cancellationToken = default);
     Task<JuzInfo?> GetJuzForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default);
     Task<JuzInfo?> GetJuzAsync(int juzNum, CancellationToken cancellationToken = default);
     Task<SurahInfo?> GetSurahAsync(int surahNum, CancellationToken cancellationToken = default);
@@ -80,7 +82,43 @@ public interface IVerseRepository
         string? userKey = null,
         TajweedRuleType? rule = null,
         CancellationToken cancellationToken = default);
+    Task<(CurriculumPath Path, int Position)> GetCurriculumPositionAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task SetCurriculumPositionAsync(
+        CurriculumPath path,
+        int position,
+        string? userKey = null,
+        CancellationToken cancellationToken = default);
+    Task RecordPracticeDayAsync(
+        string? userKey = null,
+        DateTimeOffset? day = null,
+        CancellationToken cancellationToken = default);
+    Task<PracticeStreak> GetStreakAsync(
+        string? userKey = null,
+        DateTimeOffset? now = null,
+        CancellationToken cancellationToken = default);
+    Task<UserProfile?> GetUserProfileAsync(
+        string userKey,
+        CancellationToken cancellationToken = default);
+    Task<UserProfile> CreateUserProfileAsync(
+        UserProfile profile,
+        CancellationToken cancellationToken = default);
+    Task<UserPreferences> GetUserPreferencesAsync(
+        string userKey,
+        CancellationToken cancellationToken = default);
+    Task<UserPreferences> SaveUserPreferencesAsync(
+        UserPreferences preferences,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WeakVerseRecommendation>> GetWeakVerseRecommendationsAsync(
+        string? userKey = null,
+        int limit = 10,
+        CancellationToken cancellationToken = default);
 }
+
+public sealed record PracticeStreak(int Current, int Best, int TotalDays);
+
+public sealed record WeakVerseRecommendation(int SurahNum, int AyahNum, int ErrorCount);
 
 public partial class LocalVerseRepository : IVerseRepository
 {
@@ -224,7 +262,32 @@ public partial class LocalVerseRepository : IVerseRepository
             daily_new_lesson_target INTEGER NOT NULL,
             daily_review_target INTEGER NOT NULL,
             created_at TEXT NOT NULL,
-            is_active INTEGER NOT NULL DEFAULT 1
+            is_active INTEGER NOT NULL DEFAULT 1,
+            curriculum_path INTEGER NOT NULL DEFAULT 0,
+            curriculum_position INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            user_key TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_active_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS user_preferences (
+            user_key TEXT PRIMARY KEY,
+            goal INTEGER NOT NULL DEFAULT 0,
+            daily_new_lessons INTEGER NOT NULL DEFAULT 1,
+            daily_reviews INTEGER NOT NULL DEFAULT 5,
+            enable_audio_feedback INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS practice_days (
+            user_key TEXT NOT NULL,
+            day TEXT NOT NULL,
+            PRIMARY KEY (user_key, day)
         );
 
         CREATE TABLE IF NOT EXISTS lesson_assignments (
@@ -298,6 +361,10 @@ public partial class LocalVerseRepository : IVerseRepository
             ON tajweed_error_history(user_key, rule);
         CREATE INDEX IF NOT EXISTS idx_error_history_user_verse
             ON tajweed_error_history(user_key, surah_num, ayah_num);
+
+        -- Additive upgrades for pre-existing installations (never destructive).
+        CREATE INDEX IF NOT EXISTS idx_error_history_verse_count
+            ON tajweed_error_history(surah_num, ayah_num, error_count);
         """;
 
     private readonly LocalQuranDataOptions _options;
@@ -344,6 +411,7 @@ public partial class LocalVerseRepository : IVerseRepository
             await using var connection = CreateOpenConnection();
             await ApplySchemaAsync(connection, cancellationToken);
             await UpgradeProgressSchemaAsync(connection, cancellationToken);
+            await UpgradeLearningPlanSchemaAsync(connection, cancellationToken);
 
             var verseCount = await ExecuteScalarIntAsync(connection, "SELECT COUNT(*) FROM verses;", cancellationToken);
             if (verseCount == 0)
@@ -737,6 +805,42 @@ public partial class LocalVerseRepository : IVerseRepository
         await using var indexCommand = connection.CreateCommand();
         indexCommand.CommandText = "CREATE INDEX IF NOT EXISTS idx_progress_due ON memorization_progress (user_key, next_review_at);";
         await indexCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds the curriculum path/position columns to an existing learning_plans
+    /// table (fresh databases already create them in SchemaSql). Column
+    /// existence is checked first — SQLite's ALTER TABLE fails on duplicates.
+    /// </summary>
+    private static async Task UpgradeLearningPlanSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info(learning_plans);";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                columns.Add(reader.GetString(1));
+            }
+        }
+
+        var statements = new List<string>();
+        if (!columns.Contains("curriculum_path"))
+        {
+            statements.Add("ALTER TABLE learning_plans ADD COLUMN curriculum_path INTEGER NOT NULL DEFAULT 0;");
+        }
+        if (!columns.Contains("curriculum_position"))
+        {
+            statements.Add("ALTER TABLE learning_plans ADD COLUMN curriculum_position INTEGER NOT NULL DEFAULT 0;");
+        }
+
+        foreach (var statement in statements)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = statement;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     private async Task SetDatasetMetadataAsync(SqliteConnection connection, string key, string value, CancellationToken cancellationToken)
@@ -1430,6 +1534,42 @@ public partial class LocalVerseRepository : IVerseRepository
         }
 
         return verses;
+    }
+
+    /// <summary>
+    /// Keyword search over the full verse corpus using the in-memory
+    /// WordMatchSearchIndex (built lazily from the verses table).
+    /// </summary>
+    public async Task<IReadOnlyList<Verse>> GetVersesBySearchAsync(
+        string query,
+        int maxResults = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
+        var allVerses = await GetAllVersesAsync(cancellationToken);
+        if (allVerses.Count == 0)
+        {
+            return [];
+        }
+
+        var index = new TarteelClone.SearchService.WordMatchSearchIndex();
+        index.Index(allVerses
+            .Select(v => (v.SurahNum, v.AyahNum, v.ArabicText))
+            .ToList());
+        var results = index.Search(
+            query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            Math.Clamp(maxResults, 1, 100));
+
+        return results
+            .Select(r => allVerses.FirstOrDefault(v => v.SurahNum == r.SurahNum && v.AyahNum == r.AyahNum))
+            .Where(v => v is not null)
+            .Cast<Verse>()
+            .ToArray();
     }
 
     public async Task<JuzInfo?> GetJuzForVerseAsync(int surahNum, int ayahNum, CancellationToken cancellationToken = default)

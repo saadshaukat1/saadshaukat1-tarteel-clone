@@ -36,9 +36,9 @@ public partial class ProgressPage : ContentPage
             : new ColumnDefinitionCollection { new(GridLength.Star), new(GridLength.Star) };
         Grid.SetColumn(TodaySummaryBorder, 0);
         Grid.SetRow(TodaySummaryBorder, 0);
-        Grid.SetColumn(OverallSummaryBorder, compact ? 0 : 1);
-        Grid.SetRow(OverallSummaryBorder, compact ? 1 : 0);
-        Grid.SetColumn(ReviewSignalLayout, compact ? 0 : 1);
-        Grid.SetRow(ReviewSignalLayout, compact ? 1 : 0);
+        Grid.SetColumn(CurriculumStack, compact ? 0 : 1);
+        Grid.SetRow(CurriculumStack, compact ? 1 : 0);
+        Grid.SetColumn(WeakVersesLayout, compact ? 0 : 1);
+        Grid.SetRow(WeakVersesLayout, compact ? 1 : 0);
     }
 }

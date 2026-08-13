@@ -20,10 +20,12 @@ public interface ITodayWorkflowService
 public sealed class TodayWorkflowService : ITodayWorkflowService
 {
     private readonly IVerseRepository _verses;
+    private readonly ICurriculumService _curriculum;
 
-    public TodayWorkflowService(IVerseRepository verses)
+    public TodayWorkflowService(IVerseRepository verses, ICurriculumService curriculum)
     {
         _verses = verses;
+        _curriculum = curriculum;
     }
 
     public async Task<IReadOnlyList<TodayAssignment>> GetTodayAssignmentsAsync(
@@ -86,18 +88,41 @@ public sealed class TodayWorkflowService : ITodayWorkflowService
             var progressKeys = progress
                 .Select(item => (item.SurahNum, item.AyahNum))
                 .ToHashSet();
-            var newLessonKeys = (await _verses.GetAllVersesAsync(cancellationToken))
-                .Where(verse => !progressKeys.Contains((verse.SurahNum, verse.AyahNum)))
-                .Where(verse => !knownKeys.Contains((verse.SurahNum, verse.AyahNum)))
-                .Take(newLessonSlots)
-                .Select(verse => (verse.SurahNum, verse.AyahNum))
-                .ToArray();
-            if (newLessonKeys.Length > 0)
+
+            // New lessons follow the student's curriculum path, starting from the
+            // persisted position (defaults to Juz 30 for new students).
+            var path = (CurriculumPath)plan.CurriculumPath;
+            var pathVerses = _curriculum.GetLearningPath(path);
+            var startPosition = Math.Clamp(plan.CurriculumPosition, 0, Math.Max(pathVerses.Count - 1, 0));
+
+            var newLessonKeys = new List<(int SurahNum, int AyahNum)>();
+            for (var i = startPosition; i < pathVerses.Count && newLessonKeys.Count < newLessonSlots; i++)
+            {
+                var (surah, ayah) = pathVerses[i];
+                if (progressKeys.Contains((surah, ayah)) || knownKeys.Contains((surah, ayah)))
+                {
+                    continue;
+                }
+
+                newLessonKeys.Add((surah, ayah));
+            }
+
+            if (newLessonKeys.Count > 0)
             {
                 await _verses.CreateAssignmentsAsync(
                     userKey,
                     newLessonKeys.Select(key => new LessonAssignmentInput(key.SurahNum, key.AyahNum, LessonAssignmentReason.NewLesson, currentTime)).ToArray(),
                     cancellationToken);
+
+                // Advance the persisted path position past everything we just
+                // handed out (monotonic — never rewinds).
+                var furthestIndex = pathVerses
+                    .Select((verse, index) => (verse, index))
+                    .Where(item => newLessonKeys.Contains(item.verse))
+                    .Select(item => item.index)
+                    .DefaultIfEmpty(startPosition)
+                    .Max();
+                await _verses.SetCurriculumPositionAsync(path, furthestIndex + 1, userKey, cancellationToken);
             }
         }
 

@@ -39,6 +39,9 @@ public partial class MushafPageViewModel : ObservableObject
     private string _highlightedVerseKey = string.Empty;
     public string HighlightedVerseKey { get => _highlightedVerseKey; set => SetProperty(ref _highlightedVerseKey, value); }
 
+    private string _searchQuery = string.Empty;
+    public string SearchQuery { get => _searchQuery; set => SetProperty(ref _searchQuery, value); }
+
     public int PageCount => TotalPages;
     public IReadOnlyList<JuzInfo> JuzList { get; private set; } = [];
     public IReadOnlyList<SurahInfo> SurahList { get; private set; } = [];
@@ -148,6 +151,32 @@ public partial class MushafPageViewModel : ObservableObject
         catch (Exception ex)
         {
             _diagnostics.Warn($"Failed to show verse {surahNum}:{ayahNum} in mushaf: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            return;
+        }
+
+        try
+        {
+            var results = await _verseRepository.GetVersesBySearchAsync(SearchQuery, 10);
+            if (results.Count == 0)
+            {
+                _diagnostics.Info($"Verse search '{SearchQuery}' returned no results.");
+                return;
+            }
+
+            var first = results[0];
+            await ShowVerseAsync(first.SurahNum, first.AyahNum);
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Verse search failed: {ex.Message}");
         }
     }
 

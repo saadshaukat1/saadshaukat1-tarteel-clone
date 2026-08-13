@@ -16,7 +16,7 @@
 
 # communication
 - Prefers status documents and planning summaries in Urdu when the output is meant to be shown to others (stakeholders, non-English-speaking audiences). Confidence: 0.60
-- Wants architectural/scope questions re-asked rather than having the assistant auto-decide — when a clarifying question goes unanswered, re-present it instead of choosing unilaterally. Confidence: 0.75
+- Wants architectural/scope questions re-asked rather than having the assistant auto-decide — when a clarifying question goes unanswered, re-present it instead of choosing unilaterally. Confidence: 0.80
 
 # workflow
 See [workflow/taste.md](workflow/taste.md)

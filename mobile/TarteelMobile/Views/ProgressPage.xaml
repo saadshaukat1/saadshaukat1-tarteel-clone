@@ -13,7 +13,7 @@
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,18">
             <VerticalStackLayout Spacing="3">
                 <Label Text="Practice record" FontSize="{StaticResource FontSizeTitle}" FontAttributes="Bold" />
-                <Label Text="What needs your attention next" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+                <Label Text="Your hifz dashboard: today, curriculum, and weak spots" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
             </VerticalStackLayout>
             <Button Grid.Column="1" Text="Refresh" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" Command="{Binding RefreshCommand}" />
         </Grid>
@@ -26,15 +26,24 @@
                             <Label Text="TODAY" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
                             <Label Text="{Binding DueSummary}" FontSize="{StaticResource FontSizeDisplay}" FontAttributes="Bold" TextColor="{StaticResource TextOnPrimary}" />
                             <Label Text="{Binding TodayMessage}" FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
+                            <Label Text="{Binding StreakDisplay}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                            <Label Text="{Binding TodayNewCount, StringFormat='New: {0} · Review: {1}'}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
                             <Button Text="Start today" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" IsEnabled="{Binding HasTodayAssignments}" Command="{Binding StartTodayCommand}" />
                         </VerticalStackLayout>
                     </Border>
-                    <Border x:Name="OverallSummaryBorder" Grid.Column="1" Padding="20" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
-                        <VerticalStackLayout Spacing="5">
-                            <Label Text="OVERALL" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
-                            <Label Text="{Binding OverallSummary}" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" />
-                        </VerticalStackLayout>
-                    </Border>
+                    <VerticalStackLayout x:Name="CurriculumStack" Grid.Column="1" Spacing="10">
+                        <Border x:Name="CurriculumBorder" Padding="20" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
+                            <VerticalStackLayout Spacing="5">
+                                <Label Text="CURRICULUM" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                <Label Text="{Binding PathName}" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" />
+                                <Label Text="{Binding PathProgress}" FontSize="{StaticResource FontSizeBody}" />
+                                <Label Text="{Binding GoalLabel}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border x:Name="ApiStatusBorder" Padding="16,10" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 6">
+                            <Label Text="{Binding ApiStatus}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                        </Border>
+                    </VerticalStackLayout>
                 </Grid>
 
                 <Grid x:Name="ProgressColumnsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16">
@@ -55,14 +64,22 @@
                             </CollectionView.ItemTemplate>
                         </CollectionView>
                     </VerticalStackLayout>
-                    <VerticalStackLayout x:Name="ReviewSignalLayout" Grid.Column="1" Spacing="8">
-                        <Label Text="Review signal" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
-                        <Border Padding="16" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 6">
-                            <VerticalStackLayout Spacing="6">
-                                <Label Text="Mastery is a guide, not a verdict." FontAttributes="Bold" />
-                                <Label Text="Use repeated mismatches and tajweed coaching to decide what to repeat. The local record keeps the history available offline." FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
-                            </VerticalStackLayout>
-                        </Border>
+                    <VerticalStackLayout x:Name="WeakVersesLayout" Grid.Column="1" Spacing="8">
+                        <Label Text="Weak spots" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
+                        <CollectionView ItemsSource="{Binding WeakVerses}" HeightRequest="260" EmptyView="No weak verses yet — keep it up!">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="services:WeakVerseRecommendation">
+                                    <Grid ColumnDefinitions="Auto,*" Padding="10,8" ColumnSpacing="12" BackgroundColor="{StaticResource SurfacePanel}">
+                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                            <Label Text="{Binding SurahNum, StringFormat='{0}:{1}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                            <Label Text="{Binding ErrorCount, StringFormat='{0} error(s)'}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="Repeat this verse" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" HorizontalTextAlignment="End" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                        <Label Text="{Binding RecommendationText}" FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
                     </VerticalStackLayout>
                 </Grid>
 

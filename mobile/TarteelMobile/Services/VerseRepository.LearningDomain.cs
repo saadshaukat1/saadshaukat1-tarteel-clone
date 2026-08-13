@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using TarteelClone.LocalRecitationCore.Models;
+using TarteelClone.UserService;
 
 namespace TarteelMobile.Services;
 
@@ -18,14 +19,27 @@ public partial class LocalVerseRepository
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT OR IGNORE INTO learning_plans (
-                user_key, daily_new_lesson_target, daily_review_target, created_at, is_active)
-            VALUES (@user_key, @new_target, @review_target, @created_at, 1);
+                user_key, daily_new_lesson_target, daily_review_target, created_at, is_active, curriculum_path, curriculum_position)
+            VALUES (@user_key, @new_target, @review_target, @created_at, 1, 0, 0);
             """;
         command.Parameters.AddWithValue("@user_key", normalizedUserKey);
         command.Parameters.AddWithValue("@new_target", Math.Max(settings.DailyNewLessonTarget, 0));
         command.Parameters.AddWithValue("@review_target", Math.Max(settings.DailyReviewTarget, 0));
         command.Parameters.AddWithValue("@created_at", now.ToString("O"));
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Keep the plan's targets in sync with the latest requested input.
+        await using var update = connection.CreateCommand();
+        update.CommandText = """
+            UPDATE learning_plans
+            SET daily_new_lesson_target = @new_target, daily_review_target = @review_target
+            WHERE user_key = @user_key;
+            """;
+        update.Parameters.AddWithValue("@new_target", Math.Max(settings.DailyNewLessonTarget, 0));
+        update.Parameters.AddWithValue("@review_target", Math.Max(settings.DailyReviewTarget, 0));
+        update.Parameters.AddWithValue("@user_key", normalizedUserKey);
+        await update.ExecuteNonQueryAsync(cancellationToken);
+
         return await ReadLearningPlanAsync(connection, normalizedUserKey, cancellationToken)
             ?? throw new InvalidOperationException("Learning plan could not be created.");
     }
@@ -223,6 +237,8 @@ public partial class LocalVerseRepository
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         await EnsureSessionOwnershipAsync(connection, transaction, attempt.SessionId, normalizedUserKey, cancellationToken);
 
+        await RecordPracticeDayCoreAsync(connection, transaction, normalizedUserKey, attemptedAt, cancellationToken);
+
         await using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
         insert.CommandText = """
@@ -365,11 +381,15 @@ public partial class LocalVerseRepository
     private static async Task<LearningPlan?> ReadLearningPlanAsync(SqliteConnection connection, string userKey, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, user_key, daily_new_lesson_target, daily_review_target, created_at, is_active FROM learning_plans WHERE user_key = @user_key LIMIT 1;";
+        command.CommandText = "SELECT id, user_key, daily_new_lesson_target, daily_review_target, created_at, is_active, curriculum_path, curriculum_position FROM learning_plans WHERE user_key = @user_key LIMIT 1;";
         command.Parameters.AddWithValue("@user_key", userKey);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)
-            ? new LearningPlan(reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2), reader.GetInt32(3), DateTimeOffset.Parse(reader.GetString(4)), reader.GetInt32(5) != 0)
+            ? new LearningPlan(
+                reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2), reader.GetInt32(3),
+                DateTimeOffset.Parse(reader.GetString(4)), reader.GetInt32(5) != 0,
+                reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
+                reader.IsDBNull(7) ? 0 : reader.GetInt32(7))
             : null;
     }
 
@@ -529,6 +549,244 @@ public partial class LocalVerseRepository
                 reader.GetInt32(2),
                 reader.GetInt32(3),
                 DateTimeOffset.Parse(reader.GetString(4))));
+        }
+        return results;
+    }
+
+    // ── Curriculum state: path position ──────────────────────────────────────
+
+    public async Task<(CurriculumPath Path, int Position)> GetCurriculumPositionAsync(
+        string? userKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var plan = await GetOrCreateLearningPlanAsync(userKey, cancellationToken: cancellationToken);
+        return ((CurriculumPath)plan.CurriculumPath, plan.CurriculumPosition);
+    }
+
+    public async Task SetCurriculumPositionAsync(
+        CurriculumPath path,
+        int position,
+        string? userKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var normalizedUserKey = ResolveUserKey(userKey);
+        // Ensure the plan row exists so the update always has a target.
+        await GetOrCreateLearningPlanAsync(normalizedUserKey, cancellationToken: cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE learning_plans
+            SET curriculum_path = @path, curriculum_position = MAX(curriculum_position, @position)
+            WHERE user_key = @user_key;
+            """;
+        command.Parameters.AddWithValue("@path", (int)path);
+        command.Parameters.AddWithValue("@position", position);
+        command.Parameters.AddWithValue("@user_key", normalizedUserKey);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    // ── Practice streak ──────────────────────────────────────────────────────
+
+    public async Task RecordPracticeDayAsync(
+        string? userKey = null,
+        DateTimeOffset? day = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        await RecordPracticeDayCoreAsync(connection, transaction, ResolveUserKey(userKey), day ?? DateTimeOffset.UtcNow, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task RecordPracticeDayCoreAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string userKey,
+        DateTimeOffset day,
+        CancellationToken cancellationToken)
+    {
+        var dayKey = day.ToString("yyyy-MM-dd");
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT OR IGNORE INTO practice_days (user_key, day) VALUES (@user_key, @day);";
+        command.Parameters.AddWithValue("@user_key", userKey);
+        command.Parameters.AddWithValue("@day", dayKey);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<PracticeStreak> GetStreakAsync(
+        string? userKey = null,
+        DateTimeOffset? now = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var normalizedUserKey = ResolveUserKey(userKey);
+        var currentTime = now ?? DateTimeOffset.UtcNow;
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT day FROM practice_days WHERE user_key = @user_key ORDER BY day;";
+        command.Parameters.AddWithValue("@user_key", normalizedUserKey);
+        var days = new HashSet<string>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                days.Add(reader.GetString(0));
+            }
+        }
+
+        if (days.Count == 0)
+        {
+            return new PracticeStreak(0, 0, 0);
+        }
+
+        // Walk backwards from today (or yesterday if today has no practice yet)
+        // counting consecutive UTC days present in the set.
+        var cursor = DateOnly.FromDateTime(currentTime.UtcDateTime);
+        if (!days.Contains(cursor.ToString("yyyy-MM-dd")))
+        {
+            cursor = cursor.AddDays(-1);
+        }
+
+        var currentStreak = 0;
+        while (days.Contains(cursor.ToString("yyyy-MM-dd")))
+        {
+            currentStreak++;
+            cursor = cursor.AddDays(-1);
+        }
+
+        // Best streak: longest run of consecutive days in the set.
+        var bestStreak = 0;
+        var run = 0;
+        var previous = (DateOnly?)null;
+        foreach (var day in days.OrderBy(d => d, StringComparer.Ordinal))
+        {
+            var parsed = DateOnly.Parse(day);
+            run = previous is not null && parsed == previous.Value.AddDays(1) ? run + 1 : 1;
+            bestStreak = Math.Max(bestStreak, run);
+            previous = parsed;
+        }
+
+        return new PracticeStreak(currentStreak, bestStreak, days.Count);
+    }
+
+    // ── User profile + preferences (backs IUserProfileStore) ────────────────
+
+    public async Task<UserProfile?> GetUserProfileAsync(
+        string userKey,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT user_key, display_name, email, created_at, last_active_at FROM user_profiles WHERE user_key = @user_key LIMIT 1;";
+        command.Parameters.AddWithValue("@user_key", userKey);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new UserProfile(
+            reader.GetString(0), reader.GetString(1), reader.GetString(2),
+            DateTimeOffset.Parse(reader.GetString(3)), DateTimeOffset.Parse(reader.GetString(4)));
+    }
+
+    public async Task<UserProfile> CreateUserProfileAsync(
+        UserProfile profile,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO user_profiles (user_key, display_name, email, created_at, last_active_at)
+            VALUES (@user_key, @display_name, @email, @created_at, @last_active_at)
+            ON CONFLICT(user_key) DO UPDATE SET
+                last_active_at = @last_active_at;
+            """;
+        command.Parameters.AddWithValue("@user_key", profile.UserKey);
+        command.Parameters.AddWithValue("@display_name", profile.DisplayName);
+        command.Parameters.AddWithValue("@email", profile.Email);
+        command.Parameters.AddWithValue("@created_at", profile.CreatedAt.ToString("O"));
+        command.Parameters.AddWithValue("@last_active_at", profile.LastActiveAt.ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return await GetUserProfileAsync(profile.UserKey, cancellationToken)
+            ?? throw new InvalidOperationException($"User profile for '{profile.UserKey}' could not be created.");
+    }
+
+    public async Task<UserPreferences> GetUserPreferencesAsync(
+        string userKey,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT user_key, goal, daily_new_lessons, daily_reviews, enable_audio_feedback, updated_at FROM user_preferences WHERE user_key = @user_key LIMIT 1;";
+        command.Parameters.AddWithValue("@user_key", userKey);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return new UserPreferences(userKey, MemorizationGoal.Casual, 1, 5, false, DateTimeOffset.UtcNow);
+        }
+
+        return new UserPreferences(
+            reader.GetString(0), (MemorizationGoal)reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3),
+            reader.GetInt32(4) != 0, DateTimeOffset.Parse(reader.GetString(5)));
+    }
+
+    public async Task<UserPreferences> SaveUserPreferencesAsync(
+        UserPreferences preferences,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO user_preferences (user_key, goal, daily_new_lessons, daily_reviews, enable_audio_feedback, updated_at)
+            VALUES (@user_key, @goal, @daily_new, @daily_reviews, @audio, @updated_at)
+            ON CONFLICT(user_key) DO UPDATE SET
+                goal = @goal, daily_new_lessons = @daily_new, daily_reviews = @daily_reviews,
+                enable_audio_feedback = @audio, updated_at = @updated_at;
+            """;
+        command.Parameters.AddWithValue("@user_key", preferences.UserKey);
+        command.Parameters.AddWithValue("@goal", (int)preferences.Goal);
+        command.Parameters.AddWithValue("@daily_new", preferences.DailyNewLessons);
+        command.Parameters.AddWithValue("@daily_reviews", preferences.DailyReviews);
+        command.Parameters.AddWithValue("@audio", preferences.EnableAudioFeedback ? 1 : 0);
+        command.Parameters.AddWithValue("@updated_at", preferences.UpdatedAt.ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return preferences;
+    }
+
+    // ── Weak-verse recommendations (teacher-like guidance) ──────────────────
+
+    public async Task<IReadOnlyList<WeakVerseRecommendation>> GetWeakVerseRecommendationsAsync(
+        string? userKey = null,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT surah_num, ayah_num, SUM(error_count) AS total_errors
+            FROM tajweed_error_history
+            WHERE user_key = @user_key
+            GROUP BY surah_num, ayah_num
+            ORDER BY total_errors DESC, surah_num, ayah_num
+            LIMIT @limit;
+            """;
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 50));
+        var results = new List<WeakVerseRecommendation>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new WeakVerseRecommendation(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2)));
         }
         return results;
     }

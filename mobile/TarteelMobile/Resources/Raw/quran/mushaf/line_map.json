@@ -1,0 +1,5 @@
+[
+  {
+    "_comment": "Line-level Mushaf data placeholder. Schema: [{ \"page\": 1, \"lines\": [\"<line 1>\", ... 16 strings ...] }, ...]. When present, Mushaf16LinerLayout renders these lines verbatim; while empty, the algorithmic 16-line distribution is used. Fill with verified line-level Indo-Pak/Madani data (e.g. generated from a licensed source) — this file intentionally ships empty so no unverified data is presented as authentic."
+  }
+]

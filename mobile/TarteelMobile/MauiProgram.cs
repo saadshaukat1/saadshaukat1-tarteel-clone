@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TarteelClone.QuranEngine;
 using TarteelMobile.Services;
 using TarteelMobile.Services.Asr;
 using TarteelMobile.Services.Core;
@@ -12,6 +13,8 @@ using TarteelMobile.ViewModels;
 using TarteelMobile.Views;
 using CoreAbstractions = TarteelClone.LocalRecitationCore.Abstractions;
 using CoreServices = TarteelClone.LocalRecitationCore.Services;
+using ILineLevelPageSource = TarteelClone.QuranEngine.ILineLevelPageSource;
+using JsonLinePageSource = TarteelClone.QuranEngine.JsonLinePageSource;
 
 namespace TarteelMobile;
 
@@ -53,6 +56,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecitationService, RecitationService>();
         builder.Services.AddSingleton<IAudioService, AudioService>();
         builder.Services.AddSingleton<IAudioPlaybackService, AudioPlaybackService>();
+        builder.Services.AddSingleton<IQuranPageLayout, Mushaf16LinerLayout>();
+        builder.Services.AddSingleton<ICurriculumService, CurriculumService>();
+        builder.Services.AddSingleton<TarteelClone.UserService.IUserProfileStore, SqliteUserProfileStore>();
+        builder.Services.AddSingleton<TarteelClone.SearchService.IVerseSearchIndex, TarteelClone.SearchService.WordMatchSearchIndex>();
+        builder.Services.AddSingleton<TarteelClone.Api.ILocalApi, LocalApiService>();
+        builder.Services.AddSingleton<ILineLevelPageSource, JsonLinePageSource>();
 
         // ── ViewModels ────────────────────────────────────────────────────────
         builder.Services.AddTransient<RecitationViewModel>();

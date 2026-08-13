@@ -27,7 +27,9 @@ public sealed record LearningPlan(
     int DailyNewLessonTarget,
     int DailyReviewTarget,
     DateTimeOffset CreatedAt,
-    bool IsActive);
+    bool IsActive,
+    int CurriculumPath = 0,
+    int CurriculumPosition = 0);
 
 public sealed record LessonAssignment(
     long Id,

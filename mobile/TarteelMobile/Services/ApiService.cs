@@ -12,20 +12,22 @@ public interface ISessionService
 public sealed class LocalSessionService : ISessionService
 {
     private readonly IAppDiagnosticsService _diagnostics;
+    private readonly IVerseRepository? _verses;
+
+    public LocalSessionService(IAppDiagnosticsService diagnostics, IVerseRepository? verses = null)
+    {
+        _diagnostics = diagnostics;
+        _verses = verses;
+    }
 
     public bool IsAuthenticated { get; private set; }
     public string? CurrentUserEmail { get; private set; }
 
-    public LocalSessionService(IAppDiagnosticsService diagnostics)
-    {
-        _diagnostics = diagnostics;
-    }
-
     public Task<bool> LoginAsync(string email, string password)
-        => Task.FromResult(TryAuthenticate(email, password, "login"));
+        => TryAuthenticateAsync(email, password, "login");
 
     public Task<bool> RegisterAsync(string email, string password)
-        => Task.FromResult(TryAuthenticate(email, password, "registration"));
+        => TryAuthenticateAsync(email, password, "registration");
 
     public Task LogoutAsync()
     {
@@ -39,7 +41,7 @@ public sealed class LocalSessionService : ISessionService
         return Task.CompletedTask;
     }
 
-    private bool TryAuthenticate(string email, string password, string operation)
+    private async Task<bool> TryAuthenticateAsync(string email, string password, string operation)
     {
         var normalizedEmail = email.Trim();
         if (!IsValidEmail(normalizedEmail) || password.Trim().Length < 4)
@@ -51,6 +53,26 @@ public sealed class LocalSessionService : ISessionService
         IsAuthenticated = true;
         CurrentUserEmail = normalizedEmail;
         _diagnostics.Info($"Accepted local {operation} for '{normalizedEmail}'.");
+
+        // Persist a profile row (created on first login, last-active touched on
+        // subsequent ones) so the dashboard can surface user state offline.
+        if (_verses is not null)
+        {
+            try
+            {
+                var now = DateTimeOffset.UtcNow;
+                var existing = await _verses.GetUserProfileAsync(normalizedEmail);
+                await _verses.CreateUserProfileAsync(
+                    existing is null
+                        ? new TarteelClone.UserService.UserProfile(normalizedEmail, normalizedEmail, normalizedEmail, now, now)
+                        : existing with { LastActiveAt = now });
+            }
+            catch (Exception ex)
+            {
+                _diagnostics.Warn($"Could not persist profile for '{normalizedEmail}': {ex.Message}");
+            }
+        }
+
         return true;
     }
 

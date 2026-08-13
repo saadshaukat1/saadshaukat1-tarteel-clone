@@ -96,6 +96,94 @@ public sealed class LearningDomainRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task Streak_CountsConsecutiveDaysAndBreaksOnGap()
+    {
+        var databaseName = $"learning-streak-{Guid.NewGuid():N}.db";
+        try
+        {
+            var repository = CreateRepository(databaseName);
+            var userKey = "streak@example.com";
+            var today = new DateTimeOffset(2026, 8, 11, 10, 0, 0, TimeSpan.Zero);
+
+            // Days 8/9 and 8/11 — gap on 8/10 breaks the run.
+            await repository.RecordPracticeDayAsync(userKey, new DateTimeOffset(2026, 8, 9, 9, 0, 0, TimeSpan.Zero));
+            await repository.RecordPracticeDayAsync(userKey, new DateTimeOffset(2026, 8, 11, 9, 0, 0, TimeSpan.Zero));
+
+            var streak = await repository.GetStreakAsync(userKey, today);
+            Assert.Equal(1, streak.Current);   // only today (8/11)
+            Assert.Equal(1, streak.Best);      // longest run is a single day
+            Assert.Equal(2, streak.TotalDays);
+
+            // Fill the gap → current streak becomes 3 (8/9, 8/10, 8/11).
+            await repository.RecordPracticeDayAsync(userKey, new DateTimeOffset(2026, 8, 10, 9, 0, 0, TimeSpan.Zero));
+            var grown = await repository.GetStreakAsync(userKey, today);
+            Assert.Equal(3, grown.Current);
+            Assert.Equal(3, grown.Best);
+            Assert.Equal(3, grown.TotalDays);
+        }
+        finally
+        {
+            DeleteDatabase(databaseName);
+        }
+    }
+
+    [Fact]
+    public async Task CurriculumPosition_PersistsAcrossRepositoryRestart()
+    {
+        var databaseName = $"learning-curriculum-{Guid.NewGuid():N}.db";
+        try
+        {
+            var repository = CreateRepository(databaseName);
+            await repository.SetCurriculumPositionAsync(TarteelMobile.Services.CurriculumPath.Juz30, 42, "student@example.com");
+
+            var second = CreateRepository(databaseName);
+            var (path, position) = await second.GetCurriculumPositionAsync("student@example.com");
+            Assert.Equal(TarteelMobile.Services.CurriculumPath.Juz30, path);
+            Assert.Equal(42, position);
+        }
+        finally
+        {
+            DeleteDatabase(databaseName);
+        }
+    }
+
+    [Fact]
+    public async Task WeakVerseRecommendations_OrderByErrorCountDescending()
+    {
+        var databaseName = $"learning-weak-{Guid.NewGuid():N}.db";
+        try
+        {
+            var repository = CreateRepository(databaseName);
+            var userKey = "weak@example.com";
+            var session = await repository.OpenRecitationSessionAsync(userKey);
+            var attemptedAt = new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero);
+
+            await repository.SaveVerseAttemptAsync(userKey, new VerseAttemptInput(
+                session.Id, null, 2, 255, 0.55, 0.6, "text",
+                [new RecitationWordMismatch(0, "a", "b")],
+                [new TajweedViolation(0, TajweedRuleType.Madd, "a", "b", "hint"),
+                 new TajweedViolation(1, TajweedRuleType.Ghunna, "a", "b", "hint")],
+                attemptedAt));
+            await repository.SaveVerseAttemptAsync(userKey, new VerseAttemptInput(
+                session.Id, null, 1, 1, 0.6, 0.7, "text",
+                [new RecitationWordMismatch(0, "a", "b")],
+                [new TajweedViolation(0, TajweedRuleType.Madd, "a", "b", "hint")],
+                attemptedAt.AddMinutes(1)));
+
+            var weak = await repository.GetWeakVerseRecommendationsAsync(userKey);
+            Assert.Equal(2, weak.Count);
+            Assert.Equal(2, weak[0].SurahNum);   // 2 errors first
+            Assert.Equal(255, weak[0].AyahNum);
+            Assert.Equal(1, weak[1].SurahNum);   // 1 error second
+            Assert.Equal(2, weak[0].ErrorCount);
+        }
+        finally
+        {
+            DeleteDatabase(databaseName);
+        }
+    }
+
     private static LocalVerseRepository CreateRepository(string databaseName) =>
         new(
             Options.Create(new LocalQuranDataOptions

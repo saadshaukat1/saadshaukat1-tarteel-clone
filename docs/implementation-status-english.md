@@ -37,6 +37,10 @@ Android implementation remains in the repository but is excluded from active bui
 - ✅ Model import/download and readiness diagnostics are implemented.
 - ✅ Surah prompt bias, greedy/beam-search configuration, warmup, Arabic normalization, silence handling, RMS normalization, and overlapped PCM chunks are implemented.
 - ✅ Windows audio capture is active.
+- ✅ **NEW: Adaptive performance profile** — `PerformanceProfile` (Auto | Speed | Accuracy) gates Whisper token timestamps (DTW). Auto starts with DTW off so streaming stays fast, enables it only when the measured real-time factor (inferenceMs / audioMs) shows headroom, and locks it off if a chunk exceeds 60% of the inference timeout. Each decision is logged to `offline.log`.
+- ✅ **NEW: Disposal-safe decode** — the processor is disposed via `DisposeAsync()`, so a timed-out chunk no longer crashes with "Cannot dispose while processing"; timeouts surface as honest diagnostics.
+- ✅ **NEW: Warmup deadlock fixed** — lazy warmup now runs in-process under the held inference lock instead of re-acquiring it and failing instantly.
+- ✅ **NEW: Honest tier reporting + fallback skip** — attempts are labeled with the actually-loaded tier, and the fallback is skipped when it would reuse the same model file (no more 2× timeout burn per chunk).
 - ⏸️ Android audio code remains in the repository but Android is excluded from active targets.
 
 ### 2.3 Verse matching
@@ -74,7 +78,7 @@ Android implementation remains in the repository but is excluded from active bui
 - ✅ Existing local databases receive an additive schema upgrade for the new review fields.
 - ✅ `GetDueProgressAsync` returns the due review queue using the same scheduler policy.
 - ✅ The Progress page exposes a student-facing "Today's review" section before practice history.
-- ✅ The current verified test suite has 34 passing tests.
+- ✅ The current verified test suite has 44 passing tests.
 - ✅ Durable local learning plans, lesson assignments, recitation sessions, verse-level attempts, word mismatches, and tajweed violations are persisted in SQLite.
 - ✅ Attempt writes are transactional, update EMA progress and `next_review_at` through `ReviewScheduler`, and recover across a new repository instance.
 - ✅ Guided Today flow now generates bounded review/new-lesson assignments, starts assignment-aware recitation, persists completed attempts, and exposes retry/next actions.
@@ -84,15 +88,16 @@ Android implementation remains in the repository but is excluded from active bui
 ### 2.6 MAUI user interface
 
 - ✅ Recitation page with microphone control, verse display, confidence feedback, transcription, mismatch highlighting, tajweed corrections, hidden-verse mode, and advanced diagnostics.
-- ✅ Mushaf page with page navigation, Juz/Surah/Ayah navigation, 16-row layout, and verse highlighting.
-- ✅ Progress page with Today's review, practice history, and tajweed error summaries.
-- ✅ Login page and local session scaffolding.
+- ✅ Mushaf page with page navigation, Juz/Surah/Ayah navigation, 16-row layout, verse highlighting, and Arabic keyword search (SearchService-backed).
+- ✅ Progress page is now the student dashboard: Today card (streak, new/review counts), curriculum card (path name, progress, daily goal), weak-verse recommendations, and per-rule tajweed summaries.
+- ✅ Login page and local session scaffolding (persists a user profile row on login).
 - ✅ Windows-only active build and publish configuration.
 - ✅ Android implementation files are retained but excluded from active target frameworks.
-- ✅ Progress now acts as the Today surface with a primary Start today action and per-assignment Start controls.
 - ✅ Recitation accepts assignment handoff parameters and exposes Retry and Next actions while preserving manual recitation.
-- ⚠️ The shell is still organized around Recite/Mushaf/Progress rather than a dedicated student dashboard.
-- ❌ Curriculum pacing, streaks, and broader teacher-like recommendations are not complete.
+- ✅ **NEW: Student curriculum** — `CurriculumService` provides three study paths (Juz 30, Short surahs first, Sequential); the per-user path + position persist in the learning plan and drive Today's new-lesson feed (`TodayWorkflowService`).
+- ✅ **NEW: Streaks** — `practice_days` table + `GetStreakAsync` compute current/best streak and total practice days; a day is recorded inside every saved attempt.
+- ✅ **NEW: Teacher-like recommendations** — `GetWeakVerseRecommendationsAsync` ranks verses by cumulative tajweed error count; the dashboard shows the weak list + a next-action line.
+- ⚠️ The shell is still organized around Recite/Mushaf/Progress rather than a dedicated dashboard tab (Progress serves as the dashboard).
 
 ### 2.7 Reference recitation playback
 
@@ -103,42 +108,42 @@ Android implementation remains in the repository but is excluded from active bui
 
 ## 3. Important empty or incomplete areas
 
-- `src/QuranEngine` remains a scaffold for future line-level Mushaf layout work.
-- `src/SearchService` remains a scaffold for future semantic search.
-- `src/UserService` and `src/Api` remain scaffolds; the current app intentionally uses local session behavior.
-- The current database has progress, review metadata, and the full lesson/session/attempt/error domain.
+- `src/QuranEngine` is a working 16-line layout engine (`Mushaf16LinerLayout`) with a verified-data import pipeline (`ILineLevelPageSource`/`JsonLinePageSource`); `line_map.json` ships empty until authentic line-level data is sourced — no unverified data is presented as authentic.
+- `src/SearchService` is wired: `WordMatchSearchIndex` powers the Mushaf keyword search via `GetVersesBySearchAsync`.
+- `src/UserService` is wired: `SqliteUserProfileStore` persists profiles/preferences; `LocalSessionService` creates a profile on login.
+- `src/Api` is implemented: `LocalApiService` reports offline readiness; the dashboard surfaces its status line.
+- The current database has progress, review metadata, user profiles/preferences, practice days, and the full lesson/session/attempt/error domain.
 
 ## 4. Current gaps (all remaining)
 
-1. **Authentic 16-line Mushaf** — verified line-level Indo-Pak/Madani data, font, and page layout.
-2. **Student curriculum** — daily targets, streaks, pacing, teacher-like guidance, and dedicated dashboard shell navigation.
-3. **Reference audio assets** — license, select, and bundle offline qari recitation files for playback.
-4. **Iqlab/Izhar phoneme analysis** — extend `TajweedPhonemeAnalyzer` for remaining rule coverage.
-5. **Full-mushaf matcher continuation tests** — omission/repetition handling and broad accuracy validation at Mushaf scale.
-6. **QuranEngine scaffold** — fill the empty 16-liner text layout engine project.
-7. **SearchService scaffold** — fill the empty semantic search project.
-8. **UserService + Api scaffolds** — fill the empty user management and API projects.
+1. **Authentic 16-line Mushaf data** — verified line-level Indo-Pak/Madani data + script font (pipeline ready, data not yet sourced).
+2. **Reference audio assets** — license, select, and bundle offline qari recitation files for playback.
+3. **Iqlab/Izhar phoneme analysis** — extend `TajweedPhonemeAnalyzer` for remaining rule coverage.
+4. **Full-mushaf matcher continuation tests** — omission/repetition handling and broad accuracy validation at Mushaf scale.
+5. **Dashboard shell tab** — Progress serves as the dashboard today; a dedicated tab remains optional.
 
 ## 5. Priority order
 
-1. **Authentic 16-line Mushaf** — integrate verified line-level data, font, and page layout.
-2. **Student curriculum and dashboard** — daily targets, pacing, streaks, weak-area recommendations, and a dedicated dashboard shell.
-3. **Reference audio assets** — source licensed qari recordings and wire to `AudioPlaybackService`.
-4. **Iqlab/Izhar phoneme** — complete remaining tajweed rule coverage.
-5. **Mushaf-scale matcher tests** — continuation, omission, repetition, and accuracy at full 604-page / 6,236-verse scale.
-6. **Fill empty scaffolds** — QuranEngine, SearchService, UserService, Api.
+1. **Authentic 16-line Mushaf data** — source verified line-level data + Indo-Pak font, drop into `line_map.json`.
+2. **Reference audio assets** — source licensed qari recordings and wire to `AudioPlaybackService`.
+3. **Iqlab/Izhar phoneme** — complete remaining tajweed rule coverage.
+4. **Mushaf-scale matcher tests** — continuation, omission, repetition, and accuracy at full 604-page / 6,236-verse scale.
+5. **Dashboard shell tab** — optional dedicated dashboard navigation.
 
 ## 6. Verification evidence
 
 The latest verified checks are:
 
 - `dotnet build tests/TarteelMobile/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — succeeded with 0 warnings and 0 errors.
-- `dotnet test tests/TarteelMobile/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 34 passed, 0 failed.
+- `dotnet test tests/TarteelMobile/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 57 passed, 0 failed.
 - `TajweedAccuracyTests` (14) — token timestamps, spoken-to-expected alignment, WAV header handling, matched-word text checks, phoneme analysis, and dedup.
+- `WhisperProfileTests` (10) — adaptive performance profile: Auto starts disabled, enables after fast chunks, locks off near the timeout, Speed never enables, Accuracy always enables, RTF computation, and moving-average behavior.
+- `QuranLayoutTests` (6) — 16-line invariant, Fatiha no-duplicate-Bismillah, separator placement (sparse + dense), line-source override, empty-source fallback.
+- `CurriculumServiceTests` (4) — Juz30/Sequential/ShortSurahs path lengths, ordering, no duplicates.
 - `TajweedRuleEngineTests` (7) — text-level rule coverage for all 7 rules.
 - `ReviewSchedulerTests` (10) — deterministic scheduling policies.
-- `LearningDomainRepositoryTests` (2) — plan/assignment/session lifecycle, one verse-level attempt, mismatch and tajweed persistence, progress recomputation, restart recovery.
+- `LearningDomainRepositoryTests` (5) — plan/assignment/session lifecycle, one verse attempt with mismatch + tajweed persistence + progress recomputation + restart recovery, streak counting, curriculum position persistence, weak-verse ranking.
 - `TodayWorkflowServiceTests` (1) — review-before-new ordering and idempotent assignment generation.
-- `ProgressViewModelTests` — progress summary formatting and empty-state display.
+- `ProgressViewModelTests` — summary formatting, empty state, and dashboard props (streak/path/weak counts).
 - Packaged Quran asset validation remains 6,236 verses, 114 surahs, and 604 Mushaf pages.
 - Android remains absent from `mobile/TarteelMobile/TarteelMobile.csproj` active `TargetFrameworks`.

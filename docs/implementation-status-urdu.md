@@ -23,6 +23,10 @@
 - ✅ سورہ کے نام سے Whisper کے ڈی کوڈنگ کو بائس کرنا (surah prompt)
 - ✅ گریڈی (greedy) اور بیم سرچ (beam search) دونوں طریقے
 - ✅ ورم اپ (warmup) میکانزم — پہلے استعمال پر ماڈل کو گرم کرنا
+- ✅ **NEW: انکولی کارکردگی پروفائل (Adaptive performance profile)** — `PerformanceProfile` (Auto | Speed | Accuracy) token timestamps (DTW) کو کنٹرول کرتا ہے۔ Auto پہلے DTW بند رکھتا ہے تاکہ اسٹریمنگ تیز رہے، صرف تب چالو کرتا ہے جب ناپی گئی رفتار (real-time factor) کافی تیز ہو، اور اگر کوئی چنک ٹائم آؤٹ کے 60% سے تجاوز کر جائے تو بند کر دیتا ہے — ہر فیصلہ `offline.log` میں محفوظ ہوتا ہے
+- ✅ **NEW: ڈسپوزل سیف ڈی کوڈ** — پروسیسر اب `DisposeAsync()` سے ختم ہوتا ہے، چنانچہ ٹائم آؤٹ پر "Cannot dispose while processing" کا کریش نہیں آتا
+- ✅ **NEW: ورم اپ ڈیڈ لاک ختم** — ورم اپ اب لاک کے اندر ہی چلتا ہے (پہلے خود کو دوبارہ لاک کر کے ناکام ہو جاتا تھا)
+- ✅ **NEW: درست ٹئیر نام + فال بیک اسکیپ** — لاگز میں اصل لوڈ شدہ ٹئیر ظاہر ہوتا ہے، اور فال بیک اسی ماڈل کو دوبارہ آزمائے تو فوراً چھوڑ دیا جاتا ہے
 
 ### ۲.۲ آیت میچنگ (Verse Matching)
 - ✅ نیڈلمین-وونش (Needleman-Wunsch) الائنمنٹ الگورتھم
@@ -77,24 +81,27 @@
 
 ### ۲.۸ MAUI یوزر انٹرفیس
 - ✅ تلاوت پیج (RecitationPage)
-- ✅ مصحف پیج ویو (MushafPageView)
-- ✅ پیش رفت پیج (ProgressPage)
-- ✅ لاگ اِن پیج (LoginPage)
+- ✅ مصحف پیج ویو (MushafPageView) — 16 لائنر لے آؤٹ + عربی کی ورڈ سرچ (SearchService)
+- ✅ پیش رفت پیج اب اسٹوڈنٹ ڈیش بورڈ ہے: آج کا کارڈ (اسٹریک، نئے/ریویو کی تعداد)، نصاب کارڈ (راستہ، پیش رفت، روزانہ ہدف)، کمزور آیات کی سفارشات
+- ✅ لاگ اِن پیج (LoginPage) — کامیاب لاگ اِن پر یوزر پروفائل محفوظ ہوتا ہے
 - ✅ ایڈوانسڈ ڈیبگ پینلز
 - ✅ فری ری سائٹ موڈ (free-recite mode)
+- ✅ **NEW: اسٹوڈنٹ نصاب** — `CurriculumService` تین راستے دیتا ہے (Juz 30، چھوٹی سورتیں، ترتیب وار)؛ صارف کا راستہ + پوزیشن محفوظ رہتا ہے اور آج کے نئے اسباق اسی راستے سے ملتے ہیں
+- ✅ **NEW: اسٹریک** — `practice_days` ٹیبل سے موجودہ/بہترین اسٹریک اور کل مشق کے دن نکلتے ہیں
+- ✅ **NEW: سفارشات** — تجوید کی غلطیوں کی بنیاد پر کمزور آیات کی درجہ بندی، ڈیش بورڈ پر اگلے قدم کی ہدایت
 
 ---
 
 ## ۳. خالی پروجیکٹس (Empty Projects)
 
-یہ چار `src/` پروجیکٹس صرف اسکیفولڈ (scaffold) ہیں — ان میں صرف `bin/` اور `obj/` فولڈرز ہیں:
+یہ چار `src/` پروجیکٹس اب خالی اسکیفولڈ نہیں رہے:
 
 | پروجیکٹ | مقصد | حیثیت |
 |---|---|---|
-| **QuranEngine** | 16 لائنر ٹیکسٹ لے آؤٹ انجن، لائن لیول قرآنی ڈیٹا | خالی |
-| **SearchService** | معنوی تلاش (AraBERT ایمبیڈنگز) | خالی |
-| **UserService** | یوزر مینجمنٹ | خالی |
-| **Api** | لوکل اے پی آئی لیئر | خالی |
+| **QuranEngine** | 16 لائنر لے آؤٹ انجن + لائن لیول ڈیٹا پائپ لائن | ✅ مکمل (Mushaf16LinerLayout، JsonLinePageSource) — `line_map.json` خالی ہے، مستند ڈیٹا بعد میں ڈالا جائے گا |
+| **SearchService** | ورڈ انڈیکس تلاش | ✅ وائرڈ (مصحف پیج پر عربی سرچ) |
+| **UserService** | یوزر پروفائل/ترجیحات | ✅ وائرڈ (SqliteUserProfileStore، لاگ اِن پر پروفائل) |
+| **Api** | لوکل اے پی آئی لیئر | ✅ مکمل (LocalApiService، ڈیش بورڈ پر سٹیٹس) |
 
 ---
 
@@ -129,20 +136,17 @@
 - ⚠️ Partial/error attempts ابھی صرف active session میں دکھائے جاتے ہیں؛ ان کی مستقل history اگلا مرحلہ ہے۔
 
 ### ۴.۵ سچی 16 لائنر رینڈرنگ نہیں
-مصحف آیات کو لگاتار لیبلز میں رینڈر کرتا ہے — لائن لیول قرآنی متن کا استعمال نہیں کرتا جہاں ہر صفحے پر بالکل 16 قطاریں ہوں۔
+انجن (Mushaf16LinerLayout) اور ڈیٹا پائپ لائن (JsonLinePageSource) مکمل ہیں، مگر مستند لائن لیول قرآنی متن (Indo-Pak/Madani) ابھی درکار ہے — `line_map.json` خالی رکھا گیا ہے تاکہ غیر مصدقہ ڈیٹا مستند نہ دکھے۔
 
 ---
 
 ## ۵. ترجیح بند ترتیب (Priority Order for Implementation)
 
-1. **مستقل lesson assignments اور recitation history** — طالب علم کے لیے نیا سبق، حالیہ جائزہ، session، attempt، mismatch، اور تجوید غلطی کا مکمل ریکارڈ
-2. **Partial/error attempt history** — ناکام یا جزوی recitation attempts کی مستقل history، completion states، اور بہتر retry guidance
-3. **Full-mushaf verse matching** — `PlaceholderVerseMatcher` کو tested production matcher سے بدلنا، ayah continuation، assignment context، omissions اور repetitions سنبھالنا
-4. **فی تجوید رول کی مستقل tracking** — بار بار آنے والی Madd، Ghunna، Idgham، Ikhfa، Iqlab، Izhar، اور Makhraj غلطیوں کی تاریخ اور feedback
-5. **فونیم تجوید کی توسیع** — ادغام، اخفاء، اقلاب، اظہار، اور قابل اعتماد مخارج تجزیہ
-6. **حوالہ آواز + پلے بیک** — لائسنس کے مطابق offline reciter audio اور verse/word playback
-7. **سچی 16 لائنر رینڈرنگ** — verified Indo-Pak/Madani line-level text، فونٹ، اور ہر صفحے کی 16 مستند قطاریں
-8. **طالب علم کا نصاب اور teacher-like guidance** — روزانہ ہدف، حفظ کا راستہ، streak، کمزور مقامات، اور اگلا واضح قدم
+1. **مستند 16 لائنر ڈیٹا** — verified Indo-Pak/Madani line-level text + فونٹ، `line_map.json` میں ڈالنا
+2. **حوالہ آواز + پلے بیک** — لائسنس کے مطابق offline reciter audio اور verse/word playback
+3. **فونیم تجوید کی توسیع** — ادغام، اخفاء، اقلاب، اظہار، اور قابل اعتماد مخارج تجزیہ
+4. **Full-mushaf matcher tests** — omission/repetition اور 604 صفحات پر درستگی کی جانچ
+5. **ڈیش بورڈ شیل ٹیب** — فی الحال Progress ہی ڈیش بورڈ ہے؛ علیحدہ ٹیب اختیاری ہے
 
 ---
 
@@ -155,9 +159,14 @@ Guided Today workflow اب verified ہے: assignment-aware recitation، completi
 ### ۷. تازہ verification evidence
 - `dotnet build tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 0 warnings، 0 errors
 - `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~TajweedAccuracyTests` — 14 passed، 0 failed
-- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~TodayWorkflowServiceTests` — 1 passed، 0 failed
-- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~LearningDomainRepositoryTests` — 2 passed، 0 failed
-- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 34 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~WhisperProfileTests` — 10 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~QuranLayoutTests` — 6 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~CurriculumServiceTests` — 4 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore --filter FullyQualifiedName~LearningDomainRepositoryTests` — 5 passed، 0 failed
+- `dotnet test tests/TarteelMobile.Tests/TarteelMobile.Tests.csproj --framework net9.0-windows10.0.19041.0 --runtime win-x64 --no-restore` — 57 passed، 0 failed
 - `TajweedAccuracyTests` token timestamps، alignment، WAV handling، matched-word checks، phoneme analysis، اور dedup verify کرتا ہے۔
+- `WhisperProfileTests` انکولی پروفائل کی تصدیق کرتا ہے: Auto پہلے بند، تیز چنکوں پر چالو، ٹائم آؤٹ کے قریب بند؛ Speed کبھی چالو نہیں، Accuracy ہمیشہ چالو۔
+- `QuranLayoutTests` 16 لائنر انویریئنٹ، فاتحہ پر ڈپلیکیٹ بسم اللہ کی روک تھام، جداکنندوں کی جگہ، اور لائن ڈیٹا پائپ لائن کی تصدیق کرتا ہے۔
+- `CurriculumServiceTests` تینوں راستوں کی لمبائی/ترتیب اور بے تکراری ہونے کی تصدیق کرتا ہے۔
 - Android `mobile/TarteelMobile/TarteelMobile.csproj` کے active `TargetFrameworks` میں شامل نہیں
-- اگلا milestone ASR speed optimization (processor reuse، thread pinning، chunk tuning) ہے۔
+- اگلا milestone مستند 16 لائنر ڈیٹا اور حوالہ آواز ہے۔
