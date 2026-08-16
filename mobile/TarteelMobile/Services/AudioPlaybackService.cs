@@ -11,6 +11,7 @@ public interface IAudioPlaybackService
     Task StopAsync();
 }
 
+#if WINDOWS
 public sealed class AudioPlaybackService : IAudioPlaybackService
 {
     private readonly IAppDiagnosticsService _diagnostics;
@@ -114,3 +115,4 @@ public sealed class AudioPlaybackService : IAudioPlaybackService
         return Path.Combine(audioDir, $"{ayahNum:000}.wav");
     }
 }
+#endif

@@ -1,4 +1,4 @@
-#if !WINDOWS
+#if !WINDOWS && !ANDROID
 namespace TarteelMobile.Services;
 
 /// <summary>
