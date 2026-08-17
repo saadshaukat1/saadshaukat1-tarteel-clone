@@ -463,3 +463,4 @@ data/quran/*.txt
 !scripts/release/
 !scripts/release/**
 
+build-android.ps1
