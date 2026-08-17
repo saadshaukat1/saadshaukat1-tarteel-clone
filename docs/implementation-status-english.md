@@ -124,11 +124,13 @@ Android implementation remains in the repository but is excluded from active bui
 
 ## 5. Priority order
 
-1. **Authentic 16-line Mushaf data** — source verified line-level data + Indo-Pak font, drop into `line_map.json`.
-2. **Reference audio assets** — source licensed qari recordings and wire to `AudioPlaybackService`.
-3. **Iqlab/Izhar phoneme** — complete remaining tajweed rule coverage.
-4. **Mushaf-scale matcher tests** — continuation, omission, repetition, and accuracy at full 604-page / 6,236-verse scale.
-5. **Dashboard shell tab** — optional dedicated dashboard navigation.
+1. **Responsive Android UI Layout & Touch Ergonomics** — Touch targets (min 48dp), safe areas, fluid pickers, adaptive font scaling, nested scroll avoidance.
+2. **High-Speed Whisper Model CDN Distribution** — GitHub Releases / Cloudflare R2 direct model downloads for instant setup and background upgrade.
+3. **Authentic 16-line Mushaf data** — source verified line-level data + Indo-Pak font, drop into `line_map.json`.
+4. **Reference audio assets** — source licensed qari recordings and wire to `AudioPlaybackService`.
+5. **Iqlab/Izhar phoneme** — complete remaining tajweed rule coverage.
+6. **Mushaf-scale matcher tests** — continuation, omission, repetition, and accuracy at full 604-page / 6,236-verse scale.
+7. **Dashboard shell tab** — optional dedicated dashboard navigation.
 
 ## 6. Verification evidence
 

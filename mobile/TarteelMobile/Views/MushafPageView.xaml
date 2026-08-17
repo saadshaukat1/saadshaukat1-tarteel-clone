@@ -7,41 +7,44 @@
              x:DataType="vm:MushafPageViewModel"
              Title="Mushaf"
              BackgroundColor="{StaticResource Surface}">
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
-        <Grid Grid.Row="0" Padding="28,20,28,16" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-            <Button Grid.Column="0" Text="Previous page" Command="{Binding GoToPreviousPageCommand}" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" FontSize="{StaticResource FontSizeCaption}" Padding="14,6" />
-            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="6">
+        <!-- Page Navigation Header -->
+        <Grid Grid.Row="0" Padding="14,8,14,4" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <Button Grid.Column="0" Text="◀ Prev" Command="{Binding GoToPreviousPageCommand}" Style="{StaticResource CompactActionButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" Padding="14,0" />
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
                 <Label Text="{Binding PageLabel}" FontAttributes="Bold" FontSize="{StaticResource FontSizeBodyLarge}" TextColor="{StaticResource Accent}" HorizontalTextAlignment="Center" />
-                <Label Text="{Binding VerseRangeLabel}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" />
+                <Label Text="{Binding VerseRangeLabel}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" />
             </VerticalStackLayout>
-            <Button Grid.Column="2" Text="Next page" Command="{Binding GoToNextPageCommand}" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" FontSize="{StaticResource FontSizeCaption}" Padding="14,6" />
+            <Button Grid.Column="2" Text="Next ▶" Command="{Binding GoToNextPageCommand}" Style="{StaticResource CompactActionButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" Padding="14,0" />
         </Grid>
 
-        <Grid Grid.Row="1" Padding="28,0,28,14" ColumnDefinitions="*,Auto,*,Auto" ColumnSpacing="8" IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}">
-            <VerticalStackLayout Spacing="2">
-                <Label Text="Juz" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
-                <Picker ItemsSource="{Binding JuzList}" ItemDisplayBinding="{Binding JuzNum, StringFormat='Juz {0}', x:DataType=models:JuzInfo}" SelectedItem="{Binding SelectedJuz}" HeightRequest="40" />
+        <!-- Quick Jump Toolbar (Juz & Surah Selectors) -->
+        <Grid Grid.Row="1" Padding="14,0,14,4" ColumnDefinitions="1.2*,1.5*,1*" ColumnSpacing="6" IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}">
+            <VerticalStackLayout Spacing="1">
+                <Label Text="Juz" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding JuzList}" ItemDisplayBinding="{Binding JuzNum, StringFormat='Juz {0}', x:DataType=models:JuzInfo}" SelectedItem="{Binding SelectedJuz}" HeightRequest="48" MinimumHeightRequest="48" SelectedIndexChanged="OnJuzPickerChanged" />
             </VerticalStackLayout>
-            <Button Grid.Column="1" Text="Go" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" WidthRequest="48" FontSize="{StaticResource FontSizeCaption}" VerticalOptions="End" Command="{Binding JumpToJuzCommand}" />
-            <VerticalStackLayout Grid.Column="2" Spacing="2">
-                <Label Text="Surah" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
-                <Picker ItemsSource="{Binding SurahList}" ItemDisplayBinding="{Binding NameArabic, x:DataType=models:SurahInfo}" SelectedItem="{Binding SelectedSurah}" HeightRequest="40" />
+            <VerticalStackLayout Grid.Column="1" Spacing="1">
+                <Label Text="Surah" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding SurahList}" ItemDisplayBinding="{Binding NameArabic, x:DataType=models:SurahInfo}" SelectedItem="{Binding SelectedSurah}" HeightRequest="48" MinimumHeightRequest="48" />
             </VerticalStackLayout>
-            <VerticalStackLayout Grid.Column="3" Spacing="2" WidthRequest="70">
-                <Label Text="Ayah" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
-                <Picker ItemsSource="{Binding AyahNumbers}" SelectedItem="{Binding SelectedAyah}" HeightRequest="40" />
+            <VerticalStackLayout Grid.Column="2" Spacing="1">
+                <Label Text="Ayah" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
+                <Picker ItemsSource="{Binding AyahNumbers}" SelectedItem="{Binding SelectedAyah}" HeightRequest="48" MinimumHeightRequest="48" />
             </VerticalStackLayout>
         </Grid>
 
-        <Grid Grid.Row="2" Padding="28,0,28,8" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <Entry Placeholder="Search verses (Arabic)" Text="{Binding SearchQuery}" ReturnCommand="{Binding SearchCommand}" FontSize="{StaticResource FontSizeBody}" />
-            <Button Grid.Column="1" Text="Search" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" Command="{Binding SearchCommand}" />
+        <!-- Arabic Search Bar -->
+        <Grid Grid.Row="2" Padding="14,0,14,4" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Entry Placeholder="Search verses (Arabic)" Text="{Binding SearchQuery}" ReturnCommand="{Binding SearchCommand}" FontSize="{StaticResource FontSizeBody}" HeightRequest="48" MinimumHeightRequest="48" />
+            <Button Grid.Column="1" Text="Search" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" Padding="16,0" Command="{Binding SearchCommand}" />
         </Grid>
 
-        <ScrollView Grid.Row="3" x:Name="PageScroll" Padding="28,0" Scrolled="OnPageScrolled">
-            <Border StrokeThickness="0" BackgroundColor="{StaticResource SurfaceElevated}" HorizontalOptions="Center" MaximumWidthRequest="760" Padding="28,22">
+        <!-- 16-Line Mushaf Page Container -->
+        <ScrollView Grid.Row="3" x:Name="PageScroll" Padding="10,0" Scrolled="OnPageScrolled">
+            <Border StrokeThickness="1" Stroke="{StaticResource BorderSubtle}" BackgroundColor="{StaticResource SurfaceElevated}" HorizontalOptions="Center" MaximumWidthRequest="760" Padding="10,12" StrokeShape="RoundRectangle 8">
                 <Border.Shadow>
-                    <Shadow Brush="Black" Offset="0,3" Radius="10" Opacity="0.32" />
+                    <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.28" />
                 </Border.Shadow>
                 <Grid x:Name="LinesGrid" BackgroundColor="{StaticResource SurfaceElevated}" RowSpacing="0" ColumnSpacing="0" HorizontalOptions="Center">
                     <Grid.RowDefinitions>
@@ -54,6 +57,7 @@
             </Border>
         </ScrollView>
 
-        <Label Grid.Row="4" Text="Scroll to advance · 16-line layout · verified line data slots in automatically when available" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" Padding="0,6,0,14" />
+        <!-- Footer Instructions -->
+        <Label Grid.Row="4" Text="Scroll down to advance · 16-line standard layout" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" Padding="0,2,0,8" />
     </Grid>
 </ContentPage>

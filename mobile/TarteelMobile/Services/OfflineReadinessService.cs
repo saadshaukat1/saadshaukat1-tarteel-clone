@@ -85,8 +85,25 @@ public sealed class OfflineReadinessService : IOfflineReadinessService
             asrDetails = _asrEngine.IsReady
                 ? (_asrEngine.IsUsingMockMode
                     ? $"ASR running in mock mode on tier '{_asrEngine.ActiveTier}' (real assets not found)."
-                    : $"ASR ready on tier '{_asrEngine.ActiveTier}'.")
+                    : $"ASR ready on tier '{_asrEngine.ActiveTier}' (threads={_asrEngine.EffectiveThreads}).")
                 : "ASR assets not installed; recitation will be unavailable until assets are placed.";
+
+            // If running on tiny and base model is not yet present on disk, start background download & upgrade
+            if (!_asrEngine.IsModelTierPresent("base"))
+            {
+                _diagnostics.Info("Triggering background download and upgrade to 'base' Whisper model...");
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _asrEngine.BackgroundDownloadAndUpgradeTierAsync("base");
+                    }
+                    catch (Exception bgEx)
+                    {
+                        _diagnostics.Warn($"Background base model download/upgrade encountered an issue: {bgEx.Message}");
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {

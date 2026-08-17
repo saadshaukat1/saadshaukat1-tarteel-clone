@@ -12,6 +12,7 @@ public partial class RecitationPage : ContentPage
         InitializeComponent();
         BindingContext = vm;
         _vm = vm;
+        SizeChanged += OnPageSizeChanged;
 
         // Desktop keyboard shortcuts: Space toggles the mic, Escape ends the
         // session. MAUI 9 has no cross-platform Page.KeyDown, so on Windows we
@@ -52,6 +53,31 @@ public partial class RecitationPage : ContentPage
         }
     }
 #endif
+
+    private void OnPageSizeChanged(object? sender, EventArgs e)
+    {
+        var compact = Width > 0 && Width < 768;
+        if (compact)
+        {
+            ContentGrid.ColumnDefinitions = new ColumnDefinitionCollection { new(GridLength.Star) };
+            ContentGrid.RowDefinitions = new RowDefinitionCollection { new(GridLength.Star), new(GridLength.Auto) };
+            Grid.SetColumn(PracticeScroll, 0);
+            Grid.SetRow(PracticeScroll, 0);
+            Grid.SetColumn(DiagnosticsScroll, 0);
+            Grid.SetRow(DiagnosticsScroll, 1);
+            ContentGrid.Padding = new Thickness(16, 4, 16, 12);
+        }
+        else if (Width >= 768)
+        {
+            ContentGrid.ColumnDefinitions = new ColumnDefinitionCollection { new(GridLength.Star), new(new GridLength(340)) };
+            ContentGrid.RowDefinitions = new RowDefinitionCollection { new(GridLength.Star) };
+            Grid.SetColumn(PracticeScroll, 0);
+            Grid.SetRow(PracticeScroll, 0);
+            Grid.SetColumn(DiagnosticsScroll, 1);
+            Grid.SetRow(DiagnosticsScroll, 0);
+            ContentGrid.Padding = new Thickness(28, 0, 28, 20);
+        }
+    }
 
     protected override void OnAppearing()
     {

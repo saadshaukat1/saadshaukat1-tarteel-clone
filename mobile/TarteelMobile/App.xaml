@@ -16,7 +16,7 @@
             <x:Int32 x:Key="FontWeightMedium">500</x:Int32>
             <x:Int32 x:Key="FontWeightStrong">700</x:Int32>
 
-            <!-- Type scale (px) -->
+            <!-- Type scale (px) with OnPlatform/OnIdiom responsive sizing -->
             <x:Double x:Key="FontSizeNano">10</x:Double>
             <x:Double x:Key="FontSizeMicro">11</x:Double>
             <x:Double x:Key="FontSizeCaption">12</x:Double>
@@ -25,9 +25,18 @@
             <x:Double x:Key="FontSizeSubtitle">16</x:Double>
             <x:Double x:Key="FontSizeTitle">20</x:Double>
             <x:Double x:Key="FontSizeDisplay">24</x:Double>
-            <x:Double x:Key="FontSizeVerse">28</x:Double>
+            
+            <OnPlatform x:Key="FontSizeVerse" x:TypeArguments="x:Double">
+                <On Platform="Android" Value="24" />
+                <On Platform="WinUI,Windows,Default" Value="28" />
+            </OnPlatform>
+            
             <x:Double x:Key="FontSizeVerseTranscription">18</x:Double>
-            <x:Double x:Key="FontSizeHeroVerse">36</x:Double>
+            
+            <OnPlatform x:Key="FontSizeHeroVerse" x:TypeArguments="x:Double">
+                <On Platform="Android" Value="28" />
+                <On Platform="WinUI,Windows,Default" Value="36" />
+            </OnPlatform>
 
             <!-- Arabic verse measure control (~48ch at FontSizeVerse 28px × Noto Naskh Arabic) -->
             <x:Double x:Key="ArabicVerseMaxWidth">700</x:Double>
@@ -38,11 +47,14 @@
             <x:Double x:Key="LineHeightRelaxed">1.6</x:Double>
             <x:Double x:Key="LineHeightArabic">1.8</x:Double>
 
+            <!-- Minimum touch target standard (Material 48dp) -->
+            <x:Double x:Key="MinTouchTargetSize">48</x:Double>
+
             <!-- ── Corner-radius scale ── -->
-            <x:Int32 x:Key="CornerRadiusSmall">2</x:Int32>
-            <x:Int32 x:Key="CornerRadiusMedium">4</x:Int32>
-            <x:Int32 x:Key="CornerRadiusLarge">6</x:Int32>
-            <x:Int32 x:Key="CornerRadiusPill">6</x:Int32>
+            <x:Int32 x:Key="CornerRadiusSmall">4</x:Int32>
+            <x:Int32 x:Key="CornerRadiusMedium">8</x:Int32>
+            <x:Int32 x:Key="CornerRadiusLarge">12</x:Int32>
+            <x:Int32 x:Key="CornerRadiusPill">24</x:Int32>
 
             <!-- ── Shadow elevations: restrained console depth ── -->
             <Shadow x:Key="ShadowCard" Brush="Black" Offset="0,1" Radius="4" Opacity="0.24" />
@@ -125,14 +137,16 @@
                 <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />
             </Style>
 
-            <!-- Global button style: full 9-state coverage (Normal, PointerOver, Pressed, Disabled, Focused) -->
+            <!-- Global button style: full touch target (min 48dp) and states -->
             <Style TargetType="Button">
                 <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
                 <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
-                <Setter Property="BackgroundColor" Value="{StaticResource Surface}" />
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfacePanel}" />
                 <Setter Property="BorderColor" Value="{StaticResource BorderSubtle}" />
                 <Setter Property="BorderWidth" Value="1" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
+                <Setter Property="Padding" Value="14,10" />
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">
@@ -164,14 +178,25 @@
                 </Setter>
             </Style>
 
-            <!-- Primary button style (green background, white text) -->
+            <!-- Title Label Style -->
+            <Style x:Key="TitleStyle" TargetType="Label">
+                <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}" />
+                <Setter Property="FontAttributes" Value="Bold" />
+                <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />
+            </Style>
+
+            <!-- Primary button style (green background, dark text, min 48dp) -->
             <Style x:Key="PrimaryButtonStyle" TargetType="Button">
                 <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
-                <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeBodyLarge}" />
+                <Setter Property="FontAttributes" Value="Bold" />
                 <Setter Property="TextColor" Value="{StaticResource TextOnPrimary}" />
                 <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
                 <Setter Property="BorderColor" Value="{StaticResource Primary}" />
                 <Setter Property="BorderWidth" Value="0" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
+                <Setter Property="Padding" Value="18,12" />
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">
@@ -202,10 +227,82 @@
                 </Setter>
             </Style>
 
+            <!-- Outlined secondary button style -->
+            <Style x:Key="OutlineButtonStyle" TargetType="Button">
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+                <Setter Property="TextColor" Value="{StaticResource Accent}" />
+                <Setter Property="BackgroundColor" Value="Transparent" />
+                <Setter Property="BorderColor" Value="{StaticResource BorderSubtle}" />
+                <Setter Property="BorderWidth" Value="1" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
+                <Setter Property="Padding" Value="14,10" />
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup Name="CommonStates">
+                            <VisualState Name="Normal" />
+                            <VisualState Name="PointerOver">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceElevated}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceHover}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+
+            <!-- Compact toolbar button style for icon/small action buttons (min 48dp touch target) -->
+            <Style x:Key="CompactActionButtonStyle" TargetType="Button">
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}" />
+                <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+                <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfaceElevated}" />
+                <Setter Property="BorderColor" Value="{StaticResource BorderSubtle}" />
+                <Setter Property="BorderWidth" Value="1" />
+                <Setter Property="HeightRequest" Value="48" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
+                <Setter Property="MinimumWidthRequest" Value="48" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup Name="CommonStates">
+                            <VisualState Name="Normal" />
+                            <VisualState Name="PointerOver">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceHover}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceHover}" />
+                                    <Setter Property="Scale" Value="0.96" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+
             <!-- Global entry style: focus background lift + disabled dimming -->
             <Style TargetType="Entry">
                 <Setter Property="PlaceholderColor" Value="{StaticResource TextPlaceholder}" />
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">
@@ -231,6 +328,7 @@
                 <Setter Property="TitleColor" Value="{StaticResource TextSecondary}" />
                 <Setter Property="BackgroundColor" Value="{StaticResource SurfacePanel}" />
                 <Setter Property="FontSize" Value="{StaticResource FontSizeBodyLarge}" />
+                <Setter Property="MinimumHeightRequest" Value="48" />
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">

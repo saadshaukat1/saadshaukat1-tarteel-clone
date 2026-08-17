@@ -9,94 +9,107 @@
              x:DataType="vm:ProgressViewModel"
              Title="Progress"
              BackgroundColor="{StaticResource Surface}">
-    <Grid RowDefinitions="Auto,*,Auto" Padding="28,20,28,20">
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,18">
-            <VerticalStackLayout Spacing="3">
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,*" Padding="14,10,14,14">
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <VerticalStackLayout Spacing="1" VerticalOptions="Center">
                 <Label Text="Practice record" FontSize="{StaticResource FontSizeTitle}" FontAttributes="Bold" />
-                <Label Text="Your hifz dashboard: today, curriculum, and weak spots" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
+                <Label Text="Today, curriculum, and weak spots" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
             </VerticalStackLayout>
-            <Button Grid.Column="1" Text="Refresh" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="40" Command="{Binding RefreshCommand}" />
+            <Button Grid.Column="1" Text="Refresh" Style="{StaticResource CompactActionButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" Padding="14,0" Command="{Binding RefreshCommand}" />
         </Grid>
 
+        <!-- Main Scrollable Dashboard -->
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Spacing="18">
-                <Grid x:Name="SummaryGrid" ColumnDefinitions="*,240" ColumnSpacing="16">
-                    <Border x:Name="TodaySummaryBorder" Padding="20" BackgroundColor="{StaticResource PrimaryDark}" Stroke="{StaticResource Primary}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
+            <VerticalStackLayout Spacing="14">
+                <!-- Top Summary Cards (Stacked on mobile, side-by-side on wide screens) -->
+                <Grid x:Name="SummaryGrid" ColumnDefinitions="*,240" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="10">
+                    <Border x:Name="TodaySummaryBorder" Padding="16" BackgroundColor="{StaticResource PrimaryDark}" Stroke="{StaticResource Primary}" StrokeThickness="1" StrokeShape="RoundRectangle 10">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.25" />
+                        </Border.Shadow>
                         <VerticalStackLayout Spacing="8">
                             <Label Text="TODAY" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
                             <Label Text="{Binding DueSummary}" FontSize="{StaticResource FontSizeDisplay}" FontAttributes="Bold" TextColor="{StaticResource TextOnPrimary}" />
                             <Label Text="{Binding TodayMessage}" FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
                             <Label Text="{Binding StreakDisplay}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
                             <Label Text="{Binding TodayNewCount, StringFormat='New: {0} · Review: {1}'}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
-                            <Button Text="Start today" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" IsEnabled="{Binding HasTodayAssignments}" Command="{Binding StartTodayCommand}" />
+                            <Button Text="Start today" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" HorizontalOptions="Fill" IsEnabled="{Binding HasTodayAssignments}" Command="{Binding StartTodayCommand}" />
                         </VerticalStackLayout>
                     </Border>
-                    <VerticalStackLayout x:Name="CurriculumStack" Grid.Column="1" Spacing="10">
-                        <Border x:Name="CurriculumBorder" Padding="20" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 6">
-                            <VerticalStackLayout Spacing="5">
+                    <VerticalStackLayout x:Name="CurriculumStack" Grid.Column="1" Spacing="8">
+                        <Border x:Name="CurriculumBorder" Padding="16" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 10">
+                            <VerticalStackLayout Spacing="4">
                                 <Label Text="CURRICULUM" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
                                 <Label Text="{Binding PathName}" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" />
                                 <Label Text="{Binding PathProgress}" FontSize="{StaticResource FontSizeBody}" />
                                 <Label Text="{Binding GoalLabel}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border x:Name="ApiStatusBorder" Padding="16,10" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 6">
+                        <Border x:Name="ApiStatusBorder" Padding="14,8" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 8">
                             <Label Text="{Binding ApiStatus}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
                         </Border>
                     </VerticalStackLayout>
                 </Grid>
 
-                <Grid x:Name="ProgressColumnsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16">
-                    <VerticalStackLayout x:Name="DueAssignmentsLayout" Spacing="8">
+                <!-- Assignments & Weak Spots Sections (Non-trapping BindableLayouts) -->
+                <Grid x:Name="ProgressColumnsGrid" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                    <VerticalStackLayout x:Name="DueAssignmentsLayout" Spacing="6">
                         <Label Text="Today’s assignments" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
-                        <CollectionView ItemsSource="{Binding TodayAssignments}" HeightRequest="260" EmptyView="Today is complete. Keep your current pace.">
-                            <CollectionView.ItemTemplate>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding TodayAssignments}" Spacing="4">
+                            <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="services:TodayAssignment">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="10,8" ColumnSpacing="12" BackgroundColor="{StaticResource SurfacePanel}">
-                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
-                                            <Label Text="{Binding Assignment.SurahNum, StringFormat='{0}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
-                                            <Label Text="{Binding ReasonDisplay}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
-                                        </VerticalStackLayout>
-                                        <Label Grid.Column="1" Text="{Binding Verse.ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="16" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" VerticalOptions="Center" />
-                                        <Button Grid.Column="2" Text="Start" BackgroundColor="Transparent" TextColor="{StaticResource Accent}" HeightRequest="44" MinimumWidthRequest="72" Clicked="OnAssignmentStartClicked" />
-                                    </Grid>
+                                    <Border Padding="10,8" Margin="0,2" BackgroundColor="{StaticResource SurfacePanel}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                            <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                <Label Text="{Binding Assignment.SurahNum, StringFormat='Surah {0}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                                <Label Text="{Binding ReasonDisplay}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="1" Text="{Binding Verse.ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="15" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                                            <Button Grid.Column="2" Text="Start" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="44" MinimumHeightRequest="44" Padding="14,0" Clicked="OnAssignmentStartClicked" />
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
-                    <VerticalStackLayout x:Name="WeakVersesLayout" Grid.Column="1" Spacing="8">
+                    <VerticalStackLayout x:Name="WeakVersesLayout" Grid.Column="1" Spacing="6">
                         <Label Text="Weak spots" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
-                        <CollectionView ItemsSource="{Binding WeakVerses}" HeightRequest="260" EmptyView="No weak verses yet — keep it up!">
-                            <CollectionView.ItemTemplate>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding WeakVerses}" Spacing="4">
+                            <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="services:WeakVerseRecommendation">
-                                    <Grid ColumnDefinitions="Auto,*" Padding="10,8" ColumnSpacing="12" BackgroundColor="{StaticResource SurfacePanel}">
-                                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
-                                            <Label Text="{Binding SurahNum, StringFormat='{0}:{1}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
-                                            <Label Text="{Binding ErrorCount, StringFormat='{0} error(s)'}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" />
-                                        </VerticalStackLayout>
-                                        <Label Grid.Column="1" Text="Repeat this verse" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" HorizontalTextAlignment="End" />
-                                    </Grid>
+                                    <Border Padding="10,8" Margin="0,2" BackgroundColor="{StaticResource SurfacePanel}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                <Label Text="{Binding SurahNum, StringFormat='Ayah {0}:{1}'}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
+                                                <Label Text="{Binding ErrorCount, StringFormat='{0} error(s)'}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" />
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="1" Text="Repeat this verse" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource AccentMuted}" VerticalOptions="Center" HorizontalTextAlignment="End" />
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
                         <Label Text="{Binding RecommendationText}" FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" />
                     </VerticalStackLayout>
                 </Grid>
 
                 <BoxView HeightRequest="1" Color="{StaticResource BorderSubtle}" />
                 <Label Text="Practice history" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" />
-                <CollectionView ItemsSource="{Binding VerseProgress}" EmptyView="No verses practiced yet. Start reciting.">
-                    <CollectionView.ItemTemplate>
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding VerseProgress}" Spacing="4">
+                    <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="models:VerseProgress">
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Padding="10,8" ColumnSpacing="14">
-                                <Label Text="{Binding Label}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" />
-                                <Label Grid.Column="1" Text="{Binding ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="16" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" />
-                                <Label Grid.Column="2" Text="{Binding MasteryDisplay}" FontAttributes="Bold" TextColor="{Binding MasteryColor}" />
-                                <Label Grid.Column="3" Text="{Binding UpdatedDisplay}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
-                            </Grid>
+                            <Border Padding="10,8" Margin="0,2" BackgroundColor="{StaticResource SurfacePanel}" StrokeThickness="0" StrokeShape="RoundRectangle 6">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                    <Label Text="{Binding Label}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Accent}" VerticalOptions="Center" />
+                                    <Label Grid.Column="1" Text="{Binding ArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="15" HorizontalTextAlignment="End" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                                    <Label Grid.Column="2" Text="{Binding MasteryDisplay}" FontAttributes="Bold" FontSize="{StaticResource FontSizeCaption}" TextColor="{Binding MasteryColor}" VerticalOptions="Center" />
+                                    <Label Grid.Column="3" Text="{Binding UpdatedDisplay}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                                </Grid>
+                            </Border>
                         </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

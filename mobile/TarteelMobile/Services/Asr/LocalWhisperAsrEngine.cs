@@ -52,19 +52,38 @@ public partial class LocalWhisperAsrEngine(
 
     public bool IsReady => _isInitialized;
 
-    public bool IsModelPresent
+    public bool IsModelPresent => IsModelTierPresent(_options.PrimaryTier);
+
+    public bool IsModelTierPresent(string tier)
     {
-        get
-        {
-            var tier = _options.PrimaryTier.Trim().ToLowerInvariant();
-            if (!_options.TryGetTierDefinition(tier, out var tierDef) || tierDef is null)
-                return false;
-            return File.Exists(ResolvePersistentModelPath(tierDef.ModelPath));
-        }
+        var normalized = tier.Trim().ToLowerInvariant();
+        if (!_options.TryGetTierDefinition(normalized, out var tierDef) || tierDef is null)
+            return false;
+        var path = ResolvePersistentModelPath(tierDef.ModelPath);
+        if (!File.Exists(path)) return false;
+        try { return new FileInfo(path).Length >= 1024 * 1024; }
+        catch { return false; }
     }
 
     public string ActiveTier { get; private set; } = string.Empty;
     public bool IsUsingMockMode => _isUsingMockMode;
+
+    public int EffectiveThreads => ComputeOptimalThreads(_options.ThreadsOverride);
+
+    public static int ComputeOptimalThreads(int threadsOverride = 0)
+    {
+        if (threadsOverride > 0)
+            return threadsOverride;
+
+        // Auto-detect optimal thread count:
+        // On modern mobile ARM SoC (e.g. Snapdragon, Exynos, Tensor), 4 threads target
+        // the performance big-core cluster without thrashing efficiency cores.
+        var cores = Environment.ProcessorCount;
+        if (cores >= 8) return 4;
+        if (cores >= 4) return 4;
+        if (cores >= 2) return 2;
+        return 1;
+    }
 
     public void SetSurahPrompt(string surahArabicName)
     {
@@ -384,6 +403,62 @@ public partial class LocalWhisperAsrEngine(
         }
     }
 
+    public async Task BackgroundDownloadAndUpgradeTierAsync(
+        string targetTier,
+        CancellationToken cancellationToken = default)
+    {
+        var tier = targetTier.Trim().ToLowerInvariant();
+        if (!_options.TryGetTierDefinition(tier, out var tierDef) || tierDef is null)
+        {
+            _logger.LogWarning("Background upgrade target tier '{Tier}' is not defined in options.", tier);
+            return;
+        }
+
+        var modelPath = ResolvePersistentModelPath(tierDef.ModelPath);
+
+        // 1. If not on disk, download it asynchronously in the background
+        if (!IsModelTierPresent(tier))
+        {
+            _logger.LogInformation("Starting background download for Whisper tier '{Tier}' from '{Url}'...", tier, tierDef.DownloadUrl);
+            var download = await TryDownloadModelAsync(tier, modelPath, tierDef, cancellationToken);
+            if (!download.IsSuccess)
+            {
+                _logger.LogWarning("Background download of tier '{Tier}' failed: {Error}", tier, download.ErrorMessage);
+                return;
+            }
+        }
+
+        // 2. Safe hot-swap: acquire locks so we don't swap mid-chunk
+        await _modelLifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            await _inferenceLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (!TryBuildFactory(modelPath, out var factoryError))
+                {
+                    _logger.LogWarning("Failed to build Whisper factory for upgraded tier '{Tier}': {Error}", tier, factoryError);
+                    return;
+                }
+
+                ActiveTier = tier;
+                _isUsingMockMode = false;
+                _isInitialized = true;
+                _warmupDone = false; // Reset warmup so new model is warmed up smoothly
+                _logger.LogInformation("✅ Whisper ASR successfully upgraded in background to '{Tier}' from '{Path}'.", tier, modelPath);
+                _diagnostics.Info($"Whisper ASR upgraded to tier '{tier}' (threads={EffectiveThreads}).");
+            }
+            finally
+            {
+                _inferenceLock.Release();
+            }
+        }
+        finally
+        {
+            _modelLifecycleLock.Release();
+        }
+    }
+
     private async Task<RecitationTranscriptionResult> TryTranscribeWithTierAsync(
         string tier,
         byte[] audioChunk,
@@ -451,8 +526,9 @@ public partial class LocalWhisperAsrEngine(
 
         builder = builder.WithNoSpeechThreshold(_options.NoSpeechThreshold);
 
-        if (_options.ThreadsOverride > 0)
-            builder = builder.WithThreads(_options.ThreadsOverride);
+        // Auto-scale CPU threads dynamically based on device hardware cores
+        var threads = EffectiveThreads;
+        builder = builder.WithThreads(threads);
 
         if (_options.NoTimestamps)
             builder = builder.WithPrintTimestamps(false);
@@ -490,7 +566,7 @@ public partial class LocalWhisperAsrEngine(
             using var audioStream = new MemoryStream(audioChunk);
 
             _diagnostics.Info(
-                $"Whisper inference starting: tier={tier} audioLen={audioChunk.Length} modelPath={_activeFactoryModelPath} lang={_options.Language} timestamps={useTimestamps}");
+                $"Whisper inference starting: tier={tier} audioLen={audioChunk.Length} threads={threads} modelPath={_activeFactoryModelPath} lang={_options.Language} timestamps={useTimestamps}");
 
             try
             {

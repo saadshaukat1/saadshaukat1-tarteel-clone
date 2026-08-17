@@ -24,6 +24,7 @@ public partial class MushafPageView : ContentPage
         BindingContext = _viewModel;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        SizeChanged += (s, e) => RenderLines();
     }
 
     protected override async void OnAppearing()
@@ -32,6 +33,14 @@ public partial class MushafPageView : ContentPage
         if (_viewModel.PageVerses.Count == 0)
         {
             await _viewModel.LoadInitialAsync();
+        }
+    }
+
+    private void OnJuzPickerChanged(object? sender, EventArgs e)
+    {
+        if (_viewModel.JumpToJuzCommand.CanExecute(null))
+        {
+            _viewModel.JumpToJuzCommand.Execute(null);
         }
     }
 
@@ -63,6 +72,21 @@ public partial class MushafPageView : ContentPage
                 .ToList();
             var lines = _layout.LayoutPage(verseTuples, _viewModel.CurrentPage);
 
+            var isCompact = Width > 0 && Width < 500;
+            var effectiveRowHeight = isCompact ? 46.0 : RowHeight;
+            var defaultVerseFontSize = 24.0;
+            if (Application.Current?.Resources.TryGetValue("FontSizeVerse", out var resObj) == true)
+            {
+                if (resObj is double d) defaultVerseFontSize = d;
+                else if (resObj is OnPlatform<double> op) defaultVerseFontSize = (double)op;
+            }
+            var effectiveFontSize = isCompact ? 20.0 : defaultVerseFontSize;
+            var effectiveLineHeight = 1.8;
+            if (Application.Current?.Resources.TryGetValue("LineHeightArabic", out var lhObj) == true && lhObj is double lh)
+            {
+                effectiveLineHeight = lh;
+            }
+
             for (var lineIdx = 0; lineIdx < RowsPerPage; lineIdx++)
             {
                 var line = lineIdx < lines.Count ? lines[lineIdx] : null;
@@ -75,8 +99,8 @@ public partial class MushafPageView : ContentPage
                 {
                     Text = lineText,
                     FontFamily = (string)Application.Current!.Resources["ArabicFontFamily"],
-                    FontSize = (double)Application.Current.Resources["FontSizeVerse"],
-                    LineHeight = (double)Application.Current.Resources["LineHeightArabic"],
+                    FontSize = effectiveFontSize,
+                    LineHeight = effectiveLineHeight,
                     HorizontalTextAlignment = TextAlignment.Center,
                     VerticalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Fill,
@@ -84,8 +108,8 @@ public partial class MushafPageView : ContentPage
                     LineBreakMode = LineBreakMode.NoWrap,
                     MaximumWidthRequest = 680,
                     FlowDirection = FlowDirection.RightToLeft,
-                    Padding = new Thickness(6, 0),
-                    HeightRequest = RowHeight,
+                    Padding = new Thickness(4, 0),
+                    HeightRequest = effectiveRowHeight,
                     TextColor = isHighlighted
                         ? (Color)Application.Current.Resources["PrimaryDark"]
                         : (Color)Application.Current.Resources["OnSurface"],
@@ -102,7 +126,7 @@ public partial class MushafPageView : ContentPage
                         ? (Color)Application.Current.Resources["SurfaceHover"]
                         : Colors.Transparent,
                     Content = label,
-                    HeightRequest = RowHeight
+                    HeightRequest = effectiveRowHeight
                 };
 
                 Grid.SetRow(cell, lineIdx);

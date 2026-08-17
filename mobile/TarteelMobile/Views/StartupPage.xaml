@@ -6,10 +6,11 @@
              x:DataType="vm:StartupViewModel"
              BackgroundColor="{StaticResource SurfacePanel}">
     
-    <VerticalStackLayout Spacing="25" Padding="30,0" VerticalOptions="Center">
+    <VerticalStackLayout Spacing="20" Padding="24,0" VerticalOptions="Center">
         
         <Image Source="appiconfg.svg"
-               HeightRequest="150"
+               HeightRequest="120"
+               WidthRequest="120"
                HorizontalOptions="Center" />
                
         <Label Text="Tarteel Setup"
@@ -20,22 +21,28 @@
         <Label Text="{Binding StatusText}"
                HorizontalOptions="Center"
                HorizontalTextAlignment="Center"
+               FontSize="{StaticResource FontSizeBody}"
                TextColor="{StaticResource TextSecondary}" />
 
         <ProgressBar Progress="{Binding Progress}"
                      IsVisible="{Binding IsIndeterminate, Converter={StaticResource InvertedBoolConverter}}"
                      ProgressColor="{StaticResource Primary}"
-                     HorizontalOptions="FillAndExpand" />
+                     HorizontalOptions="Fill"
+                     HeightRequest="6" />
                      
         <ActivityIndicator IsRunning="{Binding IsIndeterminate}"
                            IsVisible="{Binding IsIndeterminate}"
                            Color="{StaticResource Primary}"
+                           HeightRequest="32"
+                           WidthRequest="32"
                            HorizontalOptions="Center" />
                            
         <Button Text="Retry"
                 Command="{Binding RetryCommand}"
                 IsVisible="{Binding ShowRetryButton}"
-                Style="{StaticResource PrimaryButton}"
+                Style="{StaticResource PrimaryButtonStyle}"
+                HeightRequest="48"
+                Padding="24,0"
                 HorizontalOptions="Center" />
 
     </VerticalStackLayout>

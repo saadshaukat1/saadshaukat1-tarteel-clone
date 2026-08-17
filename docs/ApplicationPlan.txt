@@ -1,4 +1,4 @@
-﻿🧩 Core Features of Tarteel.ai
+🧩 Core Features of Tarteel.ai
 Real-time Qur’an recitation recognition  
 Detects verses as the user recites, even with variations in tajweed or pronunciation.
 
@@ -267,8 +267,10 @@ Would you like me to sketch a rule-engine diagram showing how audio flows into p
 
 🎯 NEXT PRIORITIES
 ─────────────────
-1. Load full Quran data (Indo-Pak 16-liner JSON → SQLite)
-2. Extend phoneme analysis: Idgham, Ikhfa, Makharij
-3. Reference audio + playback for recitation correction
-4. Per-rule error tracking in DB schema + progress views
-5. True 16-liner rendering with line-level text + Indo-Pak font
+1. Responsive Android UI Layout & Button Ergonomics (Touch targets, safe-areas, adaptive font scaling, nested scroll fixes)
+2. High-Speed Whisper Model CDN Distribution (Option 1: GitHub Releases / Option 2: Cloudflare R2 - zero egress fees)
+3. Load full Quran data (Indo-Pak 16-liner JSON → SQLite)
+4. Extend phoneme analysis: Idgham, Ikhfa, Makharij
+5. Reference audio + playback for recitation correction
+6. Per-rule error tracking in DB schema + progress views
+7. True 16-liner rendering with line-level text + Indo-Pak font

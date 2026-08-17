@@ -12,13 +12,23 @@ public interface IAsrEngine
     /// <summary>Returns true when the model file for the configured primary tier already exists on disk.</summary>
     bool IsModelPresent { get; }
 
+    /// <summary>Returns true when the model file for the specified tier exists on disk and is >= 1MB.</summary>
+    bool IsModelTierPresent(string tier);
+
     string ActiveTier { get; }
     bool IsUsingMockMode { get; }
+    int EffectiveThreads { get; }
 
     /// <summary>Fired during model download or file import. Value is 0.0–1.0, or -1 when size is unknown.</summary>
     event EventHandler<AsrDownloadProgress>? DownloadProgressChanged;
 
     Task InitializeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Downloads the target tier in the background (if missing) and safely upgrades the active ASR factory.
+    /// Does not block active transcription; swaps models safely between chunks.
+    /// </summary>
+    Task BackgroundDownloadAndUpgradeTierAsync(string targetTier, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Copies a locally-selected model file to the persistent model path and then initializes the engine.
