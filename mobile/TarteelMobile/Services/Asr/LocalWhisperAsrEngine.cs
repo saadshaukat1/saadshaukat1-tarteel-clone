@@ -900,6 +900,25 @@ public partial class LocalWhisperAsrEngine(
             return true;
         }
 
+        // Guard against missing or corrupt model files BEFORE calling into native code.
+        // libggml-whisper.so calls abort() (SIGABRT) on a bad path, which bypasses
+        // C# try/catch and kills the process with no recoverable error.
+        if (!File.Exists(modelPath))
+        {
+            error = $"Model file does not exist: '{modelPath}'";
+            _logger.LogWarning("TryBuildFactory: {Error}", error);
+            return false;
+        }
+
+        var fileInfo = new FileInfo(modelPath);
+        if (fileInfo.Length < 1024 * 1024) // Sane minimum: 1 MB
+        {
+            error = $"Model file is too small ({fileInfo.Length} bytes) — likely corrupt or incomplete: '{modelPath}'";
+            _logger.LogWarning("TryBuildFactory: {Error} — deleting and will re-download.", error);
+            try { File.Delete(modelPath); } catch { /* best effort */ }
+            return false;
+        }
+
         try
         {
             _activeFactory?.Dispose();

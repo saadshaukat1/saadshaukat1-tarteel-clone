@@ -11,6 +11,18 @@
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">31.0</SupportedOSPlatformVersion>
     <!-- Use Mono runtime on Android to avoid CoreCLR MSI install issues -->
     <UseNativeAot Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">false</UseNativeAot>
+    <!--
+      Embed all .NET assemblies directly inside the APK instead of relying on
+      Fast Deployment's .__override__ directory on the device.
+
+      Root cause of crash (tombstone signal 6 / SIGABRT):
+        "No assemblies found in '/data/user/0/com.tarteel.mobile/files/.__override__/arm64-v8a'"
+      The Mono runtime aborts when it sees a stale Fast-Deployment directory
+      (left over from a prior install/build cycle) that contains no assemblies.
+      EmbedAssembliesIntoApk=true disables Fast Deployment completely, so the
+      override directory is never created and this code-path is never reached.
+    -->
+    <EmbedAssembliesIntoApk Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">true</EmbedAssembliesIntoApk>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
@@ -56,6 +68,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.*" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />

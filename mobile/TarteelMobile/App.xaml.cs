@@ -30,7 +30,9 @@ public partial class App : Application
         {
             _diagnostics.Error("Android UnhandledException", args.Exception);
             CrashLog(args.Exception, "Android UnhandledException");
-            args.Handled = true;
+            // Do NOT set args.Handled = true — that leaves the process running in a
+            // corrupted state. Let Android terminate the process cleanly so the OS
+            // can restart it fresh. The exception is already captured above.
         };
 #endif
 
@@ -50,8 +52,10 @@ public partial class App : Application
     {
         try
         {
-            var window = new Window(new AppShell());
-            _ = RunStartupReadinessAsync(window);
+            // Resolve the StartupPage from the DI container.
+            // OnNavigatedTo in StartupPage will handle the actual initialization.
+            var startupPage = IPlatformApplication.Current!.Services.GetRequiredService<Views.StartupPage>();
+            var window = new Window(new NavigationPage(startupPage));
             return window;
         }
         catch (Exception ex)
@@ -83,33 +87,6 @@ public partial class App : Application
         CrashLog(e.Exception, $"WinUI UnhandledException handled={e.Handled}");
     }
 #endif
-
-    private async Task RunStartupReadinessAsync(Window window)
-    {
-        try
-        {
-            var report = await _readiness.RunStartupChecksAsync();
-            _diagnostics.Info($"Startup readiness: {report.Summary}");
-
-            if (!report.IsReady)
-            {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                {
-                    if (window.Page is Page page)
-                    {
-                        await page.DisplayAlert(
-                            "Offline setup incomplete",
-                            report.Summary,
-                            "OK");
-                    }
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            _diagnostics.Error("Failed to run startup readiness checks.", ex);
-        }
-    }
 
     /// <summary>
     /// Writes crash details to a standalone file as a fallback when the

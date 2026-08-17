@@ -464,3 +464,4 @@ data/quran/*.txt
 !scripts/release/**
 
 build-android.ps1
+cmdline-tools.zip

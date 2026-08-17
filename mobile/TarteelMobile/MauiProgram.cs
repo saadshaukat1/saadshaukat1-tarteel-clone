@@ -64,6 +64,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<ILineLevelPageSource, JsonLinePageSource>();
 
         // ── ViewModels ────────────────────────────────────────────────────────
+        builder.Services.AddTransient<StartupViewModel>();
+        builder.Services.AddTransient<Views.StartupPage>();
+        
         builder.Services.AddTransient<RecitationViewModel>();
         builder.Services.AddTransient<ProgressViewModel>();
         builder.Services.AddTransient<LoginViewModel>();
@@ -74,23 +77,32 @@ public static class MauiProgram
         builder.Services.AddTransient<ProgressPage>();
         builder.Services.AddTransient<LoginPage>();
         builder.Services.AddTransient<MushafPageView>();
+        builder.Services.AddTransient<AppShell>();
 
         builder.Logging.SetMinimumLevel(LogLevel.Information);
+
+#if DEBUG
+        // Surface .NET/MAUI logs in adb logcat during development.
+        builder.Logging.AddDebug();
+#endif
 
         return builder.Build();
     }
 
     private static void ConfigureAppConfiguration(MauiAppBuilder builder)
     {
+        // Run the file I/O on a background thread to avoid blocking the main
+        // thread (ANR risk on Android) during app startup.
         try
         {
-            using var appSettingsStream = FileSystem.Current
-                .OpenAppPackageFileAsync("appsettings.json")
-                .GetAwaiter()
-                .GetResult();
+            var rawJson = Task.Run(async () =>
+            {
+                await using var stream = await FileSystem.Current
+                    .OpenAppPackageFileAsync("appsettings.json");
+                using var reader = new StreamReader(stream);
+                return await reader.ReadToEndAsync();
+            }).GetAwaiter().GetResult();
 
-            using var streamReader = new StreamReader(appSettingsStream);
-            var rawJson = streamReader.ReadToEnd();
             var root = JsonDocument.Parse(rawJson).RootElement;
             var inMemory = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             FlattenJsonElement(root, inMemory, prefix: string.Empty);

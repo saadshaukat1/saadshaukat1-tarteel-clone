@@ -71,16 +71,34 @@ public sealed class OfflineReadinessService : IOfflineReadinessService
             IsReady: !string.IsNullOrWhiteSpace(_diagnostics.LogPath),
             Details: $"Log file path: {_diagnostics.LogPath}"));
 
-        await _asrEngine.InitializeAsync();
-
-        checks.Add(new ReadinessCheckResult(
-            Name: "Local ASR runtime",
-            IsReady: _asrEngine.IsReady && !_asrEngine.IsUsingMockMode,
-            Details: _asrEngine.IsReady
+        // Wrap ASR init in try/catch — libggml-whisper.so can abort() natively
+        // if the model file is missing/corrupt, which bypasses C# exception handling.
+        // The TryBuildFactory guard handles that case now, but we still catch here
+        // as a belt-and-suspenders measure. ASR is non-required so a failure here
+        // must never prevent the app from starting.
+        string asrDetails;
+        bool asrReady = false;
+        try
+        {
+            await _asrEngine.InitializeAsync();
+            asrReady = _asrEngine.IsReady && !_asrEngine.IsUsingMockMode;
+            asrDetails = _asrEngine.IsReady
                 ? (_asrEngine.IsUsingMockMode
                     ? $"ASR running in mock mode on tier '{_asrEngine.ActiveTier}' (real assets not found)."
                     : $"ASR ready on tier '{_asrEngine.ActiveTier}'.")
-                : "ASR assets not installed; recitation will be unavailable until assets are placed.",
+                : "ASR assets not installed; recitation will be unavailable until assets are placed.";
+        }
+        catch (Exception ex)
+        {
+            asrReady = false;
+            asrDetails = $"ASR initialization failed: {ex.Message}";
+            _diagnostics.Warn($"ASR init threw during startup check: {ex}");
+        }
+
+        checks.Add(new ReadinessCheckResult(
+            Name: "Local ASR runtime",
+            IsReady: asrReady,
+            Details: asrDetails,
             IsRequired: false));
 
         var report = new OfflineReadinessReport(

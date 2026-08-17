@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
+             x:Class="TarteelMobile.Views.StartupPage"
+             x:DataType="vm:StartupViewModel"
+             BackgroundColor="{StaticResource SurfacePanel}">
+    
+    <VerticalStackLayout Spacing="25" Padding="30,0" VerticalOptions="Center">
+        
+        <Image Source="appiconfg.svg"
+               HeightRequest="150"
+               HorizontalOptions="Center" />
+               
+        <Label Text="Tarteel Setup"
+               Style="{StaticResource TitleStyle}"
+               HorizontalOptions="Center"
+               TextColor="{StaticResource Primary}" />
+
+        <Label Text="{Binding StatusText}"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center"
+               TextColor="{StaticResource TextSecondary}" />
+
+        <ProgressBar Progress="{Binding Progress}"
+                     IsVisible="{Binding IsIndeterminate, Converter={StaticResource InvertedBoolConverter}}"
+                     ProgressColor="{StaticResource Primary}"
+                     HorizontalOptions="FillAndExpand" />
+                     
+        <ActivityIndicator IsRunning="{Binding IsIndeterminate}"
+                           IsVisible="{Binding IsIndeterminate}"
+                           Color="{StaticResource Primary}"
+                           HorizontalOptions="Center" />
+                           
+        <Button Text="Retry"
+                Command="{Binding RetryCommand}"
+                IsVisible="{Binding ShowRetryButton}"
+                Style="{StaticResource PrimaryButton}"
+                HorizontalOptions="Center" />
+
+    </VerticalStackLayout>
+
+</ContentPage>
