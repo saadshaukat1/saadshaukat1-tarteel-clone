@@ -465,3 +465,35 @@ data/quran/*.txt
 
 build-android.ps1
 cmdline-tools.zip
+
+# ── Large Files, Archives & Tooling (>50MB / Bundles) ──────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.iso
+jdk*.zip
+jdk*/
+commandlinetools*.zip
+android-ndk*.zip
+
+# ── Mobile & App Package Outputs ─────────────────────────────
+*.apk
+*.aab
+*.apks
+*.xapk
+*.appx
+*.appxbundle
+*.msixbundle
+
+# ── Machine Learning Models & Weights ────────────────────────
+*.bin
+*.onnx
+*.pt
+*.pth
+*.weights
+*.gguf
+*.safetensors
+offline-assets/models/*.bin
