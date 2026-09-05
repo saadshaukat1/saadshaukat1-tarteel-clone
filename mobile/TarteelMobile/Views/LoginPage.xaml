@@ -36,7 +36,7 @@
                     <VerticalStackLayout x:Name="LoginFieldsLayout" Spacing="12">
                         <VerticalStackLayout x:Name="EmailFieldLayout" Spacing="4">
                             <Label Text="Email" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
-                            <Entry Text="{Binding Email}" Keyboard="Email" ReturnType="Next" Placeholder="name@example.com" FontSize="{StaticResource FontSizeBodyLarge}" HeightRequest="48" />
+                            <Entry Text="{Binding Email}" Keyboard="Email" IsSpellCheckEnabled="False" IsTextPredictionEnabled="False" ReturnType="Next" Placeholder="name@example.com" FontSize="{StaticResource FontSizeBodyLarge}" HeightRequest="48" />
                         </VerticalStackLayout>
                         <VerticalStackLayout x:Name="PasswordFieldLayout" Spacing="4">
                             <Label Text="Password" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
@@ -51,6 +51,14 @@
                     <VerticalStackLayout x:Name="LoginActionsLayout" Spacing="10">
                         <Button Text="Log in" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="50" HorizontalOptions="Fill" Command="{Binding LoginCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
                         <Button Text="Create account" Style="{StaticResource OutlineButtonStyle}" HeightRequest="50" HorizontalOptions="Fill" Command="{Binding RegisterCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                        
+                        <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="8" Margin="0,4">
+                            <BoxView HeightRequest="1" BackgroundColor="{StaticResource BorderSubtle}" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="OR" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" VerticalOptions="Center" />
+                            <BoxView Grid.Column="2" HeightRequest="1" BackgroundColor="{StaticResource BorderSubtle}" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Button Text="Continue as Guest (Offline)" Style="{StaticResource CompactActionButtonStyle}" HeightRequest="48" HorizontalOptions="Fill" Command="{Binding ContinueOfflineCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
 

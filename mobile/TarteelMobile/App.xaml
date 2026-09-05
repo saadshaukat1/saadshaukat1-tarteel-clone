@@ -11,7 +11,7 @@
 
             <!-- Font families -->
             <x:String x:Key="UiFontFamily">Segoe UI</x:String>
-            <x:String x:Key="ArabicFontFamily">NotoNaskhArabic</x:String>
+            <x:String x:Key="ArabicFontFamily">Nastaleeq</x:String>
             <x:Int32 x:Key="FontWeightRegular">400</x:Int32>
             <x:Int32 x:Key="FontWeightMedium">500</x:Int32>
             <x:Int32 x:Key="FontWeightStrong">700</x:Int32>
@@ -136,6 +136,8 @@
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
                 <Setter Property="FontFamily" Value="{StaticResource UiFontFamily}" />
             </Style>
+
+
 
             <!-- Global button style: full touch target (min 48dp) and states -->
             <Style TargetType="Button">
@@ -298,20 +300,16 @@
                 </Setter>
             </Style>
 
-            <!-- Global entry style: focus background lift + disabled dimming -->
+            <!-- Global entry style: disabled dimming -->
             <Style TargetType="Entry">
                 <Setter Property="PlaceholderColor" Value="{StaticResource TextPlaceholder}" />
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
+                <Setter Property="BackgroundColor" Value="{StaticResource SurfacePanel}" />
                 <Setter Property="MinimumHeightRequest" Value="48" />
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">
                             <VisualState Name="Normal" />
-                            <VisualState Name="Focused">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceElevated}" />
-                                </VisualState.Setters>
-                            </VisualState>
                             <VisualState Name="Disabled">
                                 <VisualState.Setters>
                                     <Setter Property="Opacity" Value="0.4" />
@@ -322,7 +320,7 @@
                 </Setter>
             </Style>
 
-            <!-- Global picker style: focus background lift + disabled dimming -->
+            <!-- Global picker style: disabled dimming -->
             <Style TargetType="Picker">
                 <Setter Property="TextColor" Value="{StaticResource OnSurface}" />
                 <Setter Property="TitleColor" Value="{StaticResource TextSecondary}" />
@@ -332,17 +330,7 @@
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup Name="CommonStates">
-                            <VisualState Name="Normal">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfacePanel}" />
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState Name="Focused">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="{StaticResource SurfaceElevated}" />
-                                    <Setter Property="TitleColor" Value="{StaticResource Accent}" />
-                                </VisualState.Setters>
-                            </VisualState>
+                            <VisualState Name="Normal" />
                             <VisualState Name="Disabled">
                                 <VisualState.Setters>
                                     <Setter Property="Opacity" Value="0.55" />

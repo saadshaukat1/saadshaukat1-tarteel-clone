@@ -29,6 +29,7 @@ public static class MauiProgram
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("NotoNaskhArabic.ttf", "NotoNaskhArabic");
+                fonts.AddFont("Nastaleeq.ttf", "Nastaleeq");
             });
 
         ConfigureAppConfiguration(builder);

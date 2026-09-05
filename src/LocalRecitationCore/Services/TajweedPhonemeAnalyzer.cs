@@ -28,6 +28,10 @@ public static class TajweedPhonemeAnalyzer
     private static readonly HashSet<char> IkhfaLetters = new()
         { 'ت', 'ث', 'ج', 'د', 'ذ', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ف', 'ق', 'ك' };
 
+    // Izhar letters: the 6 throat letters after which nun-sakinah/tanween is pronounced clearly.
+    private static readonly HashSet<char> IzharLetters = new()
+        { 'ء', 'ه', 'ع', 'ح', 'غ', 'خ' };
+
     // Common makhraj-confusion pairs: letters that share similar articulation points and are often confused.
     // Key = actual letter, Value = common confusion letter.
     private static readonly Dictionary<char, char> MakhrajConfusions = new()
@@ -110,6 +114,18 @@ public static class TajweedPhonemeAnalyzer
             if (ikhfaViolation is not null)
             {
                 violations.Add(ikhfaViolation);
+            }
+
+            var iqlabViolation = CheckIqlab(expected, pos, expectedWords, wordSamples, sampleRate);
+            if (iqlabViolation is not null)
+            {
+                violations.Add(iqlabViolation);
+            }
+
+            var izharViolation = CheckIzhar(expected, pos, expectedWords, wordSamples, sampleRate);
+            if (izharViolation is not null)
+            {
+                violations.Add(izharViolation);
             }
 
             var makhrajViolation = CheckMakhraj(expected, wordSamples, pos, sampleRate);
@@ -282,6 +298,67 @@ public static class TajweedPhonemeAnalyzer
             expectedWord,
             expectedWord,
             $"Ikhfa expected: conceal '{normalized}' before '{nextStripped}' with a nasal hum.");
+    }
+
+    private static TajweedViolation? CheckIqlab(
+        string expectedWord,
+        int position,
+        IReadOnlyList<string> expectedWords,
+        float[] wordSamples,
+        int sampleRate)
+    {
+        // Iqlab: nun-sakinah or tanween converts into a mim sound with ghunna (nasalization) before Baa (ب).
+        var normalized = TajweedRuleEngine.Strip(expectedWord);
+        if (normalized.Length == 0 || normalized[^1] != 'ن' || position + 1 >= expectedWords.Count)
+            return null;
+
+        var nextWord = expectedWords[position + 1];
+        var nextStripped = TajweedRuleEngine.Strip(nextWord);
+        if (nextStripped.Length == 0 || nextStripped[0] != 'ب')
+            return null;
+
+        var centroid = ComputeSpectralCentroid(wordSamples, sampleRate);
+        if (centroid <= GhunnaSpectralCentroidMax)
+            return null; // Nasal resonance detected for Iqlab (mim with ghunna).
+
+        return new TajweedViolation(
+            position,
+            TajweedRuleType.Iqlab,
+            expectedWord,
+            expectedWord,
+            $"Iqlab expected: convert '{normalized}' to a mīm sound with nasalization before '{nextStripped}' (centroid {centroid:0.00} exceeds nasal threshold {GhunnaSpectralCentroidMax:0.00}).");
+    }
+
+    private static TajweedViolation? CheckIzhar(
+        string expectedWord,
+        int position,
+        IReadOnlyList<string> expectedWords,
+        float[] wordSamples,
+        int sampleRate)
+    {
+        // Izhar: nun-sakinah or tanween is pronounced clearly without nasal prolongation or merging before throat letters.
+        var normalized = TajweedRuleEngine.Strip(expectedWord);
+        if (normalized.Length == 0 || normalized[^1] != 'ن' || position + 1 >= expectedWords.Count)
+            return null;
+
+        var nextWord = expectedWords[position + 1];
+        var nextStripped = TajweedRuleEngine.Strip(nextWord);
+        if (nextStripped.Length == 0 || !IzharLetters.Contains(nextStripped[0]))
+            return null;
+
+        var centroid = ComputeSpectralCentroid(wordSamples, sampleRate);
+        // If energy is excessively concentrated in pure low sub-nasal drone (< 0.02, ~300 Hz), flag improper ghunnah holding
+        if (centroid > 0 && centroid < 0.02)
+        {
+            return new TajweedViolation(
+                position,
+                TajweedRuleType.Izhar,
+                expectedWord,
+                expectedWord,
+                $"Izhar expected: pronounce '{normalized}' clearly before '{nextStripped}' without holding or adding extra ghunnah.");
+        }
+
+        return null;
     }
 
     private static TajweedViolation? CheckMakhraj(

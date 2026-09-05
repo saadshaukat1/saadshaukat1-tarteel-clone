@@ -10,6 +10,7 @@ public partial class StartupViewModel : ObservableObject
     private readonly IOfflineReadinessService _readinessService;
     private readonly IAsrEngine _asrEngine;
     private readonly IAppDiagnosticsService _diagnostics;
+    private readonly ISessionService _sessionService;
 
     [ObservableProperty]
     private string _statusText = "Starting up...";
@@ -26,11 +27,13 @@ public partial class StartupViewModel : ObservableObject
     public StartupViewModel(
         IOfflineReadinessService readinessService,
         IAsrEngine asrEngine,
-        IAppDiagnosticsService diagnostics)
+        IAppDiagnosticsService diagnostics,
+        ISessionService sessionService)
     {
         _readinessService = readinessService;
         _asrEngine = asrEngine;
         _diagnostics = diagnostics;
+        _sessionService = sessionService;
     }
 
     [RelayCommand]
@@ -43,7 +46,7 @@ public partial class StartupViewModel : ObservableObject
     {
         ShowRetryButton = false;
         IsIndeterminate = true;
-        StatusText = "Checking local files...";
+        StatusText = "Preparing offline recitation engine...";
 
         _asrEngine.DownloadProgressChanged += OnDownloadProgressChanged;
 
@@ -53,12 +56,26 @@ public partial class StartupViewModel : ObservableObject
 
             if (report.IsReady)
             {
-                StatusText = "Ready!";
+                StatusText = "Offline Engine Ready!";
                 await Task.Delay(500); // Give user a moment to see it
-                // Resolve AppShell from DI rather than calling `new AppShell()` directly.
-                // This is the correct MAUI pattern and avoids bypassing the service container.
-                var shell = IPlatformApplication.Current!.Services.GetRequiredService<AppShell>();
-                Application.Current!.Windows[0].Page = shell;
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (Application.Current?.Windows.Count > 0)
+                    {
+                        if (_sessionService.IsAuthenticated)
+                        {
+                            var shell = IPlatformApplication.Current!.Services.GetRequiredService<AppShell>();
+                            Application.Current.Windows[0].Page = shell;
+                        }
+                        else
+                        {
+                            // Prompt for login before entering the recitation console
+                            var loginPage = IPlatformApplication.Current!.Services.GetRequiredService<Views.LoginPage>();
+                            Application.Current.Windows[0].Page = loginPage;
+                        }
+                    }
+                });
             }
             else
             {
@@ -70,7 +87,7 @@ public partial class StartupViewModel : ObservableObject
         catch (Exception ex)
         {
             _diagnostics.Error("Startup check failed", ex);
-            StatusText = $"Error: {ex.Message}";
+            StatusText = $"Setup error: {ex.Message}";
             ShowRetryButton = true;
             IsIndeterminate = false;
         }

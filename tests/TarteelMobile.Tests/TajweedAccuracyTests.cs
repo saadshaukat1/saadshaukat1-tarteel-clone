@@ -217,6 +217,72 @@ public sealed class TajweedAccuracyTests
         Assert.Equal(1, maddCount);
     }
 
+    // ── 7. Iqlab and Izhar Phoneme Analysis ───────────────────────────────────
+
+    [Fact]
+    public void PhonemeAnalyzer_IqlabWithoutNasalResonance_ProducesViolation()
+    {
+        // High-frequency tone (6500 Hz): centroid is high (0.41 > 0.35), meaning nasal resonance is absent
+        var pcm = GenerateSine(6500, 16000, 16000);
+        var violations = TajweedPhonemeAnalyzer.Analyze(
+            pcm,
+            ["\u0645\u0650\u0646\u0652", "\u0628\u064E\u0639\u0652\u062F\u0650"], // مِنْ بَعْدِ
+            [
+                new RecitationWordTimestamp(0, "\u0645\u0650\u0646\u0652", TimeSpan.Zero, TimeSpan.FromMilliseconds(500)),
+                new RecitationWordTimestamp(1, "\u0628\u064E\u0639\u0652\u062F\u0650", TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000))
+            ]);
+
+        Assert.Contains(violations, v => v.Rule == TajweedRuleType.Iqlab && v.WordPosition == 0);
+    }
+
+    [Fact]
+    public void PhonemeAnalyzer_IqlabWithNasalResonance_Passes()
+    {
+        // Low-frequency sine (150 Hz): low centroid (<= 0.35), indicating nasal resonance for mīm conversion
+        var pcm = GenerateSine(150, 16000, 16000);
+        var violations = TajweedPhonemeAnalyzer.Analyze(
+            pcm,
+            ["\u0645\u0650\u0646\u0652", "\u0628\u064E\u0639\u0652\u062F\u0650"], // مِنْ بَعْدِ
+            [
+                new RecitationWordTimestamp(0, "\u0645\u0650\u0646\u0652", TimeSpan.Zero, TimeSpan.FromMilliseconds(500)),
+                new RecitationWordTimestamp(1, "\u0628\u064E\u0639\u0652\u062F\u0650", TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000))
+            ]);
+
+        Assert.DoesNotContain(violations, v => v.Rule == TajweedRuleType.Iqlab);
+    }
+
+    [Fact]
+    public void PhonemeAnalyzer_IzharClearPronunciation_Passes()
+    {
+        // Normal speech frequency (600 Hz): centroid is well above the low nasal threshold
+        var pcm = GenerateSine(600, 16000, 16000);
+        var violations = TajweedPhonemeAnalyzer.Analyze(
+            pcm,
+            ["\u0645\u0650\u0646\u0652", "\u062E\u064E\u0648\u0652\u0641\u064D"], // مِنْ خَوْفٍ (خ is Izhar throat letter)
+            [
+                new RecitationWordTimestamp(0, "\u0645\u0650\u0646\u0652", TimeSpan.Zero, TimeSpan.FromMilliseconds(500)),
+                new RecitationWordTimestamp(1, "\u062E\u064E\u0648\u0652\u0641\u064D", TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000))
+            ]);
+
+        Assert.DoesNotContain(violations, v => v.Rule == TajweedRuleType.Izhar);
+    }
+
+    [Fact]
+    public void PhonemeAnalyzer_IzharWithExcessiveNasalHum_ProducesViolation()
+    {
+        // Very low frequency sine (80 Hz): centroid is excessively low, simulating improper nasal holding/ghunnah
+        var pcm = GenerateSine(80, 16000, 16000);
+        var violations = TajweedPhonemeAnalyzer.Analyze(
+            pcm,
+            ["\u0645\u0650\u0646\u0652", "\u062E\u064E\u0648\u0652\u0641\u064D"], // مِنْ خَوْفٍ
+            [
+                new RecitationWordTimestamp(0, "\u0645\u0650\u0646\u0652", TimeSpan.Zero, TimeSpan.FromMilliseconds(500)),
+                new RecitationWordTimestamp(1, "\u062E\u064E\u0648\u0652\u0641\u064D", TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1000))
+            ]);
+
+        Assert.Contains(violations, v => v.Rule == TajweedRuleType.Izhar && v.WordPosition == 0);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static byte[] BuildWavHeader(int pcmByteCount = 1600)

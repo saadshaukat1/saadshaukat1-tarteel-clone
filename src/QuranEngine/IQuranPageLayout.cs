@@ -58,7 +58,7 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
 
             for (var wi = 0; wi < words.Length; wi++)
             {
-                var isEnd = wi == words.Length - 1 && vi < verses.Count - 1;
+                var isEnd = wi == words.Length - 1;
                 allWords.Add((words[wi], key, isEnd, false));
             }
 
@@ -155,7 +155,11 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
                     continue;
                 }
 
-                var text = isEnd ? $"{word} \u06E9" : word;
+                var text = word;
+                if (isEnd)
+                {
+                    text = $"{word} {GetAyahEnding(key)}";
+                }
                 result.Add(new PageLine(text, key, lineIdx));
             }
             else
@@ -231,7 +235,7 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
 
                 if (isEnd)
                 {
-                    lineText.Append(" \u06E9");
+                    lineText.Append($" {GetAyahEnding(key)}");
                 }
 
                 wordIndex++;
@@ -264,5 +268,34 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
             result.Add(new PageLine(" ", string.Empty, i));
         }
         return result;
+    }
+
+    private static string GetAyahEnding(string verseKey)
+    {
+        // 15 Standard Sajdah Ayahs
+        var sajdahAyahs = new HashSet<string>
+        {
+            "7:206", "13:15", "16:50", "17:109", "19:58", "22:18", "22:77",
+            "25:60", "27:26", "32:15", "38:24", "41:38", "53:62", "84:21", "96:19"
+        };
+
+        if (sajdahAyahs.Contains(verseKey))
+        {
+            return "\u06E9"; // Sajdah marker
+        }
+
+        // Normal Ayah Ending with Arabic Numerals inside U+06DD (End of Ayah)
+        var parts = verseKey.Split(':');
+        if (parts.Length == 2 && int.TryParse(parts[1], out int ayahNum))
+        {
+            return $"\u06DD{ToArabicNumerals(ayahNum)}";
+        }
+
+        return "\u06DD";
+    }
+
+    private static string ToArabicNumerals(int number)
+    {
+        return string.Concat(number.ToString().Select(c => (char)('\u0660' + (c - '0'))));
     }
 }

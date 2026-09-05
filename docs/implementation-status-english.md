@@ -67,8 +67,9 @@ Android implementation remains in the repository but is excluded from active bui
 - ✅ **NEW: Idgham phoneme analysis** — detects nun-sakinah merging into ی, ر, م, ل, و, ن with/without nasalization using spectral centroid.
 - ✅ **NEW: Ikhfa phoneme analysis** — detects concealed nun-sakinah before ت, ث, ج, د, ذ, ز, س, ش, ص, ض, ط, ظ, ف, ق, ك with nasal resonance.
 - ✅ **NEW: Makhraj phoneme analysis** — detects common articulation-point confusions (ح↔خ, س↔ص, ذ↔ز, ظ↔ض, ق↔ك, ط↔ت) using spectral centroid thresholds.
-- ❌ Iqlab and Izhar phoneme analysis is not complete.
-- ⚠️ Feedback quality depends on Whisper transcription and word timestamps; heuristic detections must not be presented as authoritative teacher judgment.
+- ✅ **NEW: Iqlab phoneme analysis** — detects nun-sakinah/tanween conversion to nasalized mīm before ب using spectral centroid.
+- ✅ **NEW: Izhar phoneme analysis** — verifies clear nūn pronunciation without prolonged nasal hum/holding before throat letters (ء, ه, ع, ح, غ, خ).
+- ✅ **NEW: Pedagogical advisory framing** — UI explicitly presents tajweed coaching as an acoustic heuristic practice aid and not an authoritative teacher fatwa or formal Ijazah.
 
 ### 2.5 Progress and review scheduling
 

@@ -85,6 +85,10 @@ public partial class App : Application
     {
         _diagnostics.Error($"WinUI UnhandledException (handled={e.Handled})", e.Exception);
         CrashLog(e.Exception, $"WinUI UnhandledException handled={e.Handled}");
+        if (e.Exception is InvalidOperationException ex && ex.Message.Contains("PlatformView cannot be null"))
+        {
+            e.Handled = true;
+        }
     }
 #endif
 

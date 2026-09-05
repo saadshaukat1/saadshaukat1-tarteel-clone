@@ -4,47 +4,134 @@
              xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              x:Class="TarteelMobile.Views.StartupPage"
              x:DataType="vm:StartupViewModel"
-             BackgroundColor="{StaticResource SurfacePanel}">
-    
-    <VerticalStackLayout Spacing="20" Padding="24,0" VerticalOptions="Center">
-        
-        <Image Source="appiconfg.svg"
-               HeightRequest="120"
-               WidthRequest="120"
-               HorizontalOptions="Center" />
-               
-        <Label Text="Tarteel Setup"
-               Style="{StaticResource TitleStyle}"
-               HorizontalOptions="Center"
-               TextColor="{StaticResource Primary}" />
+             Shell.NavBarIsVisible="False"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{StaticResource PrimaryDark}">
 
-        <Label Text="{Binding StatusText}"
-               HorizontalOptions="Center"
-               HorizontalTextAlignment="Center"
-               FontSize="{StaticResource FontSizeBody}"
-               TextColor="{StaticResource TextSecondary}" />
+    <Grid>
+        <!-- Background Poster: Open Quran on Rehal with illuminated pages -->
+        <Image Source="splash_poster.jpg"
+               Aspect="AspectFill"
+               HorizontalOptions="Fill"
+               VerticalOptions="Fill" />
 
-        <ProgressBar Progress="{Binding Progress}"
-                     IsVisible="{Binding IsIndeterminate, Converter={StaticResource InvertedBoolConverter}}"
-                     ProgressColor="{StaticResource Primary}"
-                     HorizontalOptions="Fill"
-                     HeightRequest="6" />
-                     
-        <ActivityIndicator IsRunning="{Binding IsIndeterminate}"
-                           IsVisible="{Binding IsIndeterminate}"
-                           Color="{StaticResource Primary}"
-                           HeightRequest="32"
-                           WidthRequest="32"
-                           HorizontalOptions="Center" />
-                           
-        <Button Text="Retry"
-                Command="{Binding RetryCommand}"
-                IsVisible="{Binding ShowRetryButton}"
-                Style="{StaticResource PrimaryButtonStyle}"
-                HeightRequest="48"
-                Padding="24,0"
-                HorizontalOptions="Center" />
+        <!-- Gradient Vignette Overlay for Crisp Readability -->
+        <BoxView HorizontalOptions="Fill" VerticalOptions="Fill">
+            <BoxView.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#DF071412" Offset="0.0" />
+                    <GradientStop Color="#40071412" Offset="0.25" />
+                    <GradientStop Color="#20071412" Offset="0.55" />
+                    <GradientStop Color="#EE071412" Offset="0.95" />
+                </LinearGradientBrush>
+            </BoxView.Background>
+        </BoxView>
 
-    </VerticalStackLayout>
+        <!-- Main Layout Container -->
+        <Grid RowDefinitions="Auto,*,Auto" Padding="20,36,20,24">
+            <!-- Top Branding & Real Ayah Banner -->
+            <VerticalStackLayout Grid.Row="0" Spacing="4" HorizontalOptions="Center">
+                <Label Text="ترتيل"
+                       FontFamily="{StaticResource ArabicFontFamily}"
+                       FontSize="36"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource FocusRing}"
+                       HorizontalTextAlignment="Center" />
+                
+                <Label Text="TARTEEL"
+                       FontFamily="{StaticResource UiFontFamily}"
+                       FontSize="{StaticResource FontSizeSubtitle}"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource OnSurface}"
+                       CharacterSpacing="4"
+                       HorizontalTextAlignment="Center" />
 
+                <!-- Real Ayah Display -->
+                <Border Margin="0,10,0,0"
+                        Padding="16,10"
+                        BackgroundColor="#AA101C1B"
+                        Stroke="{StaticResource AccentMuted}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        MaximumWidthRequest="460">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا"
+                               FontFamily="{StaticResource ArabicFontFamily}"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               TextColor="{StaticResource Accent}"
+                               HorizontalTextAlignment="Center"
+                               FlowDirection="RightToLeft" />
+                        <Label Text="&quot;And recite the Qur’an with measured recitation.&quot;"
+                               FontSize="{StaticResource FontSizeCaption}"
+                               FontAttributes="Italic"
+                               TextColor="{StaticResource TextSecondary}"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Surah Al-Muzzammil 73:4"
+                               FontSize="{StaticResource FontSizeNano}"
+                               FontAttributes="Bold"
+                               TextColor="{StaticResource TextTertiary}"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+
+            <!-- Bottom Floating Glassmorphic Model Download & Setup Card -->
+            <Border Grid.Row="2"
+                    Padding="18,16,18,18"
+                    BackgroundColor="#EE101C1B"
+                    Stroke="{StaticResource Primary}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 16"
+                    MaximumWidthRequest="500"
+                    HorizontalOptions="Fill">
+                <Border.Shadow>
+                    <Shadow Brush="Black" Offset="0,4" Radius="12" Opacity="0.45" />
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Label Text="OFFLINE RECITATION ENGINE"
+                               FontSize="{StaticResource FontSizeNano}"
+                               FontAttributes="Bold"
+                               TextColor="{StaticResource Accent}"
+                               VerticalOptions="Center" />
+                        <BoxView Grid.Column="1" HeightRequest="1" BackgroundColor="{StaticResource BorderSubtle}" VerticalOptions="Center" />
+                        <ActivityIndicator Grid.Column="2"
+                                           IsRunning="{Binding IsIndeterminate}"
+                                           IsVisible="{Binding IsIndeterminate}"
+                                           Color="{StaticResource Primary}"
+                                           HeightRequest="16"
+                                           WidthRequest="16" />
+                    </Grid>
+
+                    <Label Text="{Binding StatusText}"
+                           FontSize="{StaticResource FontSizeBodyLarge}"
+                           FontAttributes="Bold"
+                           TextColor="{StaticResource OnSurface}"
+                           LineBreakMode="WordWrap" />
+
+                    <ProgressBar Progress="{Binding Progress}"
+                                 IsVisible="{Binding IsIndeterminate, Converter={StaticResource InvertedBoolConverter}}"
+                                 ProgressColor="{StaticResource Primary}"
+                                 HorizontalOptions="Fill"
+                                 HeightRequest="6" />
+
+                    <Button Text="Retry Download"
+                            Command="{Binding RetryCommand}"
+                            IsVisible="{Binding ShowRetryButton}"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            HeightRequest="48"
+                            MinimumHeightRequest="48"
+                            Padding="24,0"
+                            HorizontalOptions="Fill" />
+
+                    <Label Text="Offline-first · Local Whisper ASR · Privacy Preserved"
+                           FontSize="{StaticResource FontSizeNano}"
+                           TextColor="{StaticResource TextTertiary}"
+                           HorizontalTextAlignment="Center"
+                           Margin="0,2,0,0" />
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+    </Grid>
 </ContentPage>

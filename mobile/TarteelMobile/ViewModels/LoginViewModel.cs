@@ -42,12 +42,12 @@ public partial class LoginViewModel : ObservableObject
     private async Task LoginAsync()
     {
         IsBusy = true;
-        Error  = string.Empty;
+        Error = string.Empty;
         var ok = await _session.LoginAsync(Email, Password);
         if (ok)
-            await Shell.Current.Navigation.PopModalAsync();
+            await CompleteAuthenticationAsync();
         else
-            Error = "Email or password is incorrect.";
+            Error = "Email or password is incorrect (min 4 chars).";
         IsBusy = false;
     }
 
@@ -55,12 +55,45 @@ public partial class LoginViewModel : ObservableObject
     private async Task RegisterAsync()
     {
         IsBusy = true;
-        Error  = string.Empty;
+        Error = string.Empty;
         var ok = await _session.RegisterAsync(Email, Password);
         if (ok)
-            await Shell.Current.Navigation.PopModalAsync();
+            await CompleteAuthenticationAsync();
         else
-            Error = "Could not create account. Check your email address and try again.";
+            Error = "Could not create account. Check your email format and password.";
         IsBusy = false;
+    }
+
+    [RelayCommand]
+    private async Task ContinueOfflineAsync()
+    {
+        IsBusy = true;
+        Error = string.Empty;
+        var ok = await _session.LoginAsync("offline-default@tarteel.local", "offline123");
+        if (!ok)
+        {
+            await _session.RegisterAsync("offline-default@tarteel.local", "offline123");
+        }
+        await CompleteAuthenticationAsync();
+        IsBusy = false;
+    }
+
+    private async Task CompleteAuthenticationAsync()
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            if (Shell.Current is not null && Shell.Current.Navigation.ModalStack.Count > 0)
+            {
+                await Shell.Current.Navigation.PopModalAsync();
+            }
+            else
+            {
+                var shell = IPlatformApplication.Current!.Services.GetRequiredService<AppShell>();
+                if (Application.Current?.Windows.Count > 0)
+                {
+                    Application.Current.Windows[0].Page = shell;
+                }
+            }
+        });
     }
 }

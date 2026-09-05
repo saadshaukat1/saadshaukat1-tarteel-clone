@@ -109,7 +109,11 @@
                     </Border>
                     <Border IsVisible="{Binding HasTajweedViolations}" Padding="14" BackgroundColor="{StaticResource SurfaceWarningBg}" Stroke="{StaticResource WarningBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="Tajweed coaching" FontAttributes="Bold" TextColor="{StaticResource WarningText}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="Tajweed coaching" FontAttributes="Bold" TextColor="{StaticResource WarningText}" />
+                                <Label Grid.Column="1" Text="AI Practice Aid" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource WarningTextSecondary}" VerticalOptions="Center" />
+                            </Grid>
+                            <Label Text="💡 Acoustic heuristics for practice — not an authoritative teacher fatwa or formal Ijazah." FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource WarningTextSecondary}" />
                             <VerticalStackLayout BindableLayout.ItemsSource="{Binding TajweedViolations}" Spacing="6">
                                 <BindableLayout.ItemTemplate>
                                     <DataTemplate x:DataType="models:TajweedViolation">

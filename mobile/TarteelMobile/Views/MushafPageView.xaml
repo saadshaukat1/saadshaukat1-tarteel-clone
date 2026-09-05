@@ -58,6 +58,6 @@
         </ScrollView>
 
         <!-- Footer Instructions -->
-        <Label Grid.Row="4" Text="Scroll down to advance · 16-line standard layout" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" Padding="0,2,0,8" />
+        <Label Grid.Row="4" Text="Scroll down to advance · 16-line standard layout" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" Padding="0,2,0,8" Margin="0,0,0,16" />
     </Grid>
 </ContentPage>
