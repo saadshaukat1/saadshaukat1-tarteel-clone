@@ -34,6 +34,16 @@ public static class RecitationPracticeSettings
         return Math.Clamp(selectedAyah, 1, maxAyah);
     }
 
+    public static (int Surah, int Ayah)? GetNextAyah(int surah, int ayah)
+    {
+        if (ayah < GetAyahCount(surah))
+        {
+            return (surah, ayah + 1);
+        }
+
+        return surah < 114 ? (surah + 1, 1) : null;
+    }
+
     public static bool ShouldShowAdvancedPanel(bool isAdvancedMode, bool panelState)
         => isAdvancedMode && panelState;
 }

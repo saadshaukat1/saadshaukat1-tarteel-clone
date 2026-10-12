@@ -48,6 +48,7 @@ if (-not $SkipPublish) {
         "-p:OfflineModelDir=$modelDirFullPath",
         "-p:OfflineDataDir=$dataDirFullPath",
         "-p:OfflineExtrasDir=$extrasDirFullPath",
+        "-p:WindowsOnly=true",
         "-p:AppxBundle=Never",
         "-p:WindowsPackageType=None",
         "-p:GenerateAppxPackageOnBuild=false",

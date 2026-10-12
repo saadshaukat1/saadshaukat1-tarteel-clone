@@ -67,37 +67,53 @@ public sealed class AudioService : IAudioService, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task StopRecordingAsync()
+    public async Task StopRecordingAsync()
     {
-        byte[]? finalChunk = null;
+        Task? captureTask;
+        CancellationTokenSource? captureCts;
+        AudioRecord? audioRecord;
 
         lock (_sync)
         {
             ThrowIfDisposed();
-
             if (!IsRecording)
-                return Task.CompletedTask;
+                return;
 
-            _captureCts?.Cancel();
             IsRecording = false;
-
-            try
-            {
-                _audioRecord?.Stop();
-            }
-            catch (Exception ex)
-            {
-                RecordingError?.Invoke(this, new InvalidOperationException(
-                    "Failed to stop microphone cleanly.", ex));
-            }
-
-            CleanupCapture();
+            captureTask = _captureTask;
+            captureCts = _captureCts;
+            audioRecord = _audioRecord;
         }
 
-        if (finalChunk is { Length: > 0 })
-            AudioChunkReady?.Invoke(this, finalChunk);
+        try
+        {
+            audioRecord?.Stop();
+        }
+        catch (Exception ex)
+        {
+            RecordingError?.Invoke(this, new InvalidOperationException(
+                "Failed to stop microphone cleanly.", ex));
+        }
 
-        return Task.CompletedTask;
+        captureCts?.Cancel();
+        if (captureTask is not null)
+        {
+            try
+            {
+                await captureTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        lock (_sync)
+        {
+            CleanupCapture();
+            _captureTask = null;
+            _captureCts?.Dispose();
+            _captureCts = null;
+        }
     }
 
     private void CaptureLoop(CancellationToken cancellationToken)
@@ -109,7 +125,6 @@ public sealed class AudioService : IAudioService, IDisposable
                          AudioCaptureDefaults.Channels / 1000;
 
         var chunkBuffer = new MemoryStream();
-        var overlayBuffer = new MemoryStream();
         var readBuffer = new byte[bytesPerMs * 100]; // 100ms read buffer
         var chunkStartedAt = DateTimeOffset.UtcNow;
         var hasFreshAudio = false;
@@ -179,8 +194,14 @@ public sealed class AudioService : IAudioService, IDisposable
         }
         finally
         {
+            if (hasFreshAudio && chunkBuffer.Length > 0)
+            {
+                var finalChunk = BuildWav(chunkBuffer.ToArray());
+                if (finalChunk.Length > 0)
+                    AudioChunkReady?.Invoke(this, finalChunk);
+            }
+
             chunkBuffer.Dispose();
-            overlayBuffer.Dispose();
         }
     }
 
@@ -242,28 +263,44 @@ public sealed class AudioService : IAudioService, IDisposable
 
     public void Dispose()
     {
+        Task? captureTask;
+        AudioRecord? audioRecord;
+        CancellationTokenSource? captureCts;
         lock (_sync)
         {
             if (_disposed)
                 return;
 
-            _captureCts?.Cancel();
+            _disposed = true;
+            IsRecording = false;
+            captureTask = _captureTask;
+            audioRecord = _audioRecord;
+            captureCts = _captureCts;
+        }
+
+        try
+        {
+            audioRecord?.Stop();
+        }
+        catch
+        {
+        }
+
+        captureCts?.Cancel();
+        try
+        {
+            captureTask?.GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
+
+        lock (_sync)
+        {
+            CleanupCapture();
+            _captureTask = null;
             _captureCts?.Dispose();
             _captureCts = null;
-
-            try
-            {
-                if (IsRecording && _audioRecord is not null)
-                    _audioRecord.Stop();
-            }
-            catch
-            {
-                // best effort
-            }
-
-            CleanupCapture();
-            IsRecording = false;
-            _disposed = true;
         }
     }
 }

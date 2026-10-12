@@ -32,6 +32,24 @@ public sealed class RecitationViewModelTests
     }
 
     [Fact]
+    public void GetNextAyah_AdvancesWithinSurah()
+    {
+        Assert.Equal((1, 2), RecitationPracticeSettings.GetNextAyah(1, 1));
+    }
+
+    [Fact]
+    public void GetNextAyah_AdvancesToNextSurahAtBoundary()
+    {
+        Assert.Equal((2, 1), RecitationPracticeSettings.GetNextAyah(1, 7));
+    }
+
+    [Fact]
+    public void GetNextAyah_ReturnsNullAfterFinalQuranVerse()
+    {
+        Assert.Null(RecitationPracticeSettings.GetNextAyah(114, 6));
+    }
+
+    [Fact]
     public void AdvancedPanelVisibility_RequiresAdvancedModeAndPanelState()
     {
         Assert.False(RecitationPracticeSettings.ShouldShowAdvancedPanel(false, true));

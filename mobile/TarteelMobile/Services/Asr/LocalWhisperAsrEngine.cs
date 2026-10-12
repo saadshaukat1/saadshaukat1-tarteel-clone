@@ -15,13 +15,19 @@ namespace TarteelMobile.Services.Asr;
 public partial class LocalWhisperAsrEngine(
     IOptions<LocalWhisperOptions> options,
     ILogger<LocalWhisperAsrEngine> logger,
-    IAppDiagnosticsService diagnostics) : IAsrEngine, IAsyncDisposable
+    IAppDiagnosticsService diagnostics,
+    Hardware.IDeviceCapabilityService? deviceCapabilityService = null) : IAsrEngine, IAsyncDisposable
 {
-    private static readonly HttpClient SharedHttpClient = new();
+    private static readonly HttpClient SharedHttpClient = new()
+    {
+        DefaultRequestHeaders = { { "User-Agent", "TarteelClone/1.0" } }
+    };
 
     private readonly LocalWhisperOptions _options = options.Value;
     private readonly ILogger<LocalWhisperAsrEngine> _logger = logger;
     private readonly IAppDiagnosticsService _diagnostics = diagnostics;
+    private readonly Hardware.IDeviceCapabilityService _deviceCapabilityService =
+        deviceCapabilityService ?? new Hardware.DeviceCapabilityService(new Microsoft.Extensions.Logging.Abstractions.NullLogger<Hardware.DeviceCapabilityService>());
     private readonly SemaphoreSlim _inferenceLock = new(1, 1);
 
     // Prevent concurrent download attempts (e.g. InitializeAsync + TranscribeAsync race).
@@ -57,18 +63,22 @@ public partial class LocalWhisperAsrEngine(
     public bool IsModelTierPresent(string tier)
     {
         var normalized = tier.Trim().ToLowerInvariant();
+        if (normalized == "auto")
+        {
+            normalized = _deviceCapabilityService.GetHardwareProfile().RecommendedModelTier.ToLowerInvariant();
+        }
         if (!_options.TryGetTierDefinition(normalized, out var tierDef) || tierDef is null)
             return false;
-        var path = ResolvePersistentModelPath(tierDef.ModelPath);
-        if (!File.Exists(path)) return false;
-        try { return new FileInfo(path).Length >= 1024 * 1024; }
-        catch { return false; }
+
+        return LocateModelOnDisk(normalized, tierDef) is not null;
     }
 
     public string ActiveTier { get; private set; } = string.Empty;
     public bool IsUsingMockMode => _isUsingMockMode;
 
-    public int EffectiveThreads => ComputeOptimalThreads(_options.ThreadsOverride);
+    public int EffectiveThreads => _options.ThreadsOverride > 0
+        ? _options.ThreadsOverride
+        : _deviceCapabilityService.GetHardwareProfile().OptimalThreadCount;
 
     public static int ComputeOptimalThreads(int threadsOverride = 0)
     {
@@ -107,7 +117,26 @@ public partial class LocalWhisperAsrEngine(
             return;
         }
 
+        var hardware = _deviceCapabilityService.GetHardwareProfile();
+        _diagnostics.Info($"[Hardware Profiler] {hardware.DeviceSummary}");
+
         var tier = _options.PrimaryTier.Trim().ToLowerInvariant();
+        if (tier == "auto")
+        {
+            tier = hardware.RecommendedModelTier.ToLowerInvariant();
+            _logger.LogInformation("Resolved 'auto' primary tier to '{Tier}' based on detected hardware profile.", tier);
+        }
+
+        // Memory Safety Guard: On low-memory devices (< 3.5 GB RAM or Android Low-RAM flag),
+        // demote heavy models (turbo, medium) to prevent OS Low Memory Killer crashes.
+        if (hardware.IsLowMemoryDevice && (tier == "turbo" || tier == "medium" || tier == "small"))
+        {
+            _logger.LogWarning("Device has constrained memory ({Ram}MB). Demoting requested tier '{RequestedTier}' to '{SafeTier}' for stability.",
+                hardware.TotalMemoryMegabytes, tier, hardware.RecommendedModelTier);
+            _diagnostics.Warn($"[Memory Guard] Demoting ASR tier '{tier}' to '{hardware.RecommendedModelTier}' to prevent OOM.");
+            tier = hardware.RecommendedModelTier.ToLowerInvariant();
+        }
+
         ActiveTier = tier;
         _isUsingMockMode = false;
 
@@ -133,48 +162,54 @@ public partial class LocalWhisperAsrEngine(
         var resolvedTier = tier;
         var resolvedPath = modelPath;
 
-        // If the primary model is not on disk, try to obtain it (extract from
-        // packaged assets, then download). Emit progress so the UI can show it.
-        if (!File.Exists(modelPath))
+        // 1. Check if the model for the selected tier already exists on disk (AppData or offline-assets).
+        var locatedPrimaryPath = LocateModelOnDisk(tier, tierDef);
+        if (locatedPrimaryPath is not null)
         {
+            resolvedPath = locatedPrimaryPath;
             _logger.LogInformation(
-                "Model not found at '{Path}' for tier '{Tier}' — trying to extract from packaged assets.", modelPath, tier);
-
-            var extract = await TryExtractModelFromAssetsAsync(tier, modelPath, tierDef, cancellationToken);
-            if (!extract.IsSuccess)
-            {
-                _logger.LogInformation(
-                    "Model extraction from assets failed for tier '{Tier}': {Error} — falling back to download.",
-                    tier, extract.ErrorMessage);
-
-                var download = await TryDownloadModelAsync(tier, modelPath, tierDef, cancellationToken);
-                if (!download.IsSuccess)
-                {
-                    _logger.LogWarning("Model unavailable for tier '{Tier}': {Error}", tier, download.ErrorMessage);
-
-                    // Fall back to a tier whose model file already exists on disk
-                    // (e.g. primary 'tiny' missing but 'base' is present) instead of
-                    // dropping straight into silent mock mode.
-                    var fallback = ResolveUsableFallbackTier(tier);
-                    if (fallback is not null)
-                    {
-                        resolvedTier = fallback.Value.Tier;
-                        resolvedPath = fallback.Value.Path;
-                        _logger.LogInformation(
-                            "Falling back to present tier '{Tier}' at '{Path}'.", resolvedTier, resolvedPath);
-                    }
-                    else
-                    {
-                        FallbackToMockOrFail();
-                        return;
-                    }
-                }
-            }
+                "Model already present at '{Path}' for tier '{Tier}' — skipping download.", resolvedPath, tier);
         }
         else
         {
-            _logger.LogInformation(
-                "Model already present at '{Path}' for tier '{Tier}' — skipping download.", modelPath, tier);
+            // 2. Primary tier model not found. Check if ANY fallback tier model already exists on disk BEFORE downloading!
+            var existingFallback = ResolveUsableFallbackTier(tier);
+            if (existingFallback is not null)
+            {
+                resolvedTier = existingFallback.Value.Tier;
+                resolvedPath = existingFallback.Value.Path;
+                _logger.LogInformation(
+                    "Primary model '{PrimaryTier}' not on disk, but fallback tier '{FallbackTier}' is already available at '{Path}'. Using existing model without downloading.",
+                    tier, resolvedTier, resolvedPath);
+            }
+            else
+            {
+                // 3. No models found on disk — try to extract from packaged assets.
+                _logger.LogInformation(
+                    "No models found on disk for tier '{Tier}' — trying to extract from packaged assets.", tier);
+
+                var extract = await TryExtractModelFromAssetsAsync(tier, modelPath, tierDef, cancellationToken);
+                if (extract.IsSuccess)
+                {
+                    resolvedPath = modelPath;
+                }
+                else
+                {
+                    // 4. Download only as a last resort when no model exists anywhere on disk.
+                    _logger.LogInformation(
+                        "Model extraction failed for tier '{Tier}': {Error} — downloading model as last resort.",
+                        tier, extract.ErrorMessage);
+
+                    var download = await TryDownloadModelAsync(tier, modelPath, tierDef, cancellationToken);
+                    if (!download.IsSuccess)
+                    {
+                        _logger.LogWarning("Model download failed for tier '{Tier}': {Error}", tier, download.ErrorMessage);
+                        FallbackToMockOrFail();
+                        return;
+                    }
+                    resolvedPath = modelPath;
+                }
+            }
         }
 
         if (!TryBuildFactory(resolvedPath, out var factoryError))
@@ -223,56 +258,16 @@ public partial class LocalWhisperAsrEngine(
         }
 
         var activeTier = ActiveTier.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(activeTier))
+        if (string.IsNullOrWhiteSpace(activeTier) || activeTier == "auto")
         {
             activeTier = _options.PrimaryTier.Trim().ToLowerInvariant();
+            if (activeTier == "auto")
+            {
+                activeTier = _deviceCapabilityService.GetHardwareProfile().RecommendedModelTier.ToLowerInvariant();
+            }
         }
 
-        var result = await TryTranscribeWithTierAsync(activeTier, audioChunk, false, cancellationToken);
-        if (result.IsSuccess)
-        {
-            return result;
-        }
-
-        var fallback = _options.FallbackTier?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(fallback)
-            || string.Equals(activeTier, fallback, StringComparison.Ordinal))
-        {
-            return result;
-        }
-
-        // Only retry with the fallback tier when it would actually use a different
-        // model file — retrying the same factory can never succeed and only burns
-        // another timeout budget.
-        if (!_options.TryGetTierDefinition(fallback, out var fallbackDef) || fallbackDef is null)
-        {
-            return result;
-        }
-
-        var fallbackPath = ResolvePersistentModelPath(fallbackDef.ModelPath);
-        if (string.Equals(fallbackPath, _activeFactoryModelPath, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning(
-                "Fallback tier '{Fallback}' resolves to the same model as the active factory ({Path}) — skipping retry.",
-                fallback, fallbackPath);
-            return result;
-        }
-
-        _logger.LogWarning(
-            "Active tier '{Active}' failed. Trying fallback '{Fallback}'. Reason: {Reason}",
-            activeTier, fallback, result.DiagnosticMessage);
-
-        var fallbackResult = await TryTranscribeWithTierAsync(fallback, audioChunk, true, cancellationToken);
-        if (fallbackResult.IsSuccess)
-        {
-            return fallbackResult;
-        }
-
-        return fallbackResult with
-        {
-            DiagnosticMessage =
-                $"Primary failed: {result.DiagnosticMessage}. Fallback failed: {fallbackResult.DiagnosticMessage}"
-        };
+        return await TryTranscribeWithTierAsync(activeTier, audioChunk, false, cancellationToken);
     }
 
     public async Task ImportModelFromFileAsync(string sourcePath, CancellationToken cancellationToken = default)
@@ -465,15 +460,26 @@ public partial class LocalWhisperAsrEngine(
         bool usedFallback,
         CancellationToken cancellationToken)
     {
-        ActiveTier = tier;
-
-        // ✅ No download here — download is exclusively InitializeAsync's responsibility.
-        // If the factory is already built for this tier, proceed directly to inference.
-        if (_activeFactory is null)
+        if (!_options.TryGetTierDefinition(tier, out var tierDefinition) || tierDefinition is null)
         {
             return RecitationTranscriptionResult.Failure(
-                $"Whisper factory not built for tier '{tier}'. Call InitializeAsync first.",
+                $"Unknown Whisper model tier '{tier}'.", tier, usedFallback);
+        }
+
+        // Never label inference with a tier that does not match the loaded model.
+        // A fallback must hot-swap the factory before it can be attempted.
+        var tierModelPath = LocateModelOnDisk(tier, tierDefinition);
+        if (_activeFactory is null || tierModelPath is null)
+        {
+            return RecitationTranscriptionResult.Failure(
+                $"Whisper factory or model not ready for tier '{tier}'. Call InitializeAsync first.",
                 tier, usedFallback);
+        }
+
+        if (!string.Equals(tierModelPath, _activeFactoryModelPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return RecitationTranscriptionResult.Failure(
+                $"Whisper factory is not loaded for requested tier '{tier}'.", tier, usedFallback);
         }
 
         if (!await _inferenceLock.WaitAsync(0, cancellationToken))
@@ -1108,8 +1114,11 @@ public partial class LocalWhisperAsrEngine(
 
             if (!response.IsSuccessStatusCode)
             {
+                var hint = (int)response.StatusCode == 404 && tierDef.DownloadUrl.Contains("github.com")
+                    ? " (Ensure repository visibility is set to Public for anonymous release downloads)."
+                    : string.Empty;
                 return (false,
-                    $"Failed to download model for tier '{tier}'. HTTP {(int)response.StatusCode}.");
+                    $"Failed to download model for tier '{tier}'. HTTP {(int)response.StatusCode}.{hint}");
             }
 
             var totalBytes = response.Content.Headers.ContentLength;
@@ -1181,6 +1190,103 @@ public partial class LocalWhisperAsrEngine(
         return Path.GetFullPath(Path.Combine(dataDir, configuredPath));
     }
 
+    private static readonly Dictionary<string, string[]> TierAlternativeFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["tiny"] = new[] { "ggml-tiny-q5_1.bin" },
+        ["base"] = new[] { "ggml-base-q5_1.bin" },
+        ["small"] = new[] { "ggml-small-q5_1.bin" },
+        ["medium"] = new[] { "ggml-medium-q5_0.bin" },
+        ["turbo"] = new[] { "ggml-large-v3-turbo-q5_0.bin" }
+    };
+
+    public static string? LocateModelOnDisk(string tier, WhisperModelTierDefinition tierDef)
+    {
+        var primaryPath = ResolvePersistentModelPath(tierDef.ModelPath);
+        if (File.Exists(primaryPath))
+        {
+            try { if (new FileInfo(primaryPath).Length >= 1024 * 1024) return primaryPath; } catch { }
+        }
+
+        var candidateNames = new List<string> { Path.GetFileName(tierDef.ModelPath) };
+        if (TierAlternativeFileNames.TryGetValue(tier, out var alternates))
+        {
+            foreach (var alt in alternates)
+            {
+                if (!candidateNames.Contains(alt, StringComparer.OrdinalIgnoreCase))
+                    candidateNames.Add(alt);
+            }
+        }
+
+        var candidateDirs = new List<string>();
+
+        // 1. Persistent AppData directory
+        var appDataDir = Path.GetDirectoryName(primaryPath);
+        if (!string.IsNullOrWhiteSpace(appDataDir))
+            candidateDirs.Add(appDataDir);
+
+        // 2. Base directory of application execution
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (!string.IsNullOrWhiteSpace(baseDir))
+        {
+            candidateDirs.Add(baseDir);
+            candidateDirs.Add(Path.Combine(baseDir, "offline", "models"));
+            candidateDirs.Add(Path.Combine(baseDir, "offline-assets", "models"));
+        }
+
+        // 3. Current working directory & parent directories up to repo root
+        var currentDir = Directory.GetCurrentDirectory();
+        var dirInfo = new DirectoryInfo(currentDir);
+        for (int i = 0; i < 5 && dirInfo != null; i++)
+        {
+            var offlineAssetsDir = Path.Combine(dirInfo.FullName, "offline-assets", "models");
+            if (Directory.Exists(offlineAssetsDir) && !candidateDirs.Contains(offlineAssetsDir, StringComparer.OrdinalIgnoreCase))
+            {
+                candidateDirs.Add(offlineAssetsDir);
+            }
+            dirInfo = dirInfo.Parent;
+        }
+
+        foreach (var dir in candidateDirs)
+        {
+            if (!Directory.Exists(dir)) continue;
+
+            foreach (var name in candidateNames)
+            {
+                var candidateFile = Path.Combine(dir, name);
+                if (File.Exists(candidateFile))
+                {
+                    try
+                    {
+                        if (new FileInfo(candidateFile).Length >= 1024 * 1024)
+                        {
+                            // If found outside AppData, attempt to copy to AppData for persistent caching
+                            if (!string.Equals(Path.GetFullPath(candidateFile), Path.GetFullPath(primaryPath), StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(appDataDir))
+                            {
+                                try
+                                {
+                                    Directory.CreateDirectory(appDataDir);
+                                    File.Copy(candidateFile, primaryPath, overwrite: true);
+                                    return primaryPath;
+                                }
+                                catch
+                                {
+                                    return candidateFile;
+                                }
+                            }
+                            return candidateFile;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     private (string Tier, string Path)? ResolveUsableFallbackTier(string primaryTier)
     {
         // Prefer the explicitly configured fallback tier if its model is on disk.
@@ -1189,15 +1295,15 @@ public partial class LocalWhisperAsrEngine(
             && !string.Equals(fallbackName, primaryTier, StringComparison.Ordinal)
             && _options.TryGetTierDefinition(fallbackName, out var fbDef) && fbDef is not null)
         {
-            var fbPath = ResolvePersistentModelPath(fbDef.ModelPath);
-            if (File.Exists(fbPath))
+            var fbPath = LocateModelOnDisk(fallbackName, fbDef);
+            if (fbPath is not null)
             {
                 return (fallbackName, fbPath);
             }
         }
 
         // Otherwise use any tier whose model file is already present on disk.
-        foreach (var candidate in new[] { "base", "small", "medium", "tiny" })
+        foreach (var candidate in new[] { "turbo", "base", "small", "medium", "tiny" })
         {
             if (string.Equals(candidate, primaryTier, StringComparison.Ordinal))
             {
@@ -1206,8 +1312,8 @@ public partial class LocalWhisperAsrEngine(
 
             if (_options.TryGetTierDefinition(candidate, out var def) && def is not null)
             {
-                var path = ResolvePersistentModelPath(def.ModelPath);
-                if (File.Exists(path))
+                var path = LocateModelOnDisk(candidate, def);
+                if (path is not null)
                 {
                     return (candidate, path);
                 }

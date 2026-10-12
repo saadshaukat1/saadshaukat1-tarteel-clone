@@ -56,6 +56,9 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     public FormattedString HighlightedArabicText { get => _highlightedArabicText; set => SetProperty(ref _highlightedArabicText, value); }
     private string _processingSummary = "Awaiting audio processing…";
     public string ProcessingSummary { get => _processingSummary; set => SetProperty(ref _processingSummary, value); }
+    public string LiveMatchSummary => _bestSessionResult is null
+        ? "Listening"
+        : $"{_bestMatchedWordCount}/{_bestProcessedWordCount}";
     private bool _isVerseVisible = true;
     public bool IsVerseVisible { get => _isVerseVisible; set => SetProperty(ref _isVerseVisible, value); }
     private bool _isVerseCorrect;
@@ -107,6 +110,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     public bool IsGuidedAssignment => _assignmentId is not null;
     public string AssignmentReason => _assignmentReason;
     public bool HasNextAssignment => IsGuidedAssignment;
+    public string CurrentAyahLabel => $"{SelectedSurah}:{SelectedAyah}";
 
     public bool HasMismatches => Mismatches.Count > 0;
     public Color MicButtonColor => IsRecording ? Color.FromArgb("#C2413D") : Color.FromArgb("#1A6B3C");
@@ -266,6 +270,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         }
 
         OnPropertyChanged(nameof(IsGuidedAssignment));
+        OnPropertyChanged(nameof(CurrentAyahLabel));
         OnPropertyChanged(nameof(AssignmentReason));
         OnPropertyChanged(nameof(HasNextAssignment));
         StatusMessage = string.IsNullOrWhiteSpace(_assignmentReason)
@@ -331,17 +336,6 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
             if (IsRecording)
             {
                 await _audio.StopRecordingAsync();
-                using (var flushTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
-                {
-                    try
-                    {
-                        await _recitation.FlushAsync(flushTimeout.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        _diagnostics.Warn("Timed out waiting for final ASR chunk while stopping recitation.");
-                    }
-                }
                 await _recitation.DisconnectAsync();
                 _recitation.ClearSurahContext();
                 _recitation.ClearLastMatchedPosition();
@@ -539,6 +533,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         _bestMatchedWordCount = result.MatchedWordCount;
         _bestProcessedWordCount = result.ProcessedWordCount;
         _bestConfidence = result.Confidence;
+        OnPropertyChanged(nameof(LiveMatchSummary));
 
         ArabicText = _bestSessionResult.ArabicText;
         TranscriptionText = _bestSessionResult.TranscriptionText;
@@ -573,8 +568,13 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
 
         if (_bestSessionResult.Mismatches.Count == 0 && _bestSessionResult.Confidence >= PerfectConfidenceThreshold)
         {
-            StatusMessage = $"✓ Surah {surahNum}:{ayahNum} — perfect";
+            StatusMessage = $"Surah {surahNum}:{ayahNum} matched. Listening for the next ayah.";
             await SaveGuidedAttemptAsync(_bestSessionResult);
+            if (!IsGuidedAssignment && !IsFreeReciteMode
+                && surahNum == SelectedSurah && ayahNum == SelectedAyah)
+            {
+                await AdvanceToNextAyahAsync(surahNum, ayahNum);
+            }
             return;
         }
 
@@ -613,16 +613,13 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 _diagnostics.Warn($"Could not stop audio while resetting recitation: {ex.Message}");
             }
 
-            using (var flushTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
+            try
             {
-                try
-                {
-                    await _recitation.FlushAsync(flushTimeout.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    _diagnostics.Warn("Timed out waiting for final ASR chunk while resetting recitation.");
-                }
+                await _recitation.DisconnectAsync();
+            }
+            catch (Exception ex)
+            {
+                _diagnostics.Warn($"Could not disconnect recitation pipeline while resetting: {ex.Message}");
             }
 
             _recitation.ClearLastMatchedPosition();
@@ -649,15 +646,6 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 }
 
                 _sessionId = null;
-            }
-
-            try
-            {
-                await _recitation.DisconnectAsync();
-            }
-            catch (Exception ex)
-            {
-                _diagnostics.Warn($"Could not disconnect recitation pipeline while resetting: {ex.Message}");
             }
 
             IsRecording = false;
@@ -732,6 +720,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         if (value is null) return;
         SelectedSurah = value.SurahNum;
         RebuildAyahNumbersForSurah(value.SurahNum);
+        OnPropertyChanged(nameof(CurrentAyahLabel));
     }
 
     private void OnIsAdvancedModeChanged(bool value)
@@ -978,6 +967,28 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     {
         _recitation.ClearLastMatchedPosition();
         await LoadVerseAsync(SelectedSurah, SelectedAyah);
+    }
+
+    private async Task AdvanceToNextAyahAsync(int surah, int ayah)
+    {
+        var next = RecitationPracticeSettings.GetNextAyah(surah, ayah);
+        if (next is null)
+        {
+            StatusMessage = "You have completed the Quran. Continue in free recitation or choose a passage.";
+            return;
+        }
+
+        SelectedSurah = next.Value.Surah;
+        SelectedSurahInfo = Surahs.FirstOrDefault(item => item.SurahNum == next.Value.Surah);
+        RebuildAyahNumbersForSurah(next.Value.Surah);
+        SelectedAyah = next.Value.Ayah;
+        OnPropertyChanged(nameof(CurrentAyahLabel));
+        _recitation.SetSurahContext(next.Value.Surah, SelectedSurahInfo?.NameArabic ?? string.Empty);
+        _recitation.ClearLastMatchedPosition();
+        _recitation.ClearTranscriptContext();
+        ResetCurrentResult();
+        await LoadVerseAsync(next.Value.Surah, next.Value.Ayah);
+        StatusMessage = $"Next: Surah {next.Value.Surah}:{next.Value.Ayah}. Continue reciting.";
     }
 
     private async Task LoadVerseAsync(int surah, int ayah)

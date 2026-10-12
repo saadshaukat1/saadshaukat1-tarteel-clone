@@ -11,7 +11,7 @@
 
             <!-- Font families -->
             <x:String x:Key="UiFontFamily">Segoe UI</x:String>
-            <x:String x:Key="ArabicFontFamily">Nastaleeq</x:String>
+            <x:String x:Key="ArabicFontFamily">NotoNaskhArabic</x:String>
             <x:Int32 x:Key="FontWeightRegular">400</x:Int32>
             <x:Int32 x:Key="FontWeightMedium">500</x:Int32>
             <x:Int32 x:Key="FontWeightStrong">700</x:Int32>
@@ -30,6 +30,7 @@
                 <On Platform="Android" Value="24" />
                 <On Platform="WinUI,Windows,Default" Value="28" />
             </OnPlatform>
+            <x:Double x:Key="RecitationArabicFontSize">30</x:Double>
             
             <x:Double x:Key="FontSizeVerseTranscription">18</x:Double>
             
@@ -73,6 +74,10 @@
             <Color x:Key="SurfacePanel">#1A2B29</Color>
             <Color x:Key="SurfaceElevated">#29433F</Color>
             <Color x:Key="SurfaceHover">#355850</Color>
+            <Color x:Key="MushafPaper">#F4EBDD</Color>
+            <Color x:Key="MushafInk">#26332E</Color>
+            <Color x:Key="MushafRule">#D9C9AE</Color>
+            <Color x:Key="MushafHighlight">#E8D7AC</Color>
 
             <!-- ── Borders ── -->
             <Color x:Key="BorderSubtle">#52766D</Color>

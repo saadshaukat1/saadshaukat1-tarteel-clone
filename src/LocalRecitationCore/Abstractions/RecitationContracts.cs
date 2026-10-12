@@ -55,6 +55,7 @@ public interface IRecitationOrchestrator
     void SetSurahContext(int surahNum);
     void ClearSurahContext();
     void ClearLastMatchedPosition();
+    void ClearTranscriptContext();
     void MarkCurrentAyahComplete();
     Task StartAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);

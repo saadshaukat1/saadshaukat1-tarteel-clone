@@ -1,10 +1,13 @@
-# run-android.ps1 — Build, install, and run Tarteel MAUI on Android
+# run-android.ps1 — Build, install, release, and run Tarteel MAUI on Android
 # Usage:
-#   .\run-android.ps1 [-Clean] [-Release] [-NoInstall] [-LogTag <tag>] [-AndroidSdk <path>] [-JavaSdk <path>]
+#   .\run-android.ps1 [-Clean] [-Release] [-NoInstall] [-PushRelease] [-NoPush] [-ReleaseTag <tag>] [-LogTag <tag>] [-AndroidSdk <path>] [-JavaSdk <path>]
 param(
     [switch]$Clean,
     [switch]$Release,
     [switch]$NoInstall,
+    [switch]$PushRelease = $true,
+    [switch]$NoPush,
+    [string]$ReleaseTag = "apk-latest",
     [string]$LogTag = "DOTNET,AndroidRuntime,mono-rt,TarteelMobile",
     [string]$AndroidSdk = "",
     [string]$JavaSdk = ""
@@ -120,16 +123,26 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "`nBuild succeeded." -ForegroundColor Green
 
+# Locate generated APK
+$apk = Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android\com.tarteel.mobile-Signed.apk"
+if (-not (Test-Path $apk)) {
+    $apk = Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android\com.tarteel.mobile.apk"
+}
+if (-not (Test-Path $apk)) {
+    # Search fallback
+    $apk = Get-ChildItem -Path (Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android") -Filter "*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+}
+
+# Push APK to GitHub Releases
+if ($PushRelease -and -not $NoPush) {
+    $pushScript = Join-Path $repoRoot "scripts\release\push-apk-release.ps1"
+    if (Test-Path $pushScript) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $pushScript -ApkPath $apk -ReleaseTag $ReleaseTag -Configuration $CONFIG
+    }
+}
+
 if (-not $NoInstall) {
-    Write-Host "`n[3/3] Installing APK to device and tailing logcat (Ctrl+C to stop)..." -ForegroundColor Yellow
-    $apk = Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android\com.tarteel.mobile-Signed.apk"
-    if (-not (Test-Path $apk)) {
-        $apk = Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android\com.tarteel.mobile.apk"
-    }
-    if (-not (Test-Path $apk)) {
-        # Search fallback
-        $apk = Get-ChildItem -Path (Join-Path $repoRoot "mobile\TarteelMobile\bin\$CONFIG\net9.0-android") -Filter "*.apk" | Select-Object -First 1 -ExpandProperty FullName
-    }
+    Write-Host "`n[Installing APK to device and tailing logcat (Ctrl+C to stop)...]" -ForegroundColor Yellow
 
     if (-not $apk -or -not (Test-Path $apk)) {
         Write-Host "Could not find generated APK in bin directory." -ForegroundColor Red

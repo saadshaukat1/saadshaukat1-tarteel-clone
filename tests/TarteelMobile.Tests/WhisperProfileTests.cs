@@ -18,6 +18,12 @@ public sealed class WhisperProfileTests
     // ── Profile pinning ─────────────────────────────────────────────────────
 
     [Fact]
+    public void LocalWhisperOptions_DefaultTimeoutAllowsSlowDeviceInference()
+    {
+        Assert.Equal(180, new LocalWhisperOptions().InferenceTimeoutSeconds);
+    }
+
+    [Fact]
     public void SpeedProfile_NeverEnablesTimestamps()
     {
         var engine = new ProfileTestHarness(profile: "Speed");
@@ -63,7 +69,7 @@ public sealed class WhisperProfileTests
         engine.ObserveChunk(audioSeconds: 9, inferenceMs: 28000);
 
         Assert.False(engine.IsTimestampsEnabled);
-        Assert.True(engine.IsLockedOff); // >60% of the 45s budget → locked off
+        Assert.True(engine.IsLockedOff); // >60% of the configured timeout budget → locked off
     }
 
     [Fact]
@@ -90,7 +96,7 @@ public sealed class WhisperProfileTests
         engine.ObserveChunk(audioSeconds: 9, inferenceMs: 3200);
         Assert.True(engine.IsTimestampsEnabled);
 
-        // …then throttles and a chunk takes 40s (>60% of 45s) → locked off.
+        // …then throttles and a chunk takes 40s (>60% of the timeout budget) → locked off.
         engine.ObserveChunk(audioSeconds: 9, inferenceMs: 40000);
         Assert.False(engine.IsTimestampsEnabled);
         Assert.True(engine.IsLockedOff);

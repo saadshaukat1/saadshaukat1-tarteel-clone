@@ -15,6 +15,7 @@ public sealed class AudioService : IAudioService, IDisposable
     private bool _disposed;
     private DateTimeOffset _chunkStartedAtUtc;
     private Exception? _captureError;
+    private TaskCompletionSource _recordingStopped = CompletedSignal();
 
     public event EventHandler<byte[]>? AudioChunkReady;
     public event EventHandler<Exception>? RecordingError;
@@ -32,6 +33,7 @@ public sealed class AudioService : IAudioService, IDisposable
             }
 
             _captureError = null;
+            _recordingStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _currentChunkStream = new MemoryStream();
             _chunkStartedAtUtc = DateTimeOffset.UtcNow;
             _hasFreshAudioSinceChunkReset = false;
@@ -63,46 +65,34 @@ public sealed class AudioService : IAudioService, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task StopRecordingAsync()
+    public async Task StopRecordingAsync()
     {
-        byte[]? finalChunkToEmit = null;
-
+        WaveInEvent? waveIn;
+        Task stoppedTask;
         lock (_sync)
         {
             ThrowIfDisposed();
-
             if (!IsRecording && _waveIn is null)
-            {
-                return Task.CompletedTask;
-            }
+                return;
 
-            if (_waveIn is not null)
-            {
-                try
-                {
-                    _waveIn.StopRecording();
-                }
-                catch (Exception ex)
-                {
-                    CleanupCaptureUnsafe();
-                    IsRecording = false;
-                    throw new InvalidOperationException("Failed to stop microphone capture cleanly.", ex);
-                }
-            }
-
-            // Flush any pending buffered data as final chunk.
-            finalChunkToEmit = BuildWavChunkAndResetUnsafe();
-            _currentChunkStream?.Dispose();
-            _currentChunkStream = null;
-            IsRecording = false;
+            waveIn = _waveIn;
+            stoppedTask = _recordingStopped.Task;
         }
 
-        if (finalChunkToEmit is { Length: > 0 })
+        try
         {
-            AudioChunkReady?.Invoke(this, finalChunkToEmit);
+            waveIn?.StopRecording();
+            await stoppedTask.WaitAsync(TimeSpan.FromSeconds(3));
         }
-
-        return Task.CompletedTask;
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            lock (_sync)
+            {
+                CleanupCaptureUnsafe();
+                IsRecording = false;
+            }
+            throw new InvalidOperationException("Failed to stop microphone capture cleanly.", ex);
+        }
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
@@ -138,15 +128,14 @@ public sealed class AudioService : IAudioService, IDisposable
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
         Exception? errorToReport = null;
+        byte[]? finalChunk = null;
 
         lock (_sync)
         {
-            // If recording stopped unexpectedly while running, keep details.
             if (e.Exception is not null && IsRecording)
-            {
                 _captureError = e.Exception;
-            }
 
+            finalChunk = BuildWavChunkAndResetUnsafe();
             CleanupWaveInUnsafe();
             _currentChunkStream?.Dispose();
             _currentChunkStream = null;
@@ -157,13 +146,24 @@ public sealed class AudioService : IAudioService, IDisposable
                 errorToReport = _captureError;
                 _captureError = null;
             }
+
         }
 
-        if (errorToReport is not null)
+        try
         {
-            RecordingError?.Invoke(this, new InvalidOperationException(
-                "Microphone capture stopped due to an error.",
-                errorToReport));
+            if (finalChunk is { Length: > 0 })
+                AudioChunkReady?.Invoke(this, finalChunk);
+
+            if (errorToReport is not null)
+            {
+                RecordingError?.Invoke(this, new InvalidOperationException(
+                    "Microphone capture stopped due to an error.",
+                    errorToReport));
+            }
+        }
+        finally
+        {
+            _recordingStopped.TrySetResult();
         }
     }
 
@@ -256,6 +256,13 @@ public sealed class AudioService : IAudioService, IDisposable
         _waveIn = null;
     }
 
+    private static TaskCompletionSource CompletedSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
+    }
+
     private void ThrowIfDisposed()
     {
         if (_disposed)
@@ -266,24 +273,21 @@ public sealed class AudioService : IAudioService, IDisposable
 
     public void Dispose()
     {
-        lock (_sync)
+        if (IsRecording)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
             try
             {
-                if (IsRecording && _waveIn is not null)
-                {
-                    _waveIn.StopRecording();
-                }
+                StopRecordingAsync().GetAwaiter().GetResult();
             }
             catch
             {
-                // best effort during dispose
             }
+        }
+
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
 
             CleanupCaptureUnsafe();
             IsRecording = false;

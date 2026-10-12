@@ -21,6 +21,15 @@ public partial class MushafPageViewModel : ObservableObject
     private int _currentPage = 1;
     public int CurrentPage { get => _currentPage; set => SetProperty(ref _currentPage, value); }
 
+    private double _arabicFontSize = Preferences.Default.Get("mushaf.arabicFontSize", 20.0);
+    public double ArabicFontSize
+    {
+        get => _arabicFontSize;
+        private set => SetProperty(ref _arabicFontSize, Math.Clamp(value, 18, 38));
+    }
+
+    public string FontSizeLabel => $"{ArabicFontSize:0} pt";
+
     private IReadOnlyList<Verse> _pageVerses = [];
     public IReadOnlyList<Verse> PageVerses { get => _pageVerses; set => SetProperty(ref _pageVerses, value); }
 
@@ -44,6 +53,23 @@ public partial class MushafPageViewModel : ObservableObject
 
     public int PageCount => TotalPages;
     public IReadOnlyList<JuzInfo> JuzList { get; private set; } = [];
+
+    [RelayCommand]
+    private void IncreaseFontSize() => SetArabicFontSize(ArabicFontSize + 2);
+
+    [RelayCommand]
+    private void DecreaseFontSize() => SetArabicFontSize(ArabicFontSize - 2);
+
+    private void SetArabicFontSize(double fontSize)
+    {
+        var nextSize = Math.Clamp(fontSize, 18, 38);
+        if (nextSize.Equals(ArabicFontSize))
+            return;
+
+        ArabicFontSize = nextSize;
+        OnPropertyChanged(nameof(FontSizeLabel));
+        Preferences.Default.Set("mushaf.arabicFontSize", ArabicFontSize);
+    }
     public IReadOnlyList<SurahInfo> SurahList { get; private set; } = [];
     public JuzInfo? SelectedJuz { get; set; }
     public SurahInfo? SelectedSurah { get; set; }

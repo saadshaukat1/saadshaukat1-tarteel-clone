@@ -36,6 +36,7 @@ public static class MauiProgram
 
         // ── Services ──────────────────────────────────────────────────────────
         builder.Services.AddSingleton<IAppDiagnosticsService, FileAppDiagnosticsService>();
+        builder.Services.AddSingleton<TarteelMobile.Services.Hardware.IDeviceCapabilityService, TarteelMobile.Services.Hardware.DeviceCapabilityService>();
         builder.Services.AddSingleton<ISessionService, LocalSessionService>();
         builder.Services.AddSingleton<IOptions<LocalQuranDataOptions>>(sp =>
         {

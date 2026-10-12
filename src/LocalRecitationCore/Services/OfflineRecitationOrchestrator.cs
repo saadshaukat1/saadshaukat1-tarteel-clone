@@ -50,6 +50,14 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         _verseMatcher.ClearLastMatchedPosition();
     }
 
+    public void ClearTranscriptContext()
+    {
+        lock (_transcriptSync)
+        {
+            _sessionTranscriptTokens.Clear();
+        }
+    }
+
     public void MarkCurrentAyahComplete()
     {
         _verseMatcher.MarkCurrentAyahComplete();
@@ -143,13 +151,22 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
             return;
         }
 
-        var aggregatedTranscript = MergeTranscript(transcriptionText);
+        var (aggregatedTranscript, proposedTokens) = BuildMergedTranscript(transcriptionText);
         if (string.IsNullOrWhiteSpace(aggregatedTranscript))
         {
             return;
         }
 
         var match = await _verseMatcher.MatchAsync(aggregatedTranscript, cancellationToken);
+        if (match.Confidence < 0.65 || match.MatchedWordCount < 2)
+        {
+            DiagnosticEmitted?.Invoke(this,
+                $"⚠️ chunk #{submitted} | weak verse match {match.SurahNum}:{match.AyahNum} " +
+                $"conf={match.Confidence:0.00} matched={match.MatchedWordCount}/{match.ProcessedWordCount}; progress not saved.");
+            return;
+        }
+
+        CommitTranscript(proposedTokens);
         var matchCount = Interlocked.Increment(ref _matchCount);
 
         var phonemeViolations = TajweedPhonemeAnalyzer.Analyze(
@@ -191,37 +208,35 @@ public sealed class OfflineRecitationOrchestrator : IRecitationOrchestrator
         MatchProduced?.Invoke(this, matchWithTranscript);
     }
 
-    private string MergeTranscript(string newTranscript)
+    private (string Transcript, List<string> ProposedTokens) BuildMergedTranscript(string newTranscript)
     {
         var incomingTokens = TokenizeTranscript(newTranscript);
         if (incomingTokens.Count == 0)
         {
-            return string.Empty;
+            return (string.Empty, []);
         }
 
         lock (_transcriptSync)
         {
-            if (_sessionTranscriptTokens.Count == 0)
+            var proposedTokens = new List<string>(_sessionTranscriptTokens);
+            var overlap = FindOverlap(proposedTokens, incomingTokens);
+            proposedTokens.AddRange(incomingTokens.Skip(overlap));
+
+            if (proposedTokens.Count > 32)
             {
-                _sessionTranscriptTokens.AddRange(incomingTokens);
-                return string.Join(' ', _sessionTranscriptTokens);
+                proposedTokens.RemoveRange(0, proposedTokens.Count - 32);
             }
 
-            var overlap = FindOverlap(_sessionTranscriptTokens, incomingTokens);
-            for (var index = overlap; index < incomingTokens.Count; index++)
-            {
-                _sessionTranscriptTokens.Add(incomingTokens[index]);
-            }
+            return (string.Join(' ', proposedTokens), proposedTokens);
+        }
+    }
 
-            // Cap the rolling window at 32 tokens so the matcher's Needleman–Wunsch
-            // alignment (O(n·m)) stays cheap on weak hardware. 32 tokens covers ~1–2
-            // ayahs of recitation, which is enough context for accurate matching.
-            if (_sessionTranscriptTokens.Count > 32)
-            {
-                _sessionTranscriptTokens.RemoveRange(0, _sessionTranscriptTokens.Count - 32);
-            }
-
-            return string.Join(' ', _sessionTranscriptTokens);
+    private void CommitTranscript(List<string> proposedTokens)
+    {
+        lock (_transcriptSync)
+        {
+            _sessionTranscriptTokens.Clear();
+            _sessionTranscriptTokens.AddRange(proposedTokens);
         }
     }
 

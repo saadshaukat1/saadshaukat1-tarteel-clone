@@ -54,6 +54,34 @@ public sealed class QuranLayoutTests
     }
 
     [Fact]
+    public void AyahEnding_UsesEasternArabicNumberInsideQuranicEndMarker()
+    {
+        var layout = new Mushaf16LinerLayout();
+        var result = layout.LayoutPage([(1, 2, "ٱلْحَمْدُ لِلَّهِ")], page: 0);
+
+        Assert.Contains(result, line => line.Text.Contains("\u06DD٢", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SajdahEnding_KeepsAyahNumberAndProstrationMarker()
+    {
+        var layout = new Mushaf16LinerLayout();
+        var result = layout.LayoutPage([(7, 206, "وَهُمْ لَا يَسْتَكْبِرُونَ")], page: 0);
+
+        Assert.Contains(result, line => line.Text.Contains("\u06DD٢٠٦", StringComparison.Ordinal)
+            && line.Text.Contains("\u06E9", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Layout_DoesNotInsertHizbMarkerBetweenEveryAyah()
+    {
+        var layout = new Mushaf16LinerLayout();
+        var result = layout.LayoutPage(DensePageVerses, page: 0);
+
+        Assert.DoesNotContain(result, line => line.Text.Contains("\u06DE", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void SparsePage_NoSeparatorAtLineStart()
     {
         var layout = new Mushaf16LinerLayout();

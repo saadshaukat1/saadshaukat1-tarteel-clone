@@ -84,11 +84,7 @@ public sealed class LocalVerseMatcher : IVerseMatcher
         // Constrain candidates to the active surah range when SetSurahContext was called.
         if (_surahContext.HasValue)
         {
-            var filtered = candidates.Where(v => v.SurahNum == _surahContext.Value).ToList();
-            if (filtered.Count > 0)
-            {
-                candidates = filtered;
-            }
+            candidates = candidates.Where(v => v.SurahNum == _surahContext.Value).ToList();
         }
 
         if (candidates.Count == 0)

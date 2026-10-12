@@ -12,6 +12,7 @@ public partial class StartupViewModel : ObservableObject
     private readonly IAppDiagnosticsService _diagnostics;
     private readonly ISessionService _sessionService;
 
+#pragma warning disable MVVMTK0045
     [ObservableProperty]
     private string _statusText = "Starting up...";
 
@@ -23,6 +24,7 @@ public partial class StartupViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _showRetryButton = false;
+#pragma warning restore MVVMTK0045
 
     public StartupViewModel(
         IOfflineReadinessService readinessService,
@@ -47,12 +49,14 @@ public partial class StartupViewModel : ObservableObject
         ShowRetryButton = false;
         IsIndeterminate = true;
         StatusText = "Preparing offline recitation engine...";
+        _diagnostics.Info("StartupViewModel: InitializeAsync started.");
 
         _asrEngine.DownloadProgressChanged += OnDownloadProgressChanged;
 
         try
         {
             var report = await _readinessService.RunStartupChecksAsync();
+            _diagnostics.Info($"StartupViewModel: Startup readiness checks completed. IsReady={report.IsReady}");
 
             if (report.IsReady)
             {
@@ -61,19 +65,29 @@ public partial class StartupViewModel : ObservableObject
 
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    if (Application.Current?.Windows.Count > 0)
+                    try
                     {
-                        if (_sessionService.IsAuthenticated)
+                        var targetPage = _sessionService.IsAuthenticated
+                            ? (Page)IPlatformApplication.Current!.Services.GetRequiredService<AppShell>()
+                            : (Page)IPlatformApplication.Current!.Services.GetRequiredService<Views.LoginPage>();
+
+                        _diagnostics.Info($"StartupViewModel: Navigating to {(targetPage is AppShell ? "AppShell" : "LoginPage")}.");
+
+                        if (Application.Current?.Windows.Count > 0)
                         {
-                            var shell = IPlatformApplication.Current!.Services.GetRequiredService<AppShell>();
-                            Application.Current.Windows[0].Page = shell;
+                            Application.Current.Windows[0].Page = targetPage;
                         }
-                        else
+                        else if (Application.Current != null)
                         {
-                            // Prompt for login before entering the recitation console
-                            var loginPage = IPlatformApplication.Current!.Services.GetRequiredService<Views.LoginPage>();
-                            Application.Current.Windows[0].Page = loginPage;
+                            Application.Current.OpenWindow(new Window(targetPage));
                         }
+                    }
+                    catch (Exception navEx)
+                    {
+                        _diagnostics.Error("StartupViewModel: Failed to navigate to main/login page.", navEx);
+                        StatusText = $"Navigation failed: {navEx.Message}";
+                        ShowRetryButton = true;
+                        IsIndeterminate = false;
                     }
                 });
             }

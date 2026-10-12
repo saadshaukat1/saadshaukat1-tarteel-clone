@@ -50,9 +50,8 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
         var availableLines = RowsPerPage - bismillahLines;
 
         var allWords = new List<(string Word, string VerseKey, bool IsEndMarker, bool IsVerseSeparator)>();
-        for (var vi = 0; vi < verses.Count; vi++)
+        foreach (var (surah, ayah, text) in verses)
         {
-            var (surah, ayah, text) = verses[vi];
             var key = $"{surah}:{ayah}";
             var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -60,11 +59,6 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
             {
                 var isEnd = wi == words.Length - 1;
                 allWords.Add((words[wi], key, isEnd, false));
-            }
-
-            if (vi < verses.Count - 1)
-            {
-                allWords.Add(("\u06DE", key, false, true));
             }
         }
 
@@ -270,28 +264,24 @@ public sealed class Mushaf16LinerLayout : IQuranPageLayout
         return result;
     }
 
+    private static readonly HashSet<string> SajdahAyahs =
+    [
+        "7:206", "13:15", "16:50", "17:109", "19:58", "22:18", "22:77",
+        "25:60", "27:26", "32:15", "38:24", "41:38", "53:62", "84:21", "96:19"
+    ];
+
     private static string GetAyahEnding(string verseKey)
     {
-        // 15 Standard Sajdah Ayahs
-        var sajdahAyahs = new HashSet<string>
-        {
-            "7:206", "13:15", "16:50", "17:109", "19:58", "22:18", "22:77",
-            "25:60", "27:26", "32:15", "38:24", "41:38", "53:62", "84:21", "96:19"
-        };
-
-        if (sajdahAyahs.Contains(verseKey))
-        {
-            return "\u06E9"; // Sajdah marker
-        }
-
-        // Normal Ayah Ending with Arabic Numerals inside U+06DD (End of Ayah)
         var parts = verseKey.Split(':');
-        if (parts.Length == 2 && int.TryParse(parts[1], out int ayahNum))
+        if (parts.Length != 2 || !int.TryParse(parts[1], out var ayahNum))
         {
-            return $"\u06DD{ToArabicNumerals(ayahNum)}";
+            return "\u06DD";
         }
 
-        return "\u06DD";
+        var ayahNumberMarker = $"\u06DD{ToArabicNumerals(ayahNum)}";
+        return SajdahAyahs.Contains(verseKey)
+            ? $"{ayahNumberMarker} \u06E9"
+            : ayahNumberMarker;
     }
 
     private static string ToArabicNumerals(int number)

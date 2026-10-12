@@ -11,7 +11,7 @@ public sealed class LocalWhisperOptions
     public bool WarmupOnStartup { get; set; } = false;
     public bool AllowMockWhenUnavailable { get; set; } = true;
     public string Language { get; set; } = "ar";
-    public int InferenceTimeoutSeconds { get; set; } = 45;
+    public int InferenceTimeoutSeconds { get; set; } = 180;
 
     /// <summary>
     /// Performance trade-off profile for the ASR engine:
@@ -35,15 +35,17 @@ public sealed class LocalWhisperOptions
     public WhisperModelTierDefinition Base   { get; set; } = new();
     public WhisperModelTierDefinition Small  { get; set; } = new();
     public WhisperModelTierDefinition Medium { get; set; } = new();
+    public WhisperModelTierDefinition Turbo  { get; set; } = new();
 
     public bool TryGetTierDefinition(string tierName, out WhisperModelTierDefinition? definition)
     {
         definition = tierName.Trim().ToLowerInvariant() switch
         {
-            "tiny"   => Tiny,
-            "base"   => Base,
-            "small"  => Small,
-            "medium" => Medium,
+            "tiny" or "ggml-tiny" => Tiny,
+            "base" or "ggml-base" => Base,
+            "small" or "ggml-small" => Small,
+            "medium" or "ggml-medium" => Medium,
+            "turbo" or "large-turbo" or "large-v3-turbo" or "ggml-large-v3-turbo" => Turbo,
             _ => null
         };
 
@@ -55,4 +57,6 @@ public sealed class WhisperModelTierDefinition
 {
     public string ModelPath { get; set; } = string.Empty;
     public string DownloadUrl { get; set; } = string.Empty;
+    public long ApproximateSizeBytes { get; set; }
+    public string Quantization { get; set; } = "q5_1";
 }

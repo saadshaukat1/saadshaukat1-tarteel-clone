@@ -9,11 +9,9 @@ namespace TarteelMobile.Views;
 public partial class MushafPageView : ContentPage
 {
     private const int RowsPerPage = 16;
-    private const double RowHeight = 54;
 
     private readonly MushafPageViewModel _viewModel;
     private readonly IQuranPageLayout _layout;
-    private bool _autoAdvanceArmed = true;
     private bool _isRendering;
 
     public MushafPageView(MushafPageViewModel viewModel, IQuranPageLayout layout)
@@ -24,7 +22,7 @@ public partial class MushafPageView : ContentPage
         BindingContext = _viewModel;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        SizeChanged += (s, e) => RenderLines();
+        SizeChanged += (_, _) => RenderLines();
     }
 
     protected override async void OnAppearing()
@@ -47,7 +45,8 @@ public partial class MushafPageView : ContentPage
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(MushafPageViewModel.PageVerses)
-            or nameof(MushafPageViewModel.HighlightedVerseKey))
+            or nameof(MushafPageViewModel.HighlightedVerseKey)
+            or nameof(MushafPageViewModel.ArabicFontSize))
         {
             RenderLines();
         }
@@ -72,20 +71,10 @@ public partial class MushafPageView : ContentPage
                 .ToList();
             var lines = _layout.LayoutPage(verseTuples, _viewModel.CurrentPage);
 
-            var isCompact = Width > 0 && Width < 500;
-            var effectiveRowHeight = isCompact ? 46.0 : RowHeight;
-            var defaultVerseFontSize = 24.0;
-            if (Application.Current?.Resources.TryGetValue("FontSizeVerse", out var resObj) == true)
-            {
-                if (resObj is double d) defaultVerseFontSize = d;
-                else if (resObj is OnPlatform<double> op) defaultVerseFontSize = (double)op;
-            }
-            var effectiveFontSize = isCompact ? 20.0 : defaultVerseFontSize;
-            var effectiveLineHeight = 1.8;
-            if (Application.Current?.Resources.TryGetValue("LineHeightArabic", out var lhObj) == true && lhObj is double lh)
-            {
-                effectiveLineHeight = lh;
-            }
+            var availableHeight = PageScroll.Height > 0 ? PageScroll.Height : 680;
+            var lineHeight = Math.Max(38.0, (availableHeight - 24) / RowsPerPage);
+            var effectiveFontSize = _viewModel.ArabicFontSize;
+            var effectiveLineHeight = 1.7;
 
             for (var lineIdx = 0; lineIdx < RowsPerPage; lineIdx++)
             {
@@ -109,24 +98,27 @@ public partial class MushafPageView : ContentPage
                     MaximumWidthRequest = 680,
                     FlowDirection = FlowDirection.RightToLeft,
                     Padding = new Thickness(4, 0),
-                    HeightRequest = effectiveRowHeight,
-                    TextColor = isHighlighted
-                        ? (Color)Application.Current.Resources["PrimaryDark"]
-                        : (Color)Application.Current.Resources["OnSurface"],
+                    HeightRequest = Math.Max(lineHeight, effectiveFontSize * effectiveLineHeight),
+                    TextColor = (Color)Application.Current.Resources["MushafInk"],
                     FontAttributes = isHighlighted ? FontAttributes.Bold : FontAttributes.None,
                     AutomationId = string.IsNullOrEmpty(lineKey)
                         ? $"mushaf-line-{lineIdx}"
                         : $"mushaf-verse-{lineKey}-line-{lineIdx}"
                 };
 
+                SemanticProperties.SetDescription(label, isHighlighted
+                    ? $"Current recitation verse, line {lineIdx + 1}: {lineText}"
+                    : $"Mushaf line {lineIdx + 1}: {lineText}");
+
                 var cell = new Border
                 {
-                    StrokeThickness = 0,
-                    BackgroundColor = isHighlighted
-                        ? (Color)Application.Current.Resources["SurfaceHover"]
+                    BackgroundColor = (Color)Application.Current.Resources["MushafPaper"],
+                    Stroke = isHighlighted
+                        ? (Color)Application.Current.Resources["AccentMuted"]
                         : Colors.Transparent,
+                    StrokeThickness = isHighlighted ? 1 : 0,
                     Content = label,
-                    HeightRequest = effectiveRowHeight
+                    HeightRequest = Math.Max(lineHeight, effectiveFontSize * effectiveLineHeight)
                 };
 
                 Grid.SetRow(cell, lineIdx);
@@ -136,32 +128,6 @@ public partial class MushafPageView : ContentPage
         finally
         {
             _isRendering = false;
-        }
-    }
-
-    private void OnPageScrolled(object? sender, ScrolledEventArgs e)
-    {
-        if (sender is not ScrollView scroll)
-            return;
-
-        var contentHeight = scroll.ContentSize.Height;
-        var viewportHeight = scroll.Height;
-        if (viewportHeight <= 0 || contentHeight <= viewportHeight)
-            return;
-
-        var threshold = contentHeight - viewportHeight - 40;
-        if (e.ScrollY >= threshold && _autoAdvanceArmed && _viewModel.CurrentPage < _viewModel.PageCount)
-        {
-            _autoAdvanceArmed = false;
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                await _viewModel.GoToNextPageAsync();
-                if (scroll.ContentSize.Height > 0)
-                {
-                    await scroll.ScrollToAsync(0, 0, false);
-                }
-                _autoAdvanceArmed = true;
-            });
         }
     }
 }

@@ -48,6 +48,7 @@ $buildArgs = @(
     "-f", $targetFramework,
     "-c", $Configuration,
     "-r", $runtimeIdentifier,
+    "-p:WindowsOnly=true",
     "-p:WindowsPackageType=None",
     "-p:GenerateAppxPackageOnBuild=false",
     "--nologo"

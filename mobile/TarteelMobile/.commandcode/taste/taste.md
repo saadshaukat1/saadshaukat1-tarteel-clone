@@ -1,4 +1,6 @@
-# Taste (Continuously Learned by [CommandCode][cmd])
-
-[cmd]: https://commandcode.ai/
-
+- Prioritizes production-grade quality and reliability for customer deliverables — explicitly asked for a "production grade upgrade plan" and stressed "deliver quality to the customer." Confidence: 0.8
+- Prefers a structured, phased plan (e.g., an upgrade plan with verification gates) when addressing bugs/performance issues, rather than ad-hoc fixes. Confidence: 0.6
+- Wants the Quran displayed as a standard 16-line Mushaf layout (matching printed mushaf format), with correct line structure and verse punctuation. Confidence: 0.8
+- Prefers adjustable, responsive Quran font sizing that adapts across screen sizes, similar to other recitation apps. Confidence: 0.8
+- Values consistent typography across the app — the recitation page Arabic font should match the Mushaf font. Confidence: 0.8
+- Prioritizes polished, senior-level visual design and UI quality in the app. Confidence: 0.7

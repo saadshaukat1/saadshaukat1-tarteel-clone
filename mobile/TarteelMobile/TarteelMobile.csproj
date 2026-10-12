@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net9.0-android;net9.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(WindowsOnly)' == 'true'">net9.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(WindowsOnly)' != 'true'">net9.0-android;net9.0-windows10.0.19041.0</TargetFrameworks>
     <RuntimeIdentifier Condition="$(TargetFramework.Contains('-windows'))">win-x64</RuntimeIdentifier>
     <OutputType>Exe</OutputType>
     <RootNamespace>TarteelMobile</RootNamespace>
@@ -52,7 +53,8 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineModelDir)')">
-    <MauiAsset Include="$(OfflineModelDir)\**\*" LogicalName="offline/models/%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="$(OfflineModelDir)\*base*q5_1.bin" LogicalName="offline/models/%(Filename)%(Extension)" />
+    <MauiAsset Include="$(OfflineModelDir)\*tiny*q5_1.bin" LogicalName="offline/models/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0' and Exists('$(OfflineDataDir)')">

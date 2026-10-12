@@ -50,9 +50,14 @@
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <Label Text="EXPECTED AYAH" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" VerticalOptions="Center" />
                                 <BoxView Grid.Column="1" HeightRequest="1" BackgroundColor="{StaticResource BorderSubtle}" VerticalOptions="Center" />
-                                <Label Grid.Column="2" Text="{Binding DetectedVerseInfo}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Primary}" IsVisible="{Binding DetectedVerseInfo, Converter={StaticResource StringToBoolConverter}}" />
+                                <Label Grid.Column="2" Text="{Binding CurrentAyahLabel}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
                             </Grid>
-                            <Label x:Name="ArabicLabel" FormattedText="{Binding HighlightedArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="{StaticResource FontSizeHeroVerse}" LineHeight="{StaticResource LineHeightArabic}" HorizontalTextAlignment="Center" FlowDirection="RightToLeft" LineBreakMode="WordWrap" />
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsVisible="{Binding IsRecording}">
+                                <Label Text="LIVE MATCH" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource TextTertiary}" VerticalOptions="Center" />
+                                <ProgressBar Grid.Column="1" Progress="{Binding Confidence}" ProgressColor="{Binding ConfidenceBarColor}" HeightRequest="4" VerticalOptions="Center" />
+                                <Label Grid.Column="2" Text="{Binding LiveMatchSummary}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" LineBreakMode="TailTruncation" />
+                            </Grid>
+                            <Label x:Name="ArabicLabel" FormattedText="{Binding HighlightedArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="{StaticResource RecitationArabicFontSize}" LineHeight="{StaticResource LineHeightArabic}" HorizontalTextAlignment="Center" FlowDirection="RightToLeft" LineBreakMode="WordWrap" />
                             <VerticalStackLayout IsVisible="{Binding IsRecording}" Spacing="8">
                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                     <Label Text="Your recitation" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource TextSecondary}" />

@@ -463,7 +463,6 @@ data/quran/*.txt
 !scripts/release/
 !scripts/release/**
 
-build-android.ps1
 cmdline-tools.zip
 
 # ── Large Files, Archives & Tooling (>50MB / Bundles) ──────────
@@ -480,7 +479,7 @@ commandlinetools*.zip
 android-ndk*.zip
 
 # ── Mobile & App Package Outputs ─────────────────────────────
-*.apk
+
 *.aab
 *.apks
 *.xapk

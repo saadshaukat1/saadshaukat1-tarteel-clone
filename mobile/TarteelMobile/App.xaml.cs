@@ -55,7 +55,7 @@ public partial class App : Application
             // Resolve the StartupPage from the DI container.
             // OnNavigatedTo in StartupPage will handle the actual initialization.
             var startupPage = IPlatformApplication.Current!.Services.GetRequiredService<Views.StartupPage>();
-            var window = new Window(new NavigationPage(startupPage));
+            var window = new Window(startupPage);
             return window;
         }
         catch (Exception ex)

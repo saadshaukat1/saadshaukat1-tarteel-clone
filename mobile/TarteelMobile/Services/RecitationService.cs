@@ -12,6 +12,7 @@ public interface IRecitationService
     void SetSurahContext(int surahNum, string surahArabicName);
     void ClearSurahContext();
     void ClearLastMatchedPosition();
+    void ClearTranscriptContext();
     void MarkCurrentAyahComplete();
     Task ConnectAsync();
     Task FlushAsync(CancellationToken cancellationToken = default);
@@ -27,6 +28,8 @@ public sealed class RecitationService : IRecitationService
     private readonly IAppDiagnosticsService _diagnostics;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _chunkProcessingGate = new(1, 1);
+    private TaskCompletionSource _chunksDrained = CompletedSignal();
+    private int _pendingChunks;
     private CancellationTokenSource? _sessionCancellation;
     private bool _connected;
 
@@ -63,6 +66,11 @@ public sealed class RecitationService : IRecitationService
     public void ClearLastMatchedPosition()
     {
         _orchestrator.ClearLastMatchedPosition();
+    }
+
+    public void ClearTranscriptContext()
+    {
+        _orchestrator.ClearTranscriptContext();
     }
 
     public void MarkCurrentAyahComplete()
@@ -117,29 +125,45 @@ public sealed class RecitationService : IRecitationService
     public async Task DisconnectAsync()
     {
         CancellationTokenSource? currentSessionCancellation;
+        Task chunksDrained;
         lock (_sync)
         {
             _connected = false;
             currentSessionCancellation = _sessionCancellation;
             _sessionCancellation = null;
+            chunksDrained = _chunksDrained.Task;
         }
 
-        currentSessionCancellation?.Cancel();
-        _diagnostics.Info("Recitation pipeline disconnected.");
+        _diagnostics.Info("Recitation pipeline disconnecting.");
         try
         {
-            await _orchestrator.StopAsync();
+            await chunksDrained;
         }
         finally
         {
-            currentSessionCancellation?.Dispose();
+            currentSessionCancellation?.Cancel();
+            try
+            {
+                await _orchestrator.StopAsync();
+            }
+            finally
+            {
+                currentSessionCancellation?.Dispose();
+            }
         }
+
+        _diagnostics.Info("Recitation pipeline disconnected.");
     }
 
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
-        await _chunkProcessingGate.WaitAsync(cancellationToken);
-        _chunkProcessingGate.Release();
+        Task chunksDrained;
+        lock (_sync)
+        {
+            chunksDrained = _chunksDrained.Task;
+        }
+
+        await chunksDrained.WaitAsync(cancellationToken);
     }
 
     public async Task SendAudioChunkAsync(byte[] audioChunk)
@@ -149,31 +173,27 @@ public sealed class RecitationService : IRecitationService
             return;
         }
 
-        bool isConnected;
         CancellationToken sessionToken;
         lock (_sync)
         {
-            isConnected = _connected;
+            if (!_connected)
+            {
+                return;
+            }
+
+            if (_pendingChunks++ == 0)
+            {
+                _chunksDrained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+
             sessionToken = _sessionCancellation?.Token ?? CancellationToken.None;
         }
 
-        if (!isConnected)
-            return;
-
-        bool acquired = false;
+        var acquired = false;
         try
         {
             await _chunkProcessingGate.WaitAsync(sessionToken);
             acquired = true;
-            lock (_sync)
-            {
-                if (!_connected)
-                {
-                    return;
-                }
-
-                sessionToken = _sessionCancellation?.Token ?? CancellationToken.None;
-            }
 
             if (AudioPreprocessor.IsSilence(audioChunk))
                 return;
@@ -186,11 +206,26 @@ public sealed class RecitationService : IRecitationService
         }
         finally
         {
-            if (acquired && _chunkProcessingGate.CurrentCount == 0)
+            if (acquired)
             {
                 _chunkProcessingGate.Release();
             }
+
+            lock (_sync)
+            {
+                if (--_pendingChunks == 0)
+                {
+                    _chunksDrained.TrySetResult();
+                }
+            }
         }
+    }
+
+    private static TaskCompletionSource CompletedSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
     }
 
     private void OnCoreMatchProduced(object? sender, CoreModels.RecitationMatchResult result)
