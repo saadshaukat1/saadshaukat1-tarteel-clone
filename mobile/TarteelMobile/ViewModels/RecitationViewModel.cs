@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.ApplicationModel;
@@ -7,6 +8,14 @@ using Microsoft.Maui.Graphics;
 using TarteelMobile.Models;
 using TarteelMobile.Services;
 using TarteelMobile.Services.Asr;
+using TarteelMobile.Views;
+using TarteelClone.LocalRecitationCore.Services;
+using MadrasaRecitationMode = TarteelClone.LocalRecitationCore.Models.MadrasaRecitationMode;
+using MadrasaGrade = TarteelClone.LocalRecitationCore.Models.MadrasaGrade;
+using MadrasaTeacherDecision = TarteelClone.LocalRecitationCore.Models.MadrasaTeacherDecision;
+using MadrasaEvaluation = TarteelClone.LocalRecitationCore.Models.MadrasaEvaluation;
+using MadrasaEvaluationInput = TarteelClone.LocalRecitationCore.Models.MadrasaEvaluationInput;
+using MutashabihaChallenge = TarteelClone.LocalRecitationCore.Models.MutashabihaChallenge;
 using CoreModels = TarteelClone.LocalRecitationCore.Models;
 
 namespace TarteelMobile.ViewModels;
@@ -36,6 +45,137 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     private bool _attemptSaved;
     private string _assignmentReason = string.Empty;
 
+    private readonly QuranAlignmentEngine _alignmentEngine = new();
+    private readonly System.Diagnostics.Stopwatch _stopwatch = new();
+    private IDispatcherTimer? _timer;
+    private readonly IMadrasaAudioFeedbackService _madrasaAudio;
+    private DateTime _lastTokenTimeUtc = DateTime.UtcNow;
+
+    public MushafCanvasDrawable CanvasDrawable { get; } = new();
+    public List<QuranWordModel> PageWords { get; set; } = [];
+    public List<AyahMarkerModel> AyahMarkers { get; set; } = [];
+
+    private int _currentWordCursor;
+    public int CurrentWordCursor { get => _currentWordCursor; set => SetProperty(ref _currentWordCursor, value); }
+
+    private int _mistakesCount;
+    public int MistakesCount { get => _mistakesCount; set => SetProperty(ref _mistakesCount, value); }
+
+    private double _accuracy = 100.0;
+    public double Accuracy { get => _accuracy; set => SetProperty(ref _accuracy, value); }
+
+    private string _elapsedTimeString = "00:00";
+    public string ElapsedTimeString { get => _elapsedTimeString; set => SetProperty(ref _elapsedTimeString, value); }
+
+    private string _liveTokenText = string.Empty;
+    public string LiveTokenText { get => _liveTokenText; set => SetProperty(ref _liveTokenText, value); }
+
+    private bool _hasLiveToken;
+    public bool HasLiveToken { get => _hasLiveToken; set => SetProperty(ref _hasLiveToken, value); }
+
+    public string FabIconText => IsRecording ? "⏹" : "🎙";
+    public Color MicButtonColor => IsRecording ? Color.FromArgb("#EF4444") : Color.FromArgb("#10B981");
+    public Color MicBorderColor => IsRecording ? Color.FromArgb("#F87171") : Color.FromArgb("#059669");
+    public Color BlindModeButtonColor => IsBlindRecitationMode ? Color.FromArgb("#38BDF8") : Color.FromArgb("#94A3B8");
+    public Color TajweedButtonColor => IsTajweedMode ? Color.FromArgb("#38BDF8") : Color.FromArgb("#94A3B8");
+    public Color AutoDetectButtonColor => IsFreeReciteMode ? Color.FromArgb("#38BDF8") : Color.FromArgb("#94A3B8");
+
+    public Color StatusBannerBackgroundColor => IsRecording
+        ? Color.FromArgb("#7F1D1D")
+        : IsTranscribing
+            ? Color.FromArgb("#0C4A6E")
+            : Color.FromArgb("#1E232B");
+
+    public Color StatusBannerTextColor => IsRecording
+        ? Color.FromArgb("#FEE2E2")
+        : IsTranscribing
+            ? Color.FromArgb("#BAE6FD")
+            : Color.FromArgb("#CBD5E1");
+
+    public string StatusBannerIcon => IsRecording
+        ? "🔴"
+        : IsTranscribing
+            ? "⚡"
+            : "🎙";
+
+    private bool _isSurahPickerOpen;
+    public bool IsSurahPickerOpen { get => _isSurahPickerOpen; set => SetProperty(ref _isSurahPickerOpen, value); }
+
+    private string _surahSearchText = string.Empty;
+    public string SurahSearchText
+    {
+        get => _surahSearchText;
+        set
+        {
+            if (SetProperty(ref _surahSearchText, value))
+            {
+                OnPropertyChanged(nameof(HasSearchText));
+                FilterSurahs();
+            }
+        }
+    }
+
+    public bool HasSearchText => !string.IsNullOrWhiteSpace(SurahSearchText);
+
+    private string _surahCategoryFilter = "All";
+    public string SurahCategoryFilter
+    {
+        get => _surahCategoryFilter;
+        set
+        {
+            if (SetProperty(ref _surahCategoryFilter, value))
+            {
+                FilterSurahs();
+            }
+        }
+    }
+
+    public ObservableCollection<SurahInfo> FilteredSurahs { get; } = [];
+
+    private bool _isBlindRecitationMode = true;
+    public bool IsBlindRecitationMode
+    {
+        get => _isBlindRecitationMode;
+        set
+        {
+            if (SetProperty(ref _isBlindRecitationMode, value))
+            {
+                CanvasDrawable.IsBlindRecitationMode = value;
+                RequestCanvasRedraw?.Invoke();
+            }
+        }
+    }
+
+    private bool _isTajweedMode = true;
+    public bool IsTajweedMode
+    {
+        get => _isTajweedMode;
+        set
+        {
+            if (SetProperty(ref _isTajweedMode, value))
+            {
+                CanvasDrawable.IsTajweedColored = value;
+                RequestCanvasRedraw?.Invoke();
+            }
+        }
+    }
+
+    private string _headerTitle = "Al-Mulk";
+    public string HeaderTitle { get => _headerTitle; set => SetProperty(ref _headerTitle, value); }
+
+    private string _headerSubtitle = "Page 562 | Juz 29 | Hizb 57 | 67:3";
+    public string HeaderSubtitle { get => _headerSubtitle; set => SetProperty(ref _headerSubtitle, value); }
+
+    private string _surahBannerArabic = "سُورَةُ الْمُلْكِ";
+    public string SurahBannerArabic { get => _surahBannerArabic; set => SetProperty(ref _surahBannerArabic, value); }
+
+    private string _bismillahText = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
+    public string BismillahText { get => _bismillahText; set => SetProperty(ref _bismillahText, value); }
+
+    public event Action? RequestCanvasRedraw;
+    private float _lastCanvasWidth = 380f;
+    private float _lastCanvasHeight = 560f;
+
     private string _arabicText = string.Empty;
     public string ArabicText { get => _arabicText; set => SetProperty(ref _arabicText, value); }
     private string _transcriptionText = string.Empty;
@@ -45,7 +185,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     private string _statusMessage = "Select a surah and tap the mic to begin";
     public string StatusMessage { get => _statusMessage; set => SetProperty(ref _statusMessage, value); }
     private bool _isRecording;
-    public bool IsRecording { get => _isRecording; set { if (SetProperty(ref _isRecording, value)) { OnPropertyChanged(nameof(MicButtonColor)); } } }
+    public bool IsRecording { get => _isRecording; set { if (SetProperty(ref _isRecording, value)) { OnPropertyChanged(nameof(MicButtonColor)); OnPropertyChanged(nameof(FabIconText)); } } }
     private bool _isResetting;
     public bool IsResetting { get => _isResetting; set => SetProperty(ref _isResetting, value); }
     private double _confidence;
@@ -73,7 +213,7 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     public bool IsFreeReciteMode { get => _isFreeReciteMode; set => SetProperty(ref _isFreeReciteMode, value); }
     private string _detectedVerseInfo = string.Empty;
     public string DetectedVerseInfo { get => _detectedVerseInfo; set => SetProperty(ref _detectedVerseInfo, value); }
-    private int _selectedSurah = 1;
+    private int _selectedSurah = 67;
     public int SelectedSurah { get => _selectedSurah; set => SetProperty(ref _selectedSurah, value); }
     private int _selectedAyah = 1;
     public int SelectedAyah { get => _selectedAyah; set => SetProperty(ref _selectedAyah, value); }
@@ -82,12 +222,15 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
 
     private SurahInfo? _selectedSurahInfo;
     public SurahInfo? SelectedSurahInfo { get => _selectedSurahInfo; set { if (SetProperty(ref _selectedSurahInfo, value)) OnSelectedSurahInfoChanged(value); } }
-    private List<int> _ayahNumbers = RecitationPracticeSettings.BuildAyahNumbers(1);
+    private List<int> _ayahNumbers = RecitationPracticeSettings.BuildAyahNumbers(67);
     public List<int> AyahNumbers { get => _ayahNumbers; set => SetProperty(ref _ayahNumbers, value); }
     private string _asrDebugLog = string.Empty;
     public string AsrDebugLog { get => _asrDebugLog; set => SetProperty(ref _asrDebugLog, value); }
     private bool _isAsrDebugVisible;
     public bool IsAsrDebugVisible { get => _isAsrDebugVisible; set { if (SetProperty(ref _isAsrDebugVisible, value)) OnIsAsrDebugVisibleChanged(value); } }
+
+    private bool _isTogglingRecording;
+    private DateTimeOffset _lastToggleTimeUtc = DateTimeOffset.MinValue;
 
     private readonly Queue<string> _debugLines = new();
 
@@ -113,7 +256,6 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     public string CurrentAyahLabel => $"{SelectedSurah}:{SelectedAyah}";
 
     public bool HasMismatches => Mismatches.Count > 0;
-    public Color MicButtonColor => IsRecording ? Color.FromArgb("#C2413D") : Color.FromArgb("#1A6B3C");
     public Color ConfidenceBarColor => Confidence >= PerfectConfidenceThreshold
         ? Color.FromArgb("#1A6B3C")
         : Confidence >= MatchConfidenceThreshold
@@ -131,7 +273,8 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         IAppDiagnosticsService diagnostics,
         IAsrEngine asrEngine,
         IServiceProvider serviceProvider,
-        ITodayWorkflowService today)
+        ITodayWorkflowService today,
+        IMadrasaAudioFeedbackService? madrasaAudio = null)
     {
         _audio      = audio;
         _recitation = recitation;
@@ -141,12 +284,31 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         _asrEngine = asrEngine;
         _serviceProvider = serviceProvider;
         _today = today;
+        _madrasaAudio = madrasaAudio ?? new MadrasaAudioFeedbackService(diagnostics);
 
         _audio.AudioChunkReady        += OnAudioChunkReady;
         _audio.RecordingError         += OnAudioRecordingError;
         _recitation.MatchResultReceived += OnMatchResultReceived;
         _recitation.DiagnosticEmitted += OnDiagnosticEmitted;
         _asrEngine.DownloadProgressChanged += OnAsrDownloadProgress;
+
+        _timer = Application.Current?.Dispatcher?.CreateTimer();
+        if (_timer is not null)
+        {
+            _timer.Interval = TimeSpan.FromSeconds(1);
+            _timer.Tick += (s, e) =>
+            {
+                ElapsedTimeString = _stopwatch.Elapsed.ToString(@"mm\:ss");
+                if (IsRecording && (DateTime.UtcNow - _lastTokenTimeUtc).TotalSeconds > 5.0 && CurrentWordCursor < PageWords.Count)
+                {
+                    HesitationCount++;
+                    StatusMessage = "الشيخ يستمع لتلاوتك... اضغط «لقمة» إذا احتجت مساعدة";
+                    _lastTokenTimeUtc = DateTime.UtcNow;
+                }
+            };
+        }
+
+        InitializePageLayout(380f, 560f);
 
         RebuildAyahNumbersForSurah(SelectedSurah);
         _ = LoadSurahsAsync();
@@ -157,6 +319,87 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         }
 
         RefreshAuthState();
+    }
+
+    public void InitializePageLayout(float width, float height)
+    {
+        if (width > 50) _lastCanvasWidth = width;
+        if (height > 50) _lastCanvasHeight = height;
+
+        var (words, markers) = MushafLayoutService.BuildPage562Layout(_lastCanvasWidth, _lastCanvasHeight);
+        PageWords = words;
+        AyahMarkers = markers;
+        CanvasDrawable.Words = PageWords;
+        CanvasDrawable.Markers = AyahMarkers;
+        CanvasDrawable.IsBlindRecitationMode = IsBlindRecitationMode;
+        CanvasDrawable.IsTajweedColored = IsTajweedMode;
+
+        RequestCanvasRedraw?.Invoke();
+    }
+
+    public void ProcessSpokenText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || PageWords.Count == 0) return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var tokens = ArabicTextNormalizer.TokenizeAndNormalize(text);
+            foreach (var token in tokens)
+            {
+                if (CurrentWordCursor >= PageWords.Count)
+                    break;
+
+                LiveTokenText = token;
+                HasLiveToken = true;
+
+                _lastTokenTimeUtc = DateTime.UtcNow;
+                var match = _alignmentEngine.AlignToken(token, PageWords, CurrentWordCursor);
+                switch (match.Outcome)
+                {
+                    case AlignmentOutcome.ExactMatch:
+                        PageWords[match.MatchedIndex].Status = WordRecitationStatus.Revealed;
+                        CurrentWordCursor = match.MatchedIndex + 1;
+                        break;
+
+                    case AlignmentOutcome.ForwardGap:
+                        foreach (var skippedIdx in match.SkippedIndices)
+                        {
+                            PageWords[skippedIdx].Status = WordRecitationStatus.Skipped;
+                            MistakesCount++;
+                        }
+                        PageWords[match.MatchedIndex].Status = WordRecitationStatus.Revealed;
+                        CurrentWordCursor = match.MatchedIndex + 1;
+                        RecalculateAccuracy();
+                        _ = _madrasaAudio.PlayTeacherKnockAlertAsync();
+                        var skippedWord = PageWords[match.SkippedIndices[0]].UthmaniText;
+                        StatusMessage = $"تنبيه الشيخ: أعد الكلمة «{skippedWord}»!";
+                        break;
+
+                    case AlignmentOutcome.BacktrackCorrection:
+                        PageWords[match.MatchedIndex].Status = WordRecitationStatus.Corrected;
+                        StatusMessage = $"أحسنت! تم تصحيح كلمة «{PageWords[match.MatchedIndex].UthmaniText}»";
+                        break;
+                }
+            }
+
+            if (CurrentWordCursor < PageWords.Count)
+            {
+                var curAyah = PageWords[CurrentWordCursor].AyahNumber;
+                HeaderSubtitle = $"Page 562 | Juz 29 | Hizb 57 | 67:{curAyah}";
+            }
+            else if (CurrentWordCursor >= PageWords.Count && PageWords.Count > 0 && IsRecording)
+            {
+                _ = CompleteRecitationSessionAsync();
+            }
+
+            RequestCanvasRedraw?.Invoke();
+        });
+    }
+
+    private void RecalculateAccuracy()
+    {
+        int totalExpected = Math.Max(1, CurrentWordCursor);
+        Accuracy = Math.Max(0.0, ((totalExpected - MistakesCount) / (double)totalExpected) * 100.0);
     }
 
     private void StartBackgroundInit()
@@ -319,32 +562,76 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
     [RelayCommand]
     private async Task ToggleRecordingAsync()
     {
-        if (_recitation.RequiresAuthentication && !_session.IsAuthenticated)
+        if (_isTogglingRecording)
         {
-            StatusMessage = "Sign in before recording";
             return;
         }
 
-        if (IsModelDownloading)
+        var now = DateTimeOffset.UtcNow;
+        if ((now - _lastToggleTimeUtc).TotalMilliseconds < 450)
         {
-            StatusMessage = "Wait — Whisper model is downloading";
             return;
         }
+        _lastToggleTimeUtc = now;
+        _isTogglingRecording = true;
 
         try
         {
+            if (_recitation.RequiresAuthentication && !_session.IsAuthenticated)
+            {
+                StatusMessage = "Sign in before recording";
+                NotifyUiStateChanged();
+                return;
+            }
+
+            if (!_asrEngine.IsReady)
+            {
+                StatusMessage = "Loading Whisper model… please wait";
+                NotifyUiStateChanged();
+                try
+                {
+                    await _asrEngine.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    SetMicFailureState($"ASR init failed: {ex.Message}");
+                    return;
+                }
+            }
+
             if (IsRecording)
             {
-                await _audio.StopRecordingAsync();
-                await _recitation.DisconnectAsync();
+                _stopwatch.Stop();
+                _timer?.Stop();
+                HasLiveToken = false;
+                IsRecording    = false;
+                IsTranscribing = false;
+                StatusMessage  = $"Recitation paused • Tap mic to resume {HeaderTitle}";
+                IsAsrDebugVisible = false;
+                NotifyUiStateChanged();
+                _diagnostics.Info("Recitation recording paused.");
+
+                try
+                {
+                    await _audio.StopRecordingAsync();
+                }
+                catch (Exception ex)
+                {
+                    _diagnostics.Warn($"Audio stop issue: {ex.Message}");
+                }
+
+                try
+                {
+                    await _recitation.DisconnectAsync();
+                }
+                catch (Exception ex)
+                {
+                    _diagnostics.Warn($"Pipeline disconnect issue: {ex.Message}");
+                }
+
                 _recitation.ClearSurahContext();
                 _recitation.ClearLastMatchedPosition();
                 await SaveBestPartialAttemptAsync(CoreModels.RecitationSessionStatus.Abandoned);
-                IsRecording    = false;
-                IsTranscribing = false;
-                StatusMessage  = "Recitation paused";
-                IsAsrDebugVisible = false;
-                _diagnostics.Info("Recitation recording paused.");
             }
             else
             {
@@ -366,7 +653,11 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 _bestMatchedWordCount = 0;
                 _bestProcessedWordCount = 0;
                 _bestConfidence = 0;
+
+                StatusMessage = $"Connecting mic for Surah {HeaderTitle}…";
                 ProcessingSummary = "Connecting recitation pipeline…";
+                NotifyUiStateChanged();
+
                 if (IsGuidedAssignment)
                 {
                     if (_sessionId is not null)
@@ -404,6 +695,8 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                         if (micStatus != PermissionStatus.Granted)
                         {
                             StatusMessage = "Microphone permission required to record recitation.";
+                            await _recitation.DisconnectAsync();
+                            NotifyUiStateChanged();
                             return;
                         }
                     }
@@ -421,14 +714,17 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                     await LoadPracticeVersePlaceholderAsync();
                 }
 
+                _stopwatch.Restart();
+                _timer?.Start();
                 IsRecording   = true;
-                IsTranscribing = true;
+                IsTranscribing = false;
                 DetectedVerseInfo = string.Empty;
                 StatusMessage = IsFreeReciteMode
-                    ? "Listening… recite any verse"
-                    : "Listening… recite into the mic";
+                    ? "🔴 Listening… recite any verse"
+                    : $"🔴 Listening… recite Surah {HeaderTitle}";
                 ProcessingSummary = "Audio stream active. Transcribing your recitation…";
-                _diagnostics.Info("Recitation recording started.");
+                NotifyUiStateChanged();
+                _diagnostics.Info($"Recitation recording started for Surah {SelectedSurah}.");
             }
         }
         catch (Exception ex)
@@ -439,6 +735,10 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 : $"Mic start failed: {ex.Message} ({rootCause.GetType().Name}: {rootCause.Message})";
             SetMicFailureState(userMessage);
             _diagnostics.Error("Failed to toggle recitation recording.", ex);
+        }
+        finally
+        {
+            _isTogglingRecording = false;
         }
     }
 
@@ -521,6 +821,11 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
 
         IsTranscribing = false;
 
+        if (!string.IsNullOrWhiteSpace(result.TranscriptionText))
+        {
+            ProcessSpokenText(result.TranscriptionText);
+        }
+
         var incomingPrefixLength = ComputeMatchedPrefixLength(result);
         if (!ShouldApplyMatchResult(result, incomingPrefixLength))
         {
@@ -555,7 +860,14 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         var surahNum = _bestSessionResult.SurahNum;
         var ayahNum  = _bestSessionResult.AyahNum;
 
-        if (IsFreeReciteMode && surahNum > 0)
+        if (surahNum > 0 && surahNum != SelectedSurah && (IsFreeReciteMode || _bestSessionResult.Confidence >= MatchConfidenceThreshold))
+        {
+            var surahName = _bestSessionResult.SurahNameEnglish ?? $"Surah {surahNum}";
+            DetectedVerseInfo = $"{surahName} — {surahNum}:{ayahNum}";
+            StatusMessage = $"Auto-detected: {surahName} ({surahNum}:{ayahNum})";
+            _ = LoadSurahAsync(surahNum, ayahNum);
+        }
+        else if (IsFreeReciteMode && surahNum > 0)
         {
             var surahName = _bestSessionResult.SurahNameEnglish ?? $"Surah {surahNum}";
             DetectedVerseInfo = $"{surahName} — {surahNum}:{ayahNum}";
@@ -763,8 +1075,11 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
                 SelectedSurahInfo = Surahs.FirstOrDefault(s => s.SurahNum == SelectedSurah);
                 if (SelectedSurahInfo is null && Surahs.Count > 0)
                 {
-                    SelectedSurahInfo = Surahs[0];
+                    SelectedSurahInfo = Surahs.FirstOrDefault(s => s.SurahNum == 67) ?? Surahs[0];
+                    SelectedSurah = SelectedSurahInfo.SurahNum;
                 }
+
+                FilterSurahs();
             });
 
             if (Surahs.Count == 0)
@@ -778,6 +1093,63 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
             await MainThread.InvokeOnMainThreadAsync(() =>
                 StatusMessage = "Could not load surah list. Check the local Quran data.");
         }
+    }
+
+    private void FilterSurahs()
+    {
+        FilteredSurahs.Clear();
+        var query = (SurahSearchText ?? string.Empty).Trim().ToLowerInvariant();
+
+        IEnumerable<SurahInfo> items = Surahs;
+
+        if (SurahCategoryFilter == "Popular")
+        {
+            int[] popular = [1, 18, 36, 55, 56, 67, 112, 113, 114];
+            items = items.Where(s => popular.Contains(s.SurahNum));
+        }
+        else if (SurahCategoryFilter == "Juz30")
+        {
+            items = items.Where(s => s.SurahNum >= 78);
+        }
+        else if (SurahCategoryFilter == "Meccan")
+        {
+            items = items.Where(s => s.RevelationType.Contains("Meccan", StringComparison.OrdinalIgnoreCase) || s.RevelationType.Contains("Makki", StringComparison.OrdinalIgnoreCase));
+        }
+        else if (SurahCategoryFilter == "Medinan")
+        {
+            items = items.Where(s => s.RevelationType.Contains("Medinan", StringComparison.OrdinalIgnoreCase) || s.RevelationType.Contains("Madani", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            items = items.Where(s =>
+                s.SurahNum.ToString().Contains(query) ||
+                s.NameTransliteration.ToLowerInvariant().Contains(query) ||
+                s.NameEnglish.ToLowerInvariant().Contains(query) ||
+                s.NameArabic.Contains(query));
+        }
+
+        foreach (var item in items)
+        {
+            FilteredSurahs.Add(item);
+        }
+    }
+
+    public void NotifyUiStateChanged()
+    {
+        OnPropertyChanged(nameof(FabIconText));
+        OnPropertyChanged(nameof(MicButtonColor));
+        OnPropertyChanged(nameof(MicBorderColor));
+        OnPropertyChanged(nameof(BlindModeButtonColor));
+        OnPropertyChanged(nameof(TajweedButtonColor));
+        OnPropertyChanged(nameof(AutoDetectButtonColor));
+        OnPropertyChanged(nameof(StatusBannerBackgroundColor));
+        OnPropertyChanged(nameof(StatusBannerTextColor));
+        OnPropertyChanged(nameof(StatusBannerIcon));
+        OnPropertyChanged(nameof(IsRecording));
+        OnPropertyChanged(nameof(IsTranscribing));
+        OnPropertyChanged(nameof(StatusMessage));
+        OnPropertyChanged(nameof(ProcessingSummary));
     }
 
     private void RebuildAyahNumbersForSurah(int surah)
@@ -939,6 +1311,250 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         }
 
         AsrDebugLog = string.Join(Environment.NewLine, _debugLines);
+
+        if (message.Contains("transcript: \"", StringComparison.OrdinalIgnoreCase))
+        {
+            var match = Regex.Match(message, "transcript:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                ProcessSpokenText(match.Groups[1].Value);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task StopRecitationAsync()
+    {
+        try
+        {
+            await _audio.StopRecordingAsync();
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Audio stop in StopRecitation: {ex.Message}");
+        }
+
+        try
+        {
+            await _recitation.DisconnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _diagnostics.Warn($"Disconnect in StopRecitation: {ex.Message}");
+        }
+
+        _stopwatch.Reset();
+        _timer?.Stop();
+        IsRecording = false;
+        IsTranscribing = false;
+        HasLiveToken = false;
+        LiveTokenText = string.Empty;
+        ElapsedTimeString = "00:00";
+        MistakesCount = 0;
+        Accuracy = 100.0;
+        CurrentWordCursor = 0;
+
+        foreach (var w in PageWords)
+        {
+            w.Status = WordRecitationStatus.Hidden;
+        }
+
+        StatusMessage = $"Reset: Surah {HeaderTitle} • Tap mic to recite";
+        ProcessingSummary = "Awaiting recitation…";
+        NotifyUiStateChanged();
+        RequestCanvasRedraw?.Invoke();
+    }
+
+    [RelayCommand]
+    private void ToggleBlindMode()
+    {
+        IsBlindRecitationMode = !IsBlindRecitationMode;
+        OnPropertyChanged(nameof(BlindModeButtonColor));
+    }
+
+    [RelayCommand]
+    private void ToggleTajweed()
+    {
+        IsTajweedMode = !IsTajweedMode;
+        OnPropertyChanged(nameof(TajweedButtonColor));
+    }
+
+    [RelayCommand]
+    private void ToggleAutoDetectMode()
+    {
+        IsFreeReciteMode = !IsFreeReciteMode;
+        StatusMessage = IsFreeReciteMode
+            ? "🌐 Auto-Detect Mode: Recite any verse from anywhere in the Quran"
+            : $"📖 Surah Mode: Reciting {HeaderTitle}";
+        NotifyUiStateChanged();
+    }
+
+    [RelayCommand]
+    public async Task SelectSurahAsync(SurahInfo? surah)
+    {
+        if (surah is null) return;
+        IsSurahPickerOpen = false;
+        await LoadSurahAsync(surah.SurahNum, 1);
+    }
+
+    [RelayCommand]
+    public async Task NextSurahAsync()
+    {
+        var nextSurah = Math.Min(114, SelectedSurah + 1);
+        if (nextSurah != SelectedSurah)
+        {
+            await LoadSurahAsync(nextSurah, 1);
+        }
+    }
+
+    [RelayCommand]
+    public async Task PreviousSurahAsync()
+    {
+        var prevSurah = Math.Max(1, SelectedSurah - 1);
+        if (prevSurah != SelectedSurah)
+        {
+            await LoadSurahAsync(prevSurah, 1);
+        }
+    }
+
+    [RelayCommand]
+    public void OpenSurahPicker()
+    {
+        SurahSearchText = string.Empty;
+        SurahCategoryFilter = "All";
+        FilterSurahs();
+        IsSurahPickerOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseSurahPicker()
+    {
+        IsSurahPickerOpen = false;
+    }
+
+    [RelayCommand]
+    public void ClearSearch()
+    {
+        SurahSearchText = string.Empty;
+    }
+
+    [RelayCommand]
+    public void SetCategoryFilter(string category)
+    {
+        SurahCategoryFilter = category;
+    }
+
+    public async Task LoadSurahAsync(int surahNum, int startAyah = 1)
+    {
+        if (IsRecording)
+        {
+            await ToggleRecordingAsync();
+        }
+
+        SelectedSurah = surahNum;
+        SelectedAyah = startAyah;
+
+        SelectedSurahInfo = Surahs.FirstOrDefault(s => s.SurahNum == surahNum);
+        HeaderTitle = SelectedSurahInfo?.NameTransliteration ?? $"Surah {surahNum}";
+        SurahBannerArabic = SelectedSurahInfo is not null
+            ? $"سُورَةُ {SelectedSurahInfo.NameArabic}"
+            : $"سُورَة {surahNum}";
+        BismillahText = surahNum == 9 ? string.Empty : "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
+
+        RebuildAyahNumbersForSurah(surahNum);
+
+        int pageNum = await _verseRepository.GetPageForVerseAsync(surahNum, startAyah);
+        if (pageNum <= 0) pageNum = (surahNum == 67 ? 562 : 1);
+
+        var juzInfo = await _verseRepository.GetJuzForVerseAsync(surahNum, startAyah);
+        var juzNum = juzInfo?.JuzNum ?? 1;
+
+        HeaderSubtitle = $"Page {pageNum} | Juz {juzNum} | {surahNum}:{startAyah}";
+
+        if (surahNum == 67 && pageNum == 562)
+        {
+            InitializePageLayout(_lastCanvasWidth, _lastCanvasHeight);
+        }
+        else
+        {
+            var verses = new List<Verse>();
+            var maxAyah = SelectedSurahInfo?.AyahCount ?? 30;
+            var endAyah = Math.Min(maxAyah, startAyah + 25);
+            for (int a = startAyah; a <= endAyah; a++)
+            {
+                var v = await _verseRepository.GetVerseAsync(surahNum, a);
+                if (v is not null) verses.Add(v);
+            }
+
+            var (words, markers) = MushafLayoutService.BuildLayoutFromVerses(verses, surahNum, pageNum, _lastCanvasWidth, _lastCanvasHeight);
+            PageWords = words;
+            AyahMarkers = markers;
+            CanvasDrawable.Words = PageWords;
+            CanvasDrawable.Markers = AyahMarkers;
+            CanvasDrawable.IsBlindRecitationMode = IsBlindRecitationMode;
+            CanvasDrawable.IsTajweedColored = IsTajweedMode;
+            RequestCanvasRedraw?.Invoke();
+        }
+
+        CurrentWordCursor = 0;
+        MistakesCount = 0;
+        Accuracy = 100.0;
+        ElapsedTimeString = "00:00";
+        _stopwatch.Reset();
+        HasLiveToken = false;
+        LiveTokenText = string.Empty;
+
+        _recitation.ClearSurahContext();
+        _recitation.ClearLastMatchedPosition();
+        _recitation.SetSurahContext(surahNum, SelectedSurahInfo?.NameArabic ?? string.Empty);
+
+        StatusMessage = $"Ready: Surah {HeaderTitle} ({surahNum}:{startAyah}) • Tap mic to recite";
+        ProcessingSummary = "Ready to recite.";
+        NotifyUiStateChanged();
+    }
+
+    [RelayCommand]
+    private void PreviousAyah()
+    {
+        if (PageWords.Count == 0) return;
+
+        int currentAyah = PageWords[Math.Min(CurrentWordCursor, PageWords.Count - 1)].AyahNumber;
+        int targetAyah = Math.Max(1, currentAyah - 1);
+
+        for (int i = 0; i < PageWords.Count; i++)
+        {
+            if (PageWords[i].AyahNumber == targetAyah)
+            {
+                CurrentWordCursor = i;
+                break;
+            }
+        }
+
+        for (int i = CurrentWordCursor; i < PageWords.Count; i++)
+        {
+            PageWords[i].Status = WordRecitationStatus.Hidden;
+        }
+
+        HeaderSubtitle = $"Page 562 | Juz 29 | Hizb 57 | 67:{targetAyah}";
+        RequestCanvasRedraw?.Invoke();
+    }
+
+    [RelayCommand]
+    private void RewindPage()
+    {
+        CurrentWordCursor = 0;
+        MistakesCount = 0;
+        Accuracy = 100.0;
+        HasLiveToken = false;
+        LiveTokenText = string.Empty;
+
+        foreach (var w in PageWords)
+        {
+            w.Status = WordRecitationStatus.Hidden;
+        }
+
+        HeaderSubtitle = "Page 562 | Juz 29 | Hizb 57 | 67:1";
+        RequestCanvasRedraw?.Invoke();
     }
 
     private void OnAsrDownloadProgress(object? sender, AsrDownloadProgress progress)
@@ -1202,5 +1818,266 @@ public partial class RecitationViewModel : ObservableObject, IQueryAttributable
         IsAuthenticated = _session.IsAuthenticated;
         UserEmail = _session.CurrentUserEmail ?? string.Empty;
         AuthButtonText = IsAuthenticated ? "Log Out" : "Log In";
+    }
+
+    // ── Madrasa Quran Teacher (Al-Ustadh AI) Core State & Commands ──────────
+
+    private MadrasaRecitationMode _currentMadrasaMode = MadrasaRecitationMode.Sabaq;
+    public MadrasaRecitationMode CurrentMadrasaMode
+    {
+        get => _currentMadrasaMode;
+        set
+        {
+            if (SetProperty(ref _currentMadrasaMode, value))
+            {
+                NotifyMadrasaModeChanged();
+            }
+        }
+    }
+
+    public Color SabaqTabBgColor => CurrentMadrasaMode == MadrasaRecitationMode.Sabaq ? Color.FromArgb("#065F46") : Color.FromArgb("#1E232B");
+    public Color SabaqTabTextColor => CurrentMadrasaMode == MadrasaRecitationMode.Sabaq ? Color.FromArgb("#34D399") : Color.FromArgb("#94A3B8");
+    public Color SabqiTabBgColor => CurrentMadrasaMode == MadrasaRecitationMode.Sabqi ? Color.FromArgb("#78350F") : Color.FromArgb("#1E232B");
+    public Color SabqiTabTextColor => CurrentMadrasaMode == MadrasaRecitationMode.Sabqi ? Color.FromArgb("#FBBF24") : Color.FromArgb("#94A3B8");
+    public Color ManzilTabBgColor => CurrentMadrasaMode == MadrasaRecitationMode.Manzil ? Color.FromArgb("#0C4A6E") : Color.FromArgb("#1E232B");
+    public Color ManzilTabTextColor => CurrentMadrasaMode == MadrasaRecitationMode.Manzil ? Color.FromArgb("#38BDF8") : Color.FromArgb("#94A3B8");
+    public Color ExamTabBgColor => CurrentMadrasaMode == MadrasaRecitationMode.UstadhExam ? Color.FromArgb("#581C87") : Color.FromArgb("#1E232B");
+    public Color ExamTabTextColor => CurrentMadrasaMode == MadrasaRecitationMode.UstadhExam ? Color.FromArgb("#C084FC") : Color.FromArgb("#94A3B8");
+
+    public bool IsExamMode => CurrentMadrasaMode == MadrasaRecitationMode.UstadhExam;
+
+    private MutashabihaChallenge? _currentExamChallenge;
+    public MutashabihaChallenge? CurrentExamChallenge
+    {
+        get => _currentExamChallenge;
+        set => SetProperty(ref _currentExamChallenge, value);
+    }
+
+    private string _examQuestionPrompt = string.Empty;
+    public string ExamQuestionPrompt
+    {
+        get => _examQuestionPrompt;
+        set => SetProperty(ref _examQuestionPrompt, value);
+    }
+
+    private int _luqmahCount;
+    public int LuqmahCount { get => _luqmahCount; set => SetProperty(ref _luqmahCount, value); }
+
+    private int _hesitationCount;
+    public int HesitationCount { get => _hesitationCount; set => SetProperty(ref _hesitationCount, value); }
+
+    private string _teacherPromptText = string.Empty;
+    public string TeacherPromptText { get => _teacherPromptText; set => SetProperty(ref _teacherPromptText, value); }
+
+    private bool _hasTeacherPrompt;
+    public bool HasTeacherPrompt { get => _hasTeacherPrompt; set => SetProperty(ref _hasTeacherPrompt, value); }
+
+    private bool _isEvaluationModalOpen;
+    public bool IsEvaluationModalOpen { get => _isEvaluationModalOpen; set => SetProperty(ref _isEvaluationModalOpen, value); }
+
+    private MadrasaEvaluation? _latestEvaluation;
+    public MadrasaEvaluation? LatestEvaluation
+    {
+        get => _latestEvaluation;
+        set
+        {
+            if (SetProperty(ref _latestEvaluation, value))
+            {
+                NotifyEvaluationPropertiesChanged();
+            }
+        }
+    }
+
+    public string EvaluationGradeDisplay => LatestEvaluation?.Grade switch
+    {
+        MadrasaGrade.Mumtaz => "🌟 ممتاز (Mumtaz - 100%)",
+        MadrasaGrade.JayyidJiddan => "🟢 جيد جداً (Jayyid Jiddan)",
+        MadrasaGrade.Jayyid => "🟡 جيد (Jayyid)",
+        MadrasaGrade.Maqbool => "🟠 مقبول (Maqbool)",
+        MadrasaGrade.Iadah or _ => "🔴 إعادة السبق غداً (Repeat)",
+    } ?? string.Empty;
+
+    public Color EvaluationGradeColor => LatestEvaluation?.Grade switch
+    {
+        MadrasaGrade.Mumtaz => Color.FromArgb("#10B981"),
+        MadrasaGrade.JayyidJiddan => Color.FromArgb("#34D399"),
+        MadrasaGrade.Jayyid => Color.FromArgb("#FBBF24"),
+        MadrasaGrade.Maqbool => Color.FromArgb("#FB923C"),
+        MadrasaGrade.Iadah or _ => Color.FromArgb("#EF4444"),
+    } ?? Color.FromArgb("#10B981");
+
+    public string EvaluationDecisionDisplay => LatestEvaluation?.Decision switch
+    {
+        MadrasaTeacherDecision.PassedToNext => "✅ مجاز - يُسمح بحفظ الدرس التالي بفضل الله",
+        MadrasaTeacherDecision.ReviewWeakSpots => "⚠️ مراجعة - تثبيت الأخطاء والوقفات اليوم",
+        MadrasaTeacherDecision.RepeatLesson or _ => "🔄 إعادة - يُعاد هذا السبق غداً للإتقان",
+    } ?? string.Empty;
+
+    public Color EvaluationDecisionColor => LatestEvaluation?.Decision switch
+    {
+        MadrasaTeacherDecision.PassedToNext => Color.FromArgb("#10B981"),
+        MadrasaTeacherDecision.ReviewWeakSpots => Color.FromArgb("#F59E0B"),
+        MadrasaTeacherDecision.RepeatLesson or _ => Color.FromArgb("#EF4444"),
+    } ?? Color.FromArgb("#10B981");
+
+    public string EvaluationRemarksArabic => LatestEvaluation?.RemarksArabic ?? string.Empty;
+    public string EvaluationRemarksEnglish => LatestEvaluation?.RemarksEnglish ?? string.Empty;
+
+    public string EvaluationModeDisplay => LatestEvaluation?.Mode switch
+    {
+        MadrasaRecitationMode.Sabaq => "السبق (Sabaq - New Lesson)",
+        MadrasaRecitationMode.Sabqi => "السبقي (Sabqi - Recent Revision)",
+        MadrasaRecitationMode.Manzil => "المنزل (Manzil - Cumulative Dhor)",
+        MadrasaRecitationMode.UstadhExam => "اختبار الشيخ والمتشابهات",
+        _ => "تسميع"
+    } ?? string.Empty;
+
+    [RelayCommand]
+    public void SetMadrasaMode(string modeName)
+    {
+        if (Enum.TryParse<MadrasaRecitationMode>(modeName, true, out var mode))
+        {
+            CurrentMadrasaMode = mode;
+            if (mode == MadrasaRecitationMode.UstadhExam)
+            {
+                LoadExamQuestion();
+            }
+            else
+            {
+                var nameAr = mode switch
+                {
+                    MadrasaRecitationMode.Sabaq => "السبق (الدرس الجديد)",
+                    MadrasaRecitationMode.Sabqi => "السبقي (مراجعة القريب)",
+                    MadrasaRecitationMode.Manzil => "المنزل (المراجعة الكبرى)",
+                    _ => "التسميع"
+                };
+                StatusMessage = $"وضع الشيخ: {nameAr} • اضغط المايك للتسميع";
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void NextExamQuestion()
+    {
+        LoadExamQuestion();
+    }
+
+    private void LoadExamQuestion()
+    {
+        CurrentExamChallenge = MutashabihatDatabase.GetRandomChallenge();
+        ExamQuestionPrompt = $"﴿ {CurrentExamChallenge.PromptVerseArabic} ﴾";
+        StatusMessage = $"اختبار الشيخ: أكمل من {CurrentExamChallenge.SurahNameArabic}";
+        _ = LoadSurahAsync(CurrentExamChallenge.SurahNum, CurrentExamChallenge.AyahNum);
+    }
+
+    private void NotifyMadrasaModeChanged()
+    {
+        OnPropertyChanged(nameof(SabaqTabBgColor));
+        OnPropertyChanged(nameof(SabaqTabTextColor));
+        OnPropertyChanged(nameof(SabqiTabBgColor));
+        OnPropertyChanged(nameof(SabqiTabTextColor));
+        OnPropertyChanged(nameof(ManzilTabBgColor));
+        OnPropertyChanged(nameof(ManzilTabTextColor));
+        OnPropertyChanged(nameof(ExamTabBgColor));
+        OnPropertyChanged(nameof(ExamTabTextColor));
+        OnPropertyChanged(nameof(IsExamMode));
+    }
+
+    private void NotifyEvaluationPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(EvaluationGradeDisplay));
+        OnPropertyChanged(nameof(EvaluationGradeColor));
+        OnPropertyChanged(nameof(EvaluationDecisionDisplay));
+        OnPropertyChanged(nameof(EvaluationDecisionColor));
+        OnPropertyChanged(nameof(EvaluationRemarksArabic));
+        OnPropertyChanged(nameof(EvaluationRemarksEnglish));
+        OnPropertyChanged(nameof(EvaluationModeDisplay));
+    }
+
+    [RelayCommand]
+    public async Task GiveLuqmahAsync()
+    {
+        if (CurrentWordCursor >= PageWords.Count) return;
+        var targetWord = PageWords[CurrentWordCursor].UthmaniText;
+        PageWords[CurrentWordCursor].Status = WordRecitationStatus.Revealed;
+        CurrentWordCursor++;
+        LuqmahCount++;
+        RecalculateAccuracy();
+        TeacherPromptText = targetWord;
+        HasTeacherPrompt = true;
+        StatusMessage = $"لقمة الشيخ: «{targetWord}»";
+        RequestCanvasRedraw?.Invoke();
+        await _madrasaAudio.SpeakLuqmahPromptAsync(targetWord);
+    }
+
+    [RelayCommand]
+    public async Task CompleteRecitationSessionAsync()
+    {
+        if (CurrentWordCursor == 0 && MistakesCount == 0 && LuqmahCount == 0)
+        {
+            await StopRecitationAsync();
+            return;
+        }
+
+        try
+        {
+            await _audio.StopRecordingAsync();
+        }
+        catch {}
+
+        _stopwatch.Stop();
+        _timer?.Stop();
+        IsRecording = false;
+        IsTranscribing = false;
+
+        int endAyah = CurrentWordCursor > 0 && CurrentWordCursor <= PageWords.Count
+            ? PageWords[Math.Min(CurrentWordCursor, PageWords.Count) - 1].AyahNumber
+            : SelectedAyah;
+
+        var input = new MadrasaEvaluationInput(
+            UserKey: _userEmail,
+            SessionId: _sessionId,
+            SurahNum: SelectedSurah,
+            AyahNum: SelectedAyah,
+            EndAyahNum: endAyah,
+            Mode: CurrentMadrasaMode,
+            MistakesCount: MistakesCount,
+            TajweedNotesCount: TajweedViolations.Count,
+            LuqmahCount: LuqmahCount,
+            HesitationCount: HesitationCount,
+            AccuracyPercentage: Accuracy
+        );
+
+        LatestEvaluation = await _verseRepository.RecordMadrasaEvaluationAsync(input);
+        IsEvaluationModalOpen = true;
+
+        var spokenVerdict = MadrasaPedagogyEngine.GetSpokenVerdictArabic(LatestEvaluation.Grade, LatestEvaluation.Decision);
+        _ = _madrasaAudio.SpeakTeacherVerdictAsync(spokenVerdict);
+    }
+
+    [RelayCommand]
+    public void CloseEvaluationModal()
+    {
+        IsEvaluationModalOpen = false;
+    }
+
+    [RelayCommand]
+    public async Task SaveEvaluationAndAdvanceAsync()
+    {
+        IsEvaluationModalOpen = false;
+        await StopRecitationAsync();
+
+        if (LatestEvaluation?.Decision == MadrasaTeacherDecision.PassedToNext)
+        {
+            await AdvanceToNextAyahAsync(SelectedSurah, SelectedAyah);
+        }
+    }
+
+    [RelayCommand]
+    public async Task RetryRecitationAsync()
+    {
+        IsEvaluationModalOpen = false;
+        await StopRecitationAsync();
+        await ToggleRecordingAsync();
     }
 }

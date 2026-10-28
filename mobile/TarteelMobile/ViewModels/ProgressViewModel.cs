@@ -70,6 +70,26 @@ public partial class ProgressViewModel : ObservableObject
     private string _apiStatus = string.Empty;
     public string ApiStatus { get => _apiStatus; private set => SetProperty(ref _apiStatus, value); }
 
+    // ── Madrasa Student Diary & Evaluations ──────────────────────────────────
+    private IReadOnlyList<MadrasaEvaluation> _recentEvaluations = [];
+    public IReadOnlyList<MadrasaEvaluation> RecentEvaluations { get => _recentEvaluations; private set => SetProperty(ref _recentEvaluations, value); }
+    public bool HasEvaluations => RecentEvaluations.Count > 0;
+
+    private string _sabaqDiarySummary = "لم يُسمّع اليوم (Pending)";
+    public string SabaqDiarySummary { get => _sabaqDiarySummary; private set => SetProperty(ref _sabaqDiarySummary, value); }
+
+    private string _sabqiDiarySummary = "مراجعة 5 صفحات (Due)";
+    public string SabqiDiarySummary { get => _sabqiDiarySummary; private set => SetProperty(ref _sabqiDiarySummary, value); }
+
+    private string _manzilDiarySummary = "نصف جزء (Scheduled)";
+    public string ManzilDiarySummary { get => _manzilDiarySummary; private set => SetProperty(ref _manzilDiarySummary, value); }
+
+    private int _mumtazEvaluationsCount;
+    public int MumtazEvaluationsCount { get => _mumtazEvaluationsCount; private set => SetProperty(ref _mumtazEvaluationsCount, value); }
+
+    private int _repeatEvaluationsCount;
+    public int RepeatEvaluationsCount { get => _repeatEvaluationsCount; private set => SetProperty(ref _repeatEvaluationsCount, value); }
+
     public ProgressViewModel(
         IVerseRepository verses,
         ITodayWorkflowService today,
@@ -127,6 +147,29 @@ public partial class ProgressViewModel : ObservableObject
             var (path, position) = await _verses.GetCurriculumPositionAsync(userKey);
             var pathVerses = _curriculum.GetLearningPath(path);
             var weak = await _verses.GetWeakVerseRecommendationsAsync(userKey);
+            var evaluations = await _verses.GetMadrasaEvaluationsAsync(userKey, 20);
+            RecentEvaluations = evaluations;
+            OnPropertyChanged(nameof(HasEvaluations));
+
+            var sabaqRecent = evaluations.FirstOrDefault(e => e.Mode == MadrasaRecitationMode.Sabaq);
+            if (sabaqRecent is not null)
+            {
+                var gradeStr = sabaqRecent.Grade == MadrasaGrade.Mumtaz ? "ممتاز 🌟" : sabaqRecent.Grade.ToString();
+                SabaqDiarySummary = $"{sabaqRecent.SurahNum}:{sabaqRecent.AyahNum} • {gradeStr} ({sabaqRecent.Score:F0}%)";
+            }
+            else
+            {
+                SabaqDiarySummary = "بانتظار تسميع اليوم (Ready)";
+            }
+
+            var sabqiRecent = evaluations.FirstOrDefault(e => e.Mode == MadrasaRecitationMode.Sabqi);
+            if (sabqiRecent is not null)
+            {
+                SabqiDiarySummary = $"{sabqiRecent.SurahNum}:{sabqiRecent.AyahNum} • {sabqiRecent.Grade}";
+            }
+
+            MumtazEvaluationsCount = evaluations.Count(e => e.Grade == MadrasaGrade.Mumtaz);
+            RepeatEvaluationsCount = evaluations.Count(e => e.Decision == MadrasaTeacherDecision.RepeatLesson);
 
             var newCount = TodayAssignments.Count(a => a.Assignment.Reason == LessonAssignmentReason.NewLesson);
             var reviewCount = TodayAssignments.Count(a => a.Assignment.Reason == LessonAssignmentReason.Review);

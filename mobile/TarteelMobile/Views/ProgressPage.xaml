@@ -22,6 +22,51 @@
         <!-- Main Scrollable Dashboard -->
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Spacing="14">
+                <!-- Madrasa Daily Hifz Register & Diary (دفتر متابعة التحفيظ اليومي) -->
+                <Border Padding="16" BackgroundColor="#0F172A" Stroke="#38BDF8" StrokeThickness="1.5" StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Label Text="📖" FontSize="20" VerticalOptions="Center" />
+                                <VerticalStackLayout Spacing="1">
+                                    <Label Text="سجل التسميع ودفتر المتابعة اليومي" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                    <Label Text="Al-Ustadh Madrasa Hifz Record" FontSize="{StaticResource FontSizeNano}" TextColor="#94A3B8" />
+                                </VerticalStackLayout>
+                            </HorizontalStackLayout>
+                            <Border Grid.Column="1" BackgroundColor="#065F46" StrokeShape="RoundRectangle 12" Padding="10,3">
+                                <Label Text="{Binding MumtazEvaluationsCount, StringFormat='🌟 {0} ممتاز'}" TextColor="#34D399" FontSize="{StaticResource FontSizeMicro}" FontAttributes="Bold" />
+                            </Border>
+                        </Grid>
+
+                        <!-- 3 Pillars of Madrasa Recitation -->
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                            <!-- Sabaq (New Lesson) -->
+                            <Border Grid.Column="0" BackgroundColor="#1E293B" Stroke="#10B981" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="8,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="السبق (Sabaq)" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="#34D399" />
+                                    <Label Text="{Binding SabaqDiarySummary}" FontSize="{StaticResource FontSizeMicro}" TextColor="#E2E8F0" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Sabqi (Recent Revision) -->
+                            <Border Grid.Column="1" BackgroundColor="#1E293B" Stroke="#F59E0B" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="8,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="السبقي (Sabqi)" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="#FBBF24" />
+                                    <Label Text="{Binding SabqiDiarySummary}" FontSize="{StaticResource FontSizeMicro}" TextColor="#E2E8F0" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Manzil (Dhor) -->
+                            <Border Grid.Column="2" BackgroundColor="#1E293B" Stroke="#38BDF8" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="8,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="المنزل (Manzil)" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="#38BDF8" />
+                                    <Label Text="{Binding ManzilDiarySummary}" FontSize="{StaticResource FontSizeMicro}" TextColor="#E2E8F0" LineBreakMode="TailTruncation" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- Top Summary Cards (Stacked on mobile, side-by-side on wide screens) -->
                 <Grid x:Name="SummaryGrid" ColumnDefinitions="*,240" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="10">
                     <Border x:Name="TodaySummaryBorder" Padding="16" BackgroundColor="{StaticResource PrimaryDark}" Stroke="{StaticResource Primary}" StrokeThickness="1" StrokeShape="RoundRectangle 10">

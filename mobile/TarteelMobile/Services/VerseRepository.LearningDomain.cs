@@ -790,4 +790,93 @@ public partial class LocalVerseRepository
         }
         return results;
     }
+
+    public async Task<MadrasaEvaluation> RecordMadrasaEvaluationAsync(
+        MadrasaEvaluationInput input,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var normalizedUserKey = ResolveUserKey(input.UserKey);
+        var evaluation = TarteelClone.LocalRecitationCore.Services.MadrasaPedagogyEngine.EvaluateRecitation(
+            input with { UserKey = normalizedUserKey });
+
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO madrasa_evaluations (
+                user_key, session_id, surah_num, ayah_num, end_ayah_num, mode, grade, score,
+                mistakes_count, tajweed_notes_count, luqmah_count, hesitation_count, decision,
+                remarks_arabic, remarks_english, created_at)
+            VALUES (
+                @user_key, @session_id, @surah_num, @ayah_num, @end_ayah_num, @mode, @grade, @score,
+                @mistakes_count, @tajweed_notes_count, @luqmah_count, @hesitation_count, @decision,
+                @remarks_arabic, @remarks_english, @created_at);
+            SELECT last_insert_rowid();
+            """;
+        command.Parameters.AddWithValue("@user_key", normalizedUserKey);
+        command.Parameters.AddWithValue("@session_id", (object?)evaluation.SessionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@surah_num", evaluation.SurahNum);
+        command.Parameters.AddWithValue("@ayah_num", evaluation.AyahNum);
+        command.Parameters.AddWithValue("@end_ayah_num", evaluation.EndAyahNum);
+        command.Parameters.AddWithValue("@mode", (int)evaluation.Mode);
+        command.Parameters.AddWithValue("@grade", (int)evaluation.Grade);
+        command.Parameters.AddWithValue("@score", evaluation.Score);
+        command.Parameters.AddWithValue("@mistakes_count", evaluation.MistakesCount);
+        command.Parameters.AddWithValue("@tajweed_notes_count", evaluation.TajweedNotesCount);
+        command.Parameters.AddWithValue("@luqmah_count", evaluation.LuqmahCount);
+        command.Parameters.AddWithValue("@hesitation_count", evaluation.HesitationCount);
+        command.Parameters.AddWithValue("@decision", (int)evaluation.Decision);
+        command.Parameters.AddWithValue("@remarks_arabic", evaluation.RemarksArabic);
+        command.Parameters.AddWithValue("@remarks_english", evaluation.RemarksEnglish);
+        command.Parameters.AddWithValue("@created_at", evaluation.EvaluatedAt.ToString("O"));
+
+        var rowId = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+        return evaluation with { Id = rowId };
+    }
+
+    public async Task<IReadOnlyList<MadrasaEvaluation>> GetMadrasaEvaluationsAsync(
+        string? userKey = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        await using var connection = CreateOpenConnection();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, user_key, session_id, surah_num, ayah_num, end_ayah_num, mode, grade, score,
+                   mistakes_count, tajweed_notes_count, luqmah_count, hesitation_count, decision,
+                   remarks_arabic, remarks_english, created_at
+            FROM madrasa_evaluations
+            WHERE user_key = @user_key
+            ORDER BY id DESC
+            LIMIT @limit;
+            """;
+        command.Parameters.AddWithValue("@user_key", ResolveUserKey(userKey));
+        command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 100));
+
+        var results = new List<MadrasaEvaluation>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new MadrasaEvaluation(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetInt64(2),
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                reader.GetInt32(5),
+                (MadrasaRecitationMode)reader.GetInt32(6),
+                (MadrasaGrade)reader.GetInt32(7),
+                reader.GetDouble(8),
+                reader.GetInt32(9),
+                reader.GetInt32(10),
+                reader.GetInt32(11),
+                reader.GetInt32(12),
+                (MadrasaTeacherDecision)reader.GetInt32(13),
+                reader.GetString(14),
+                reader.GetString(15),
+                DateTimeOffset.Parse(reader.GetString(16))));
+        }
+        return results;
+    }
 }

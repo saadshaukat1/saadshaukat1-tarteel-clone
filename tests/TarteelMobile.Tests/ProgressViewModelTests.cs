@@ -114,6 +114,10 @@ public sealed class ProgressViewModelTests
         public Task<UserPreferences> GetUserPreferencesAsync(string userKey, CancellationToken cancellationToken = default) => Task.FromResult(new UserPreferences(userKey, MemorizationGoal.Casual, 1, 5, false, DateTimeOffset.UtcNow));
         public Task<UserPreferences> SaveUserPreferencesAsync(UserPreferences preferences, CancellationToken cancellationToken = default) => Task.FromResult(preferences);
         public Task<IReadOnlyList<WeakVerseRecommendation>> GetWeakVerseRecommendationsAsync(string? userKey = null, int limit = 10, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<WeakVerseRecommendation>>([]);
+        public Task<MadrasaEvaluation> RecordMadrasaEvaluationAsync(MadrasaEvaluationInput input, CancellationToken cancellationToken = default)
+            => Task.FromResult(TarteelClone.LocalRecitationCore.Services.MadrasaPedagogyEngine.EvaluateRecitation(input));
+        public Task<IReadOnlyList<MadrasaEvaluation>> GetMadrasaEvaluationsAsync(string? userKey = null, int limit = 20, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<MadrasaEvaluation>>([]);
     }
 
     private sealed class FakeSessionService : ISessionService

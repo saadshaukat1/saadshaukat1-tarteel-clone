@@ -68,6 +68,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<TarteelClone.SearchService.IVerseSearchIndex, TarteelClone.SearchService.WordMatchSearchIndex>();
         builder.Services.AddSingleton<TarteelClone.Api.ILocalApi, LocalApiService>();
         builder.Services.AddSingleton<ILineLevelPageSource, JsonLinePageSource>();
+        builder.Services.AddSingleton<IMadrasaAudioFeedbackService, MadrasaAudioFeedbackService>();
 
         // ── ViewModels ────────────────────────────────────────────────────────
         builder.Services.AddTransient<StartupViewModel>();

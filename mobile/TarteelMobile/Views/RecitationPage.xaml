@@ -3,181 +3,632 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:TarteelMobile.ViewModels"
              xmlns:models="clr-namespace:TarteelMobile.Models"
+             xmlns:views="clr-namespace:TarteelMobile.Views"
              x:Class="TarteelMobile.Views.RecitationPage"
+             x:Name="PageRoot"
              x:DataType="vm:RecitationViewModel"
              Title="Recite"
-             BackgroundColor="{StaticResource Surface}">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="0">
-        <!-- Top App Header -->
-        <Grid x:Name="HeaderGrid" Grid.Row="0" Padding="16,10,16,8" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-            <VerticalStackLayout Spacing="1" VerticalOptions="Center">
-                <Label Text="Recitation console" FontSize="{StaticResource FontSizeTitle}" FontAttributes="Bold" LineBreakMode="TailTruncation" />
-                <Label Text="Listen, match, correct" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" LineBreakMode="TailTruncation" />
+             BackgroundColor="#111214"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid BackgroundColor="#111214">
+        
+        <!-- Main Content Layout -->
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="0" BackgroundColor="#111214">
+            
+            <!-- 1. Top App Header Bar -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="12,8,12,6" BackgroundColor="#16181B">
+                <!-- Left: Menu + Quick Surah Navigator -->
+                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                    <Button Text="☰" FontSize="18" BackgroundColor="Transparent" TextColor="#CBD5E1" Padding="0" WidthRequest="32" HeightRequest="32" />
+                    
+                    <!-- Quick Previous Surah Arrow -->
+                    <Button Text="◀"
+                            Command="{Binding PreviousSurahCommand}"
+                            FontSize="12"
+                            BackgroundColor="#1E232B"
+                            TextColor="#94A3B8"
+                            WidthRequest="28"
+                            HeightRequest="28"
+                            CornerRadius="14"
+                            Padding="0" />
+
+                    <!-- Interactive Surah Pill (Tap to open full picker) -->
+                    <Border BackgroundColor="#1E232B"
+                            Stroke="#334155"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 16"
+                            Padding="8,3">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding OpenSurahPickerCommand}" />
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Label Text="📖" FontSize="14" VerticalOptions="Center" />
+                            <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                    <Label Text="{Binding HeaderTitle}" TextColor="#F8FAFC" FontAttributes="Bold" FontSize="14" />
+                                    <Label Text="▾" TextColor="#38BDF8" FontSize="10" FontAttributes="Bold" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Label Text="{Binding HeaderSubtitle}" TextColor="#94A3B8" FontSize="10" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                    </Border>
+
+                    <!-- Quick Next Surah Arrow -->
+                    <Button Text="▶"
+                            Command="{Binding NextSurahCommand}"
+                            FontSize="12"
+                            BackgroundColor="#1E232B"
+                            TextColor="#94A3B8"
+                            WidthRequest="28"
+                            HeightRequest="28"
+                            CornerRadius="14"
+                            Padding="0" />
+                </HorizontalStackLayout>
+
+                <!-- Right: Auto-Detect Toggle, Search, Settings -->
+                <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                    <!-- Auto-Detect / Tarteel.ai Mode Toggle -->
+                    <Button Text="🌐"
+                            Command="{Binding ToggleAutoDetectModeCommand}"
+                            TextColor="{Binding AutoDetectButtonColor}"
+                            BackgroundColor="#1E232B"
+                            FontSize="14"
+                            WidthRequest="32"
+                            HeightRequest="32"
+                            CornerRadius="16"
+                            Padding="0" />
+                    <!-- Search / Browse Surahs -->
+                    <Button Text="🔍"
+                            Command="{Binding OpenSurahPickerCommand}"
+                            FontSize="14"
+                            BackgroundColor="#1E232B"
+                            TextColor="#38BDF8"
+                            WidthRequest="32"
+                            HeightRequest="32"
+                            CornerRadius="16"
+                            Padding="0" />
+                    <!-- Diagnostics Settings -->
+                    <Button Text="⚙"
+                            FontSize="16"
+                            Command="{Binding ToggleAdvancedModeCommand}"
+                            BackgroundColor="Transparent"
+                            TextColor="#94A3B8"
+                            WidthRequest="32"
+                            HeightRequest="32"
+                            Padding="0" />
+                </HorizontalStackLayout>
+            </Grid>
+
+            <!-- 2. Madrasa Modes, Surah Meta Banner, Bismillah & Real-Time Status Toast -->
+            <VerticalStackLayout Grid.Row="1" Padding="14,2,14,4" Spacing="4" BackgroundColor="#111214">
+                
+                <!-- Madrasa Pedagogical Mode Strip (Sabaq, Sabqi, Manzil, Ustadh Exam) -->
+                <Border BackgroundColor="#14171C" Stroke="#2A303C" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="2" Margin="0,0,0,2">
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="3">
+                        <Button Text="السبق (Sabaq)"
+                                Command="{Binding SetMadrasaModeCommand}" CommandParameter="Sabaq"
+                                BackgroundColor="{Binding SabaqTabBgColor}" TextColor="{Binding SabaqTabTextColor}"
+                                FontAttributes="Bold" FontSize="10" HeightRequest="28" CornerRadius="6" Padding="0" />
+                        <Button Grid.Column="1" Text="السبقي (Sabqi)"
+                                Command="{Binding SetMadrasaModeCommand}" CommandParameter="Sabqi"
+                                BackgroundColor="{Binding SabqiTabBgColor}" TextColor="{Binding SabqiTabTextColor}"
+                                FontAttributes="Bold" FontSize="10" HeightRequest="28" CornerRadius="6" Padding="0" />
+                        <Button Grid.Column="2" Text="المنزل (Manzil)"
+                                Command="{Binding SetMadrasaModeCommand}" CommandParameter="Manzil"
+                                BackgroundColor="{Binding ManzilTabBgColor}" TextColor="{Binding ManzilTabTextColor}"
+                                FontAttributes="Bold" FontSize="10" HeightRequest="28" CornerRadius="6" Padding="0" />
+                        <Button Grid.Column="3" Text="اختبار الشيخ"
+                                Command="{Binding SetMadrasaModeCommand}" CommandParameter="UstadhExam"
+                                BackgroundColor="{Binding ExamTabBgColor}" TextColor="{Binding ExamTabTextColor}"
+                                FontAttributes="Bold" FontSize="10" HeightRequest="28" CornerRadius="6" Padding="0" />
+                    </Grid>
+                </Border>
+
+                <!-- Interactive Ustadh Oral Exam & Mutashabihat Banner (Shown in Exam Mode) -->
+                <Border IsVisible="{Binding IsExamMode}"
+                        BackgroundColor="#2E1065" Stroke="#7C3AED" StrokeThickness="1.2"
+                        StrokeShape="RoundRectangle 8" Padding="10,6" Margin="0,0,0,2">
+                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="🎙️ سؤال اختبار الشيخ (المتشابهات القرآنيّة):" TextColor="#D8B4FE" FontSize="10" FontAttributes="Bold" />
+                            <Label Text="{Binding ExamQuestionPrompt}" TextColor="#FAF5FF" FontSize="13" FontFamily="{StaticResource ArabicFontFamily}" FontAttributes="Bold" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="سؤال آخر ⟳" Command="{Binding NextExamQuestionCommand}"
+                                BackgroundColor="#581C87" TextColor="#E9D5FF" FontSize="10" HeightRequest="28" Padding="8,0" CornerRadius="6" />
+                    </Grid>
+                </Border>
+                <!-- Ornate Surah Frame (Tap to change Surah) -->
+                <Border Stroke="#334155" StrokeThickness="1" BackgroundColor="#181B1F" Padding="12,4" StrokeShape="RoundRectangle 8">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding OpenSurahPickerCommand}" />
+                    </Border.GestureRecognizers>
+                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+                        <Label Text="۞" TextColor="#CBD5E1" FontSize="14" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="{Binding SurahBannerArabic}" HorizontalOptions="Center" TextColor="#F8FAFC" FontSize="19" FontAttributes="Bold" FontFamily="{StaticResource ArabicFontFamily}" />
+                        <Label Grid.Column="2" Text="۞" TextColor="#CBD5E1" FontSize="14" VerticalOptions="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- Bismillah -->
+                <Label Text="{Binding BismillahText}"
+                       HorizontalOptions="Center"
+                       TextColor="#94A3B8"
+                       FontSize="17"
+                       FontFamily="{StaticResource ArabicFontFamily}" />
+
+                <!-- Real-Time Activity / Status Toast Banner -->
+                <Border BackgroundColor="{Binding StatusBannerBackgroundColor}"
+                        Stroke="{Binding MicBorderColor}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        Padding="10,5"
+                        Margin="0,2,0,0">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalOptions="Center">
+                        <Label Text="{Binding StatusBannerIcon}" FontSize="13" VerticalOptions="Center" />
+                        <Label Grid.Column="1"
+                               Text="{Binding StatusMessage}"
+                               TextColor="{Binding StatusBannerTextColor}"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               LineBreakMode="TailTruncation"
+                               VerticalOptions="Center" />
+                    </Grid>
+                </Border>
             </VerticalStackLayout>
-            <Button x:Name="AuthButton" Grid.Column="1" Text="{Binding AuthButtonText}" BackgroundColor="Transparent" BorderWidth="0" TextColor="{StaticResource Accent}" HeightRequest="48" MinimumHeightRequest="48" Padding="10,0" Command="{Binding ToggleAuthCommand}" />
-            <Button x:Name="DiagnosticsButton" Grid.Column="2" Text="{Binding IsAdvancedMode, StringFormat='Diag: {0}'}" Style="{StaticResource CompactActionButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" Padding="10,0" Command="{Binding ToggleAdvancedModeCommand}" />
-        </Grid>
 
-        <!-- Main Content Area: Adapts between 1-column on mobile and 2-columns on desktop -->
-        <Grid x:Name="ContentGrid" Grid.Row="1" Padding="14,4,14,10" ColumnDefinitions="*" RowDefinitions="Auto,*" ColumnSpacing="14" RowSpacing="10">
-            <ScrollView x:Name="PracticeScroll" Grid.Column="0" Grid.Row="0">
-                <VerticalStackLayout Spacing="12">
-                    <!-- Passage Selector Bar (Responsive Proportions) -->
-                    <Grid x:Name="PassagePickerGrid" ColumnDefinitions="2*,1*,Auto" ColumnSpacing="6" IsVisible="{Binding IsFreeReciteMode, Converter={StaticResource InvertedBoolConverter}}">
-                        <VerticalStackLayout x:Name="SurahPickerLayout" Spacing="2">
-                            <Label Text="Surah" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
-                            <Picker Title="Surah" ItemsSource="{Binding Surahs}" ItemDisplayBinding="{Binding NameEnglish, x:DataType=models:SurahInfo}" SelectedItem="{Binding SelectedSurahInfo}" IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" HeightRequest="48" MinimumHeightRequest="48" />
-                        </VerticalStackLayout>
-                        <VerticalStackLayout x:Name="AyahPickerLayout" Grid.Column="1" Spacing="2">
-                            <Label Text="Ayah" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" />
-                            <Picker Title="#" ItemsSource="{Binding AyahNumbers}" SelectedItem="{Binding SelectedAyah}" IsEnabled="{Binding IsRecording, Converter={StaticResource InvertedBoolConverter}}" HeightRequest="48" MinimumHeightRequest="48" />
-                        </VerticalStackLayout>
-                        <Button x:Name="LoadPassageButton" Grid.Column="2" Text="Load" Style="{StaticResource PrimaryButtonStyle}" HeightRequest="48" MinimumHeightRequest="48" MinimumWidthRequest="60" Padding="14,0" VerticalOptions="End" Command="{Binding LoadSelectedVerseCommand}" />
-                    </Grid>
+            <!-- 3. Zero-Layout-Shift 16-Line Mushaf Canvas for Memorization Recitation Mode -->
+            <Grid Grid.Row="2" BackgroundColor="#111214">
+                <GraphicsView x:Name="MushafView"
+                              Drawable="{Binding CanvasDrawable}"
+                              BackgroundColor="#111214"
+                              Margin="8,0"
+                              HorizontalOptions="Fill"
+                              VerticalOptions="Fill"
+                              SizeChanged="OnCanvasSizeChanged" />
 
-                    <!-- Free Recitation Mode Indicator -->
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding IsFreeReciteMode}" Padding="4,0">
-                        <CheckBox IsChecked="{Binding IsFreeReciteMode}" VerticalOptions="Center" />
-                        <Label Grid.Column="1" Text="Free recitation, identify the ayah automatically" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
-                    </Grid>
-
-                    <!-- Verse Practice Card -->
-                    <Border Padding="16,18" IsVisible="{Binding IsVerseVisible}" BackgroundColor="{StaticResource SurfaceElevated}" Stroke="{StaticResource AccentMuted}" StrokeThickness="1" StrokeShape="RoundRectangle 12">
-                        <Border.Shadow>
-                            <Shadow Brush="Black" Offset="0,2" Radius="6" Opacity="0.28" />
-                        </Border.Shadow>
-                        <VerticalStackLayout Spacing="14">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <Label Text="EXPECTED AYAH" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource Accent}" VerticalOptions="Center" />
-                                <BoxView Grid.Column="1" HeightRequest="1" BackgroundColor="{StaticResource BorderSubtle}" VerticalOptions="Center" />
-                                <Label Grid.Column="2" Text="{Binding CurrentAyahLabel}" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
-                            </Grid>
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsVisible="{Binding IsRecording}">
-                                <Label Text="LIVE MATCH" FontSize="{StaticResource FontSizeNano}" FontAttributes="Bold" TextColor="{StaticResource TextTertiary}" VerticalOptions="Center" />
-                                <ProgressBar Grid.Column="1" Progress="{Binding Confidence}" ProgressColor="{Binding ConfidenceBarColor}" HeightRequest="4" VerticalOptions="Center" />
-                                <Label Grid.Column="2" Text="{Binding LiveMatchSummary}" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" LineBreakMode="TailTruncation" />
-                            </Grid>
-                            <Label x:Name="ArabicLabel" FormattedText="{Binding HighlightedArabicText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="{StaticResource RecitationArabicFontSize}" LineHeight="{StaticResource LineHeightArabic}" HorizontalTextAlignment="Center" FlowDirection="RightToLeft" LineBreakMode="WordWrap" />
-                            <VerticalStackLayout IsVisible="{Binding IsRecording}" Spacing="8">
-                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                    <Label Text="Your recitation" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource TextSecondary}" />
-                                    <ActivityIndicator Grid.Column="2" IsRunning="{Binding IsTranscribing}" IsVisible="{Binding IsTranscribing}" Color="{StaticResource Accent}" HeightRequest="18" WidthRequest="18" />
-                                </Grid>
-                                <Label Text="{Binding TranscriptionText}" FontFamily="{StaticResource ArabicFontFamily}" FontSize="{StaticResource FontSizeVerseTranscription}" LineHeight="{StaticResource LineHeightArabic}" HorizontalTextAlignment="End" FlowDirection="RightToLeft" TextColor="{StaticResource TextSecondary}" IsVisible="{Binding TranscriptionText, Converter={StaticResource StringToBoolConverter}}" />
-                                <Label Text="Listening for your next words..." FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource TextTertiary}" HorizontalTextAlignment="Center" IsVisible="{Binding IsTranscribing}" />
-                            </VerticalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-
-                    <!-- Memory Mode (Verse Hidden) Card -->
-                    <Border IsVisible="{Binding IsVerseVisible, Converter={StaticResource InvertedBoolConverter}}" Padding="20,28" BackgroundColor="{StaticResource SurfacePanel}" Stroke="{StaticResource BorderSubtle}" StrokeShape="RoundRectangle 12">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="Memory mode" FontSize="{StaticResource FontSizeSubtitle}" FontAttributes="Bold" HorizontalTextAlignment="Center" />
-                            <Label Text="The ayah is hidden. Recite from memory, then reveal feedback." FontSize="{StaticResource FontSizeBody}" TextColor="{StaticResource TextSecondary}" HorizontalTextAlignment="Center" />
-                        </VerticalStackLayout>
-                    </Border>
-                </VerticalStackLayout>
-            </ScrollView>
-
-            <!-- Diagnostics & Coaching Panel: Scroll-safe bindable layouts -->
-            <ScrollView x:Name="DiagnosticsScroll" Grid.Column="0" Grid.Row="1" IsVisible="{Binding IsAdvancedMode}">
-                <VerticalStackLayout Spacing="10">
-                    <Border IsVisible="{Binding ShowModelMissingPanel}" Padding="14" BackgroundColor="{StaticResource SurfaceErrorBg}" Stroke="{StaticResource ErrorBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="Whisper model unavailable" FontAttributes="Bold" TextColor="{StaticResource ErrorText}" />
-                            <Label Text="Import a local model to enable listening." FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource ErrorText}" />
-                            <Button Text="Import model" BackgroundColor="{StaticResource Error}" TextColor="White" HeightRequest="48" MinimumHeightRequest="48" Command="{Binding BrowseForModelCommand}" />
-                        </VerticalStackLayout>
-                    </Border>
-                    <Border IsVisible="{Binding ShowModelDownloadingPanel}" Padding="14" BackgroundColor="{StaticResource SurfaceInfoBg}" Stroke="{StaticResource InfoBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="{Binding ModelDownloadStatus}" FontAttributes="Bold" TextColor="{StaticResource InfoText}" />
-                            <ProgressBar Progress="{Binding ModelDownloadProgress}" ProgressColor="{StaticResource Info}" IsVisible="{Binding IsModelDownloadIndeterminate, Converter={StaticResource InvertedBoolConverter}}" HeightRequest="6" />
-                            <ActivityIndicator IsRunning="{Binding IsModelDownloadIndeterminate}" IsVisible="{Binding IsModelDownloadIndeterminate}" Color="{StaticResource Info}" HorizontalOptions="Start" />
-                        </VerticalStackLayout>
-                    </Border>
-                    <Border IsVisible="{Binding HasMismatches}" Padding="14" BackgroundColor="{StaticResource SurfaceErrorBg}" Stroke="{StaticResource ErrorBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
-                        <VerticalStackLayout Spacing="8">
-                            <Label Text="Word corrections" FontAttributes="Bold" TextColor="{StaticResource ErrorText}" />
-                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Mismatches}" Spacing="4">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="models:WordMismatch">
-                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Padding="0,4">
-                                            <Label Text="{Binding Position, StringFormat='#{0}'}" TextColor="{StaticResource TextTertiary}" VerticalOptions="Center" />
-                                            <Label Grid.Column="1" Text="{Binding Spoken}" FontFamily="{StaticResource ArabicFontFamily}" HorizontalTextAlignment="End" VerticalOptions="Center" />
-                                            <Label Grid.Column="2" Text="{Binding Expected}" FontFamily="{StaticResource ArabicFontFamily}" TextColor="{StaticResource ErrorText}" HorizontalTextAlignment="End" VerticalOptions="Center" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-                    <Border IsVisible="{Binding HasTajweedViolations}" Padding="14" BackgroundColor="{StaticResource SurfaceWarningBg}" Stroke="{StaticResource WarningBorder}" StrokeThickness="1" StrokeShape="RoundRectangle 8">
-                        <VerticalStackLayout Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Label Text="Tajweed coaching" FontAttributes="Bold" TextColor="{StaticResource WarningText}" />
-                                <Label Grid.Column="1" Text="AI Practice Aid" FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource WarningTextSecondary}" VerticalOptions="Center" />
-                            </Grid>
-                            <Label Text="💡 Acoustic heuristics for practice — not an authoritative teacher fatwa or formal Ijazah." FontSize="{StaticResource FontSizeNano}" TextColor="{StaticResource WarningTextSecondary}" />
-                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding TajweedViolations}" Spacing="6">
-                                <BindableLayout.ItemTemplate>
-                                    <DataTemplate x:DataType="models:TajweedViolation">
-                                        <VerticalStackLayout Spacing="2" Padding="0,4">
-                                            <Label Text="{Binding RuleDisplayName}" FontAttributes="Bold" TextColor="{StaticResource WarningText}" />
-                                            <Label Text="{Binding Hint}" FontSize="{StaticResource FontSizeCaption}" TextColor="{StaticResource WarningTextSecondary}" />
-                                        </VerticalStackLayout>
-                                    </DataTemplate>
-                                </BindableLayout.ItemTemplate>
-                            </VerticalStackLayout>
-                        </VerticalStackLayout>
-                    </Border>
-                    <Border IsVisible="{Binding ShowAsrDebugPanel}" Padding="12" BackgroundColor="{StaticResource DebugBg}" Stroke="{StaticResource DebugBorder}" StrokeShape="RoundRectangle 8">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="Whisper diagnostics" FontSize="{StaticResource FontSizeCaption}" FontAttributes="Bold" TextColor="{StaticResource DebugText}" />
-                            <Label Text="{Binding AsrDebugLog}" FontSize="{StaticResource FontSizeMicro}" FontFamily="Courier New" TextColor="{StaticResource DebugText}" />
-                        </VerticalStackLayout>
-                    </Border>
-                </VerticalStackLayout>
-            </ScrollView>
-        </Grid>
-
-        <!-- Bottom Session Control Console: Safe Area aware, ergonomic mobile layout -->
-        <Border x:Name="SessionBar" Grid.Row="2" Padding="14,10,14,16" BackgroundColor="{StaticResource SurfacePanel}" Stroke="{StaticResource BorderSubtle}" StrokeThickness="1">
-            <VerticalStackLayout Spacing="10">
-                <!-- Live Confidence Bar -->
-                <ProgressBar x:Name="ConfidenceBar" Progress="{Binding Confidence}" ProgressColor="{Binding ConfidenceBarColor}" HeightRequest="5" />
-
-                <!-- Session Status Row -->
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
-                        <Label Text="{Binding StatusMessage}" FontSize="{StaticResource FontSizeBodyLarge}" FontAttributes="Bold" TextColor="{StaticResource Primary}" LineBreakMode="TailTruncation" />
-                        <Label Text="{Binding ProcessingSummary}" FontSize="{StaticResource FontSizeMicro}" TextColor="{StaticResource TextSecondary}" LineBreakMode="TailTruncation" />
+                <!-- Collapsible Diagnostics Overlay Panel (When toggled via Settings) -->
+                <Border IsVisible="{Binding IsAdvancedMode}"
+                        VerticalOptions="End"
+                        Margin="12"
+                        Padding="10"
+                        BackgroundColor="#1E2229"
+                        Stroke="#374151"
+                        StrokeShape="RoundRectangle 8">
+                    <VerticalStackLayout Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Text="ASR Diagnostics" FontAttributes="Bold" TextColor="#38BDF8" FontSize="12" />
+                            <Button Grid.Column="1" Text="✕" Command="{Binding ToggleAdvancedModeCommand}" TextColor="#94A3B8" BackgroundColor="Transparent" HeightRequest="24" WidthRequest="24" Padding="0" />
+                        </Grid>
+                        <Label Text="{Binding AsrDebugLog}" FontSize="10" FontFamily="Courier New" TextColor="#E2E8F0" MaxLines="4" />
                     </VerticalStackLayout>
-                    <Button Grid.Column="1" Text="Reset" Style="{StaticResource OutlineButtonStyle}" HeightRequest="44" MinimumHeightRequest="44" Padding="14,0" IsEnabled="{Binding IsResetting, Converter={StaticResource InvertedBoolConverter}}" Command="{Binding StopSessionCommand}" />
+                </Border>
+            </Grid>
+
+            <!-- 4. Real-Time Recitation HUD & Live Token Pill & Glowing FAB -->
+            <Grid Grid.Row="3" BackgroundColor="#16181B" Padding="14,6" ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+                <!-- Left HUD Stats -->
+                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                    <!-- Mistakes Badge -->
+                    <Border BackgroundColor="#DC2626" StrokeShape="RoundRectangle 12" Padding="8,2">
+                        <Label Text="{Binding MistakesCount, StringFormat='💬 {0}'}" TextColor="White" FontSize="11" FontAttributes="Bold" />
+                    </Border>
+
+                    <!-- Mistakes/pg & Accuracy Pill -->
+                    <Border BackgroundColor="#1E293B" StrokeShape="RoundRectangle 10" Padding="8,2">
+                        <HorizontalStackLayout Spacing="4">
+                            <Label Text="{Binding MistakesCount, StringFormat='{0}/pg'}" TextColor="#94A3B8" VerticalOptions="Center" FontSize="10" />
+                            <BoxView WidthRequest="1" HeightRequest="12" BackgroundColor="#475569" VerticalOptions="Center" />
+                            <Label Text="{Binding Accuracy, StringFormat='{0:F1}%'}" TextColor="#38BDF8" VerticalOptions="Center" FontSize="11" FontAttributes="Bold" />
+                        </HorizontalStackLayout>
+                    </Border>
+
+                    <!-- Timer Pill with red indicator -->
+                    <Border BackgroundColor="#22252A" StrokeShape="RoundRectangle 10" Padding="8,2">
+                        <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                            <Ellipse WidthRequest="6" HeightRequest="6" Fill="#EF4444" VerticalOptions="Center" />
+                            <Label Text="{Binding ElapsedTimeString}" TextColor="#E2E8F0" VerticalOptions="Center" FontSize="11" FontAttributes="Bold" />
+                        </HorizontalStackLayout>
+                    </Border>
+
+                    <!-- Stop / Reset Button -->
+                    <Button Text="■" Command="{Binding StopRecitationCommand}" BackgroundColor="#7F1D1D" TextColor="#EF4444" HeightRequest="28" WidthRequest="28" Padding="0" CornerRadius="6" />
+
+                    <!-- Teacher Luqmah (Prompt) Button -->
+                    <Button Text="لقمة 💡"
+                            Command="{Binding GiveLuqmahCommand}"
+                            BackgroundColor="#064E3B"
+                            TextColor="#34D399"
+                            BorderColor="#059669"
+                            BorderWidth="1"
+                            FontAttributes="Bold"
+                            FontSize="10"
+                            HeightRequest="28"
+                            Padding="8,0"
+                            CornerRadius="6" />
+
+                    <!-- Teacher Evaluation Button -->
+                    <Button Text="تقييم 📋"
+                            Command="{Binding CompleteRecitationSessionCommand}"
+                            BackgroundColor="#0F766E"
+                            TextColor="#CCFBF1"
+                            BorderColor="#14B8A6"
+                            BorderWidth="1"
+                            FontAttributes="Bold"
+                            FontSize="10"
+                            HeightRequest="28"
+                            Padding="8,0"
+                            CornerRadius="6" />
+                </HorizontalStackLayout>
+
+                <!-- Center: Floating Live Recognized Word Pill -->
+                <Border Grid.Column="1" HorizontalOptions="End" Margin="0,0,10,0"
+                        IsVisible="{Binding HasLiveToken}"
+                        BackgroundColor="#1F2937" Stroke="#374151" StrokeShape="RoundRectangle 16" Padding="12,3">
+                    <Label Text="{Binding LiveTokenText}" TextColor="#4ADE80" FontSize="14" FontFamily="{StaticResource ArabicFontFamily}" />
+                </Border>
+
+                <!-- Right: State Action Button (FAB) with Glowing Outer Ring -->
+                <Border Grid.Column="2"
+                        Stroke="{Binding MicBorderColor}"
+                        StrokeThickness="2.5"
+                        StrokeShape="RoundRectangle 29"
+                        HeightRequest="58"
+                        WidthRequest="58"
+                        Padding="0"
+                        BackgroundColor="Transparent"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center">
+                    <Button Command="{Binding ToggleRecordingCommand}"
+                            Text="{Binding FabIconText}"
+                            BackgroundColor="{Binding MicButtonColor}"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            FontSize="22"
+                            HeightRequest="50"
+                            WidthRequest="50"
+                            CornerRadius="25"
+                            Padding="0" />
+                </Border>
+            </Grid>
+
+            <!-- 5. Bottom 6-Button Toolbar -->
+            <Grid Grid.Row="4" BackgroundColor="#0F1113" Padding="10,6" ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="4">
+                <!-- 1. Tajweed Mode Toggle -->
+                <Button Grid.Column="0" Text="📖" Command="{Binding ToggleTajweedCommand}" BackgroundColor="Transparent" TextColor="{Binding TajweedButtonColor}" FontSize="18" HeightRequest="40" Padding="0" />
+
+                <!-- 2. Blind Memorization / Reveal Mode Toggle -->
+                <Button Grid.Column="1" Text="👁" Command="{Binding ToggleBlindModeCommand}" BackgroundColor="Transparent" TextColor="{Binding BlindModeButtonColor}" FontSize="18" HeightRequest="40" Padding="0" />
+
+                <!-- 3. Previous Ayah -->
+                <Button Grid.Column="2" Text="‹" Command="{Binding PreviousAyahCommand}" BackgroundColor="Transparent" TextColor="#94A3B8" FontSize="22" HeightRequest="40" Padding="0" />
+
+                <!-- 4. Rewind Page -->
+                <Button Grid.Column="3" Text="«" Command="{Binding RewindPageCommand}" BackgroundColor="Transparent" TextColor="#94A3B8" FontSize="22" HeightRequest="40" Padding="0" />
+
+                <!-- 5. Pencil / Mark -->
+                <Button Grid.Column="4" Text="✎" BackgroundColor="Transparent" TextColor="#94A3B8" FontSize="18" HeightRequest="40" Padding="0" />
+
+                <!-- 6. Duplicate / Share -->
+                <Button Grid.Column="5" Text="⎘" BackgroundColor="Transparent" TextColor="#94A3B8" FontSize="18" HeightRequest="40" Padding="0" />
+            </Grid>
+
+        </Grid>
+
+        <!-- 6. Intuitive Surah & Ayah Selector Modal Overlay -->
+        <Grid IsVisible="{Binding IsSurahPickerOpen}"
+              ZIndex="100"
+              BackgroundColor="#CC05070A">
+            
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    WidthRequest="460"
+                    MaximumHeightRequest="600"
+                    Margin="16"
+                    BackgroundColor="#16191E"
+                    Stroke="#334155"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 18"
+                    Padding="16">
+                
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="10">
+                    <!-- Modal Header -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label Text="📖" FontSize="20" VerticalOptions="Center" />
+                            <VerticalStackLayout Spacing="1">
+                                <Label Text="Select Surah" TextColor="#F8FAFC" FontSize="18" FontAttributes="Bold" />
+                                <Label Text="Choose from all 114 Surahs of the Holy Quran" TextColor="#94A3B8" FontSize="11" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="✕"
+                                Command="{Binding CloseSurahPickerCommand}"
+                                TextColor="#94A3B8"
+                                BackgroundColor="#222731"
+                                HeightRequest="32"
+                                WidthRequest="32"
+                                CornerRadius="16"
+                                Padding="0" />
+                    </Grid>
+
+                    <!-- Search Input Bar -->
+                    <Border Grid.Row="1"
+                            BackgroundColor="#1E232C"
+                            Stroke="#374151"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 10"
+                            Padding="10,2">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalOptions="Center">
+                            <Label Text="🔍" FontSize="14" VerticalOptions="Center" TextColor="#64748B" />
+                            <Entry Grid.Column="1"
+                                   Text="{Binding SurahSearchText}"
+                                   Placeholder="Search by name, number, or Arabic (e.g. 67, Mulk, يس, 1)…"
+                                   PlaceholderColor="#64748B"
+                                   TextColor="#F8FAFC"
+                                   FontSize="13"
+                                   BackgroundColor="Transparent"
+                                   VerticalOptions="Center" />
+                            <Button Grid.Column="2"
+                                    Text="✕"
+                                    Command="{Binding ClearSearchCommand}"
+                                    IsVisible="{Binding HasSearchText}"
+                                    TextColor="#94A3B8"
+                                    BackgroundColor="Transparent"
+                                    WidthRequest="24"
+                                    HeightRequest="24"
+                                    Padding="0" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Category Filter Chips -->
+                    <HorizontalStackLayout Grid.Row="2" Spacing="6">
+                        <Button Text="All (114)"
+                                Command="{Binding SetCategoryFilterCommand}"
+                                CommandParameter="All"
+                                FontSize="11"
+                                HeightRequest="28"
+                                Padding="10,0"
+                                CornerRadius="14"
+                                BackgroundColor="#1E293B"
+                                TextColor="#38BDF8" />
+                        <Button Text="Popular"
+                                Command="{Binding SetCategoryFilterCommand}"
+                                CommandParameter="Popular"
+                                FontSize="11"
+                                HeightRequest="28"
+                                Padding="10,0"
+                                CornerRadius="14"
+                                BackgroundColor="#1E293B"
+                                TextColor="#94A3B8" />
+                        <Button Text="Juz 30"
+                                Command="{Binding SetCategoryFilterCommand}"
+                                CommandParameter="Juz30"
+                                FontSize="11"
+                                HeightRequest="28"
+                                Padding="10,0"
+                                CornerRadius="14"
+                                BackgroundColor="#1E293B"
+                                TextColor="#94A3B8" />
+                        <Button Text="Meccan"
+                                Command="{Binding SetCategoryFilterCommand}"
+                                CommandParameter="Meccan"
+                                FontSize="11"
+                                HeightRequest="28"
+                                Padding="10,0"
+                                CornerRadius="14"
+                                BackgroundColor="#1E293B"
+                                TextColor="#94A3B8" />
+                        <Button Text="Medinan"
+                                Command="{Binding SetCategoryFilterCommand}"
+                                CommandParameter="Medinan"
+                                FontSize="11"
+                                HeightRequest="28"
+                                Padding="10,0"
+                                CornerRadius="14"
+                                BackgroundColor="#1E293B"
+                                TextColor="#94A3B8" />
+                    </HorizontalStackLayout>
+
+                    <!-- Surah List CollectionView -->
+                    <CollectionView Grid.Row="3"
+                                    ItemsSource="{Binding FilteredSurahs}"
+                                    SelectionMode="None"
+                                    HeightRequest="360">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:SurahInfo">
+                                <Border Margin="0,3"
+                                        Padding="10,8"
+                                        BackgroundColor="#1E232B"
+                                        Stroke="#2A303C"
+                                        StrokeShape="RoundRectangle 10">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding Source={x:Reference PageRoot}, Path=BindingContext.SelectSurahCommand}"
+                                                              CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                        <!-- Number Badge -->
+                                        <Border WidthRequest="34"
+                                                HeightRequest="34"
+                                                StrokeShape="RoundRectangle 17"
+                                                BackgroundColor="#0F766E"
+                                                Stroke="#14B8A6"
+                                                StrokeThickness="1"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center">
+                                            <Label Text="{Binding SurahNum}"
+                                                   TextColor="White"
+                                                   FontAttributes="Bold"
+                                                   FontSize="12"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center" />
+                                        </Border>
+
+                                        <!-- Names & Details -->
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding NameTransliteration}"
+                                                       TextColor="#F8FAFC"
+                                                       FontAttributes="Bold"
+                                                       FontSize="14" />
+                                                <Label Text="{Binding NameEnglish, StringFormat='({0})'}"
+                                                       TextColor="#94A3B8"
+                                                       FontSize="11"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
+                                            <Label Text="{Binding AyahCount, StringFormat='{0} Ayahs'}"
+                                                   TextColor="#64748B"
+                                                   FontSize="11" />
+                                        </VerticalStackLayout>
+
+                                        <!-- Arabic Name -->
+                                        <Label Grid.Column="2"
+                                               Text="{Binding NameArabic}"
+                                               TextColor="#38BDF8"
+                                               FontAttributes="Bold"
+                                               FontSize="18"
+                                               FontFamily="{StaticResource ArabicFontFamily}"
+                                               VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <!-- Footer Tip -->
+                    <Label Grid.Row="4"
+                           Text="💡 Tap any Surah to load it onto the memorization canvas instantly."
+                           TextColor="#64748B"
+                           FontSize="11"
+                           HorizontalOptions="Center" />
                 </Grid>
+            </Border>
+        </Grid>
 
-                <!-- Center Mic Button (Thumb-Friendly, Large Tap Target) -->
-                <Button x:Name="MicButton"
-                        Text="{Binding IsRecording, Converter={StaticResource BoolToMicTextConverter}}"
-                        BackgroundColor="{Binding MicButtonColor}"
-                        TextColor="{StaticResource TextOnPrimary}"
-                        FontAttributes="Bold"
-                        FontSize="{StaticResource FontSizeTitle}"
-                        HeightRequest="56"
-                        MinimumHeightRequest="56"
-                        CornerRadius="28"
-                        HorizontalOptions="FillAndExpand"
-                        IsEnabled="{Binding IsResetting, Converter={StaticResource InvertedBoolConverter}}"
-                        Command="{Binding ToggleRecordingCommand}" />
 
-                <!-- Quick Action Buttons Toolbar -->
-                <FlexLayout x:Name="SessionActionsLayout" Wrap="Wrap" JustifyContent="SpaceBetween" AlignItems="Center">
-                    <Button Text="Retry" Style="{StaticResource CompactActionButtonStyle}" Margin="2" HeightRequest="48" MinimumHeightRequest="48" IsVisible="{Binding IsGuidedAssignment}" Command="{Binding RetryCommand}" />
-                    <Button Text="Next" Style="{StaticResource PrimaryButtonStyle}" Margin="2" HeightRequest="48" MinimumHeightRequest="48" Padding="16,0" IsVisible="{Binding IsGuidedAssignment}" Command="{Binding NextAssignmentCommand}" />
-                    <Button Text="{Binding IsVerseVisible, StringFormat='Verse: {0}'}" Style="{StaticResource CompactActionButtonStyle}" Margin="2" HeightRequest="48" MinimumHeightRequest="48" Command="{Binding ToggleVerseVisibilityCommand}" />
-                    <Button Text="Mushaf" Style="{StaticResource CompactActionButtonStyle}" Margin="2" HeightRequest="48" MinimumHeightRequest="48" Command="{Binding OpenInMushafCommand}" />
-                </FlexLayout>
-            </VerticalStackLayout>
-        </Border>
+        <!-- 7. Official Madrasa Teacher Evaluation & Tasmee' Report Card Modal -->
+        <Grid IsVisible="{Binding IsEvaluationModalOpen}"
+              ZIndex="200"
+              BackgroundColor="#EE05080E">
+            
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    WidthRequest="480"
+                    MaximumHeightRequest="640"
+                    Margin="16"
+                    BackgroundColor="#0F141C"
+                    Stroke="#D97706"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 20"
+                    Padding="18">
+                
+                <ScrollView>
+                    <VerticalStackLayout Spacing="12">
+                        
+                        <!-- Ornate Header -->
+                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Label Text="📜" FontSize="22" VerticalOptions="Center" />
+                                <VerticalStackLayout Spacing="1">
+                                    <Label Text="بطاقة تقييم الشيخ وسجل التسميع" TextColor="#FDE68A" FontSize="16" FontAttributes="Bold" />
+                                    <Label Text="{Binding EvaluationModeDisplay}" TextColor="#94A3B8" FontSize="11" />
+                                </VerticalStackLayout>
+                            </HorizontalStackLayout>
+                            <Button Grid.Column="1" Text="✕" Command="{Binding CloseEvaluationModalCommand}"
+                                    TextColor="#94A3B8" BackgroundColor="#1E2430" HeightRequest="30" WidthRequest="30" CornerRadius="15" Padding="0" />
+                        </Grid>
+
+                        <BoxView HeightRequest="1" Color="#334155" />
+
+                        <!-- Surah & Ayah Span -->
+                        <Border BackgroundColor="#161D29" Stroke="#253041" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="12,6">
+                            <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                <Label Text="{Binding HeaderTitle, StringFormat='سورة {0}'}" TextColor="#F8FAFC" FontSize="15" FontAttributes="Bold" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="{Binding CurrentAyahLabel, StringFormat='الموضع: {0}'}" TextColor="#38BDF8" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Grade & Verdict Banner -->
+                        <Border BackgroundColor="#131B26" Stroke="{Binding EvaluationGradeColor}" StrokeThickness="2" StrokeShape="RoundRectangle 14" Padding="14,10">
+                            <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                                <Label Text="{Binding EvaluationGradeDisplay}" TextColor="{Binding EvaluationGradeColor}" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" />
+                                <Label Text="{Binding EvaluationDecisionDisplay}" TextColor="{Binding EvaluationDecisionColor}" FontSize="12" FontAttributes="Bold" HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- 4-Card Statistics Grid -->
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                            <!-- Mistakes -->
+                            <Border Grid.Row="0" Grid.Column="0" BackgroundColor="#1E232D" Stroke="#374151" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="10,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="أخطاء الحفظ (اللحن الجلي)" TextColor="#94A3B8" FontSize="9" />
+                                    <Label Text="{Binding MistakesCount, StringFormat='{0} خطأ'}" TextColor="#EF4444" FontSize="14" FontAttributes="Bold" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Tajweed Notes -->
+                            <Border Grid.Row="0" Grid.Column="1" BackgroundColor="#1E232D" Stroke="#374151" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="10,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="تنبيهات التجويد (اللحن الخفي)" TextColor="#94A3B8" FontSize="9" />
+                                    <Label Text="{Binding TajweedViolations.Count, StringFormat='{0} تنبيه'}" TextColor="#F59E0B" FontSize="14" FontAttributes="Bold" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Luqmahs (Prompts) -->
+                            <Border Grid.Row="1" Grid.Column="0" BackgroundColor="#1E232D" Stroke="#374151" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="10,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="لقمات الشيخ (التلقين)" TextColor="#94A3B8" FontSize="9" />
+                                    <Label Text="{Binding LuqmahCount, StringFormat='{0} لقمة'}" TextColor="#34D399" FontSize="14" FontAttributes="Bold" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Accuracy -->
+                            <Border Grid.Row="1" Grid.Column="1" BackgroundColor="#1E232D" Stroke="#374151" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="10,6">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="نسبة الإتقان الكلية" TextColor="#94A3B8" FontSize="9" />
+                                    <Label Text="{Binding Accuracy, StringFormat='{0:F1}%'}" TextColor="#38BDF8" FontSize="14" FontAttributes="Bold" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+
+                        <!-- Sheikh Remarks Box (Arabic & English) -->
+                        <Border BackgroundColor="#171C26" Stroke="#2D3748" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="12,10">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="نصيحة وتوجيهات الشيخ المعلم:" TextColor="#FBBF24" FontSize="11" FontAttributes="Bold" />
+                                <Label Text="{Binding EvaluationRemarksArabic}" TextColor="#F1F5F9" FontSize="13" FontFamily="{StaticResource ArabicFontFamily}" LineHeight="1.3" />
+                                <Label Text="{Binding EvaluationRemarksEnglish}" TextColor="#94A3B8" FontSize="11" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Action Buttons -->
+                        <VerticalStackLayout Spacing="8" Margin="0,4,0,0">
+                            <!-- Advance & Register -->
+                            <Button Text="تسجيل في دفتر الحفظ والانتقال ➔"
+                                    Command="{Binding SaveEvaluationAndAdvanceCommand}"
+                                    BackgroundColor="#059669"
+                                    TextColor="White"
+                                    FontAttributes="Bold"
+                                    FontSize="13"
+                                    HeightRequest="44"
+                                    CornerRadius="10" />
+
+                            <!-- Retry Recitation Now -->
+                            <Button Text="إعادة التسميع الآن ⟲"
+                                    Command="{Binding RetryRecitationCommand}"
+                                    BackgroundColor="#1E293B"
+                                    TextColor="#38BDF8"
+                                    BorderColor="#0284C7"
+                                    BorderWidth="1"
+                                    FontAttributes="Bold"
+                                    FontSize="12"
+                                    HeightRequest="40"
+                                    CornerRadius="10" />
+                        </VerticalStackLayout>
+
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Border>
+        </Grid>
+
     </Grid>
 </ContentPage>

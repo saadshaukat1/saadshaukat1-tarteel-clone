@@ -21,13 +21,9 @@ public static class AudioCaptureDefaults
     public const int SampleRateHz = 16000;
     public const short BitsPerSample = 16;
     public const short Channels = 1;
-    // 8 s chunks strike a balance for CPU-bound Whisper: fewer inference calls per
-    // minute than 5 s chunks (roughly half), while staying well within Whisper's 30 s
-    // context window for accurate Arabic transcription on weak hardware.
-    public const int ChunkDurationMilliseconds = 8000;
-    // Arabic recitation has elongated vowels (madd), so a small overlap reduces
-    // word-boundary cuts without wasting too much compute. 1 s of overlap between
-    // 8 s chunks (~12%) is enough for madd continuity at low CPU cost.
-    public const int ChunkOverlapMilliseconds = 1000;
+    // 2.5 s chunks allow live, word-by-word progressive recitation reveal
+    // while keeping inference reliable and avoiding speech cutoff delays.
+    public const int ChunkDurationMilliseconds = 2500;
+    public const int ChunkOverlapMilliseconds = 500;
     public const int CaptureBufferMilliseconds = 100;
 }

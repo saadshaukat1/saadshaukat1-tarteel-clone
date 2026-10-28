@@ -114,6 +114,13 @@ public interface IVerseRepository
         string? userKey = null,
         int limit = 10,
         CancellationToken cancellationToken = default);
+    Task<MadrasaEvaluation> RecordMadrasaEvaluationAsync(
+        MadrasaEvaluationInput input,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MadrasaEvaluation>> GetMadrasaEvaluationsAsync(
+        string? userKey = null,
+        int limit = 20,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record PracticeStreak(int Current, int Best, int TotalDays);
@@ -365,6 +372,28 @@ public partial class LocalVerseRepository : IVerseRepository
         -- Additive upgrades for pre-existing installations (never destructive).
         CREATE INDEX IF NOT EXISTS idx_error_history_verse_count
             ON tajweed_error_history(surah_num, ayah_num, error_count);
+
+        CREATE TABLE IF NOT EXISTS madrasa_evaluations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_key TEXT NOT NULL,
+            session_id INTEGER,
+            surah_num INTEGER NOT NULL,
+            ayah_num INTEGER NOT NULL,
+            end_ayah_num INTEGER NOT NULL,
+            mode INTEGER NOT NULL,
+            grade INTEGER NOT NULL,
+            score REAL NOT NULL,
+            mistakes_count INTEGER NOT NULL,
+            tajweed_notes_count INTEGER NOT NULL,
+            luqmah_count INTEGER NOT NULL,
+            hesitation_count INTEGER NOT NULL,
+            decision INTEGER NOT NULL,
+            remarks_arabic TEXT NOT NULL,
+            remarks_english TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_madrasa_eval_user
+            ON madrasa_evaluations(user_key, created_at);
         """;
 
     private readonly LocalQuranDataOptions _options;
