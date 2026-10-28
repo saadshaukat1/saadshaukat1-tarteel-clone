@@ -9,6 +9,7 @@ param(
 )
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+Set-Location $repoRoot
 
 # Auto-locate APK if not provided
 if (-not $ApkPath) {
